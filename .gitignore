@@ -1,0 +1,6 @@
+node_modules/
+dist/
+jobs.db
+.env
+.env.local
+.telegram-chat-id
