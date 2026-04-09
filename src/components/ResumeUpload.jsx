@@ -15,12 +15,64 @@ async function extractTextFromPdf(file) {
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const pages = []
+
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
-    const text = content.items.map(item => item.str).join(' ')
-    pages.push(text)
+    const items = content.items
+
+    if (items.length === 0) continue
+
+    // Reconstruct text preserving line breaks using Y-position
+    const lines = []
+    let currentLine = ''
+    let lastY = null
+    let lastX = null
+
+    for (const item of items) {
+      const y = Math.round(item.transform[5]) // Y position
+      const x = item.transform[4] // X position
+      const text = item.str
+
+      if (lastY !== null && Math.abs(y - lastY) > 3) {
+        // New line detected (Y position changed significantly)
+        lines.push(currentLine)
+        currentLine = text
+      } else if (lastX !== null && x - lastX > 15 && currentLine) {
+        // Large horizontal gap — likely a tab/column separator
+        currentLine += '  ' + text
+      } else {
+        // Same line — check if we need a space
+        if (currentLine && !currentLine.endsWith(' ') && text && !text.startsWith(' ')) {
+          currentLine += ' '
+        }
+        currentLine += text
+      }
+
+      lastY = y
+      lastX = x + (item.width || 0)
+    }
+    if (currentLine) lines.push(currentLine)
+
+    // Clean up: detect section headers (short bold lines, all caps) and add spacing
+    const cleaned = []
+    for (let j = 0; j < lines.length; j++) {
+      const line = lines[j].trim()
+      if (!line) continue
+
+      // Add blank line before section headers for readability
+      const isHeader = /^[A-Z][A-Z\s&\/]{2,}$/.test(line) ||
+        /^(SUMMARY|EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|PROJECTS|LANGUAGES|AWARDS|PROFILE|OBJECTIVE)$/i.test(line)
+
+      if (isHeader && cleaned.length > 0 && cleaned[cleaned.length - 1] !== '') {
+        cleaned.push('')
+      }
+      cleaned.push(line)
+    }
+
+    pages.push(cleaned.join('\n'))
   }
+
   return pages.join('\n\n')
 }
 
