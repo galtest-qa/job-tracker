@@ -15,10 +15,25 @@ export function clearKeyCache() {
   cachedKey = null
 }
 
-export async function callOpenAI(prompt, { temperature = 0.3 } = {}) {
+// Returns 'personal' if user has their own key, 'shared' otherwise
+export async function getAIMode() {
   const key = await getOpenAIKey()
-  if (!key) throw new Error('OpenAI API key not set. Go to Settings to add your key.')
+  return key ? 'personal' : 'shared'
+}
 
+export async function callOpenAI(prompt, { temperature = 0.3 } = {}) {
+  const personalKey = await getOpenAIKey()
+
+  if (personalKey) {
+    // Direct browser → OpenAI with user's own key
+    return callOpenAIDirect(prompt, personalKey, temperature)
+  } else {
+    // Use shared key via Edge Function proxy
+    return callOpenAIProxy(prompt, temperature)
+  }
+}
+
+async function callOpenAIDirect(prompt, key, temperature) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -41,7 +56,6 @@ export async function callOpenAI(prompt, { temperature = 0.3 } = {}) {
   const data = await res.json()
   const text = data.choices[0].message.content.trim()
 
-  // Parse JSON response
   try {
     return JSON.parse(text)
   } catch {
@@ -49,4 +63,27 @@ export async function callOpenAI(prompt, { temperature = 0.3 } = {}) {
     if (match) return JSON.parse(match[0])
     throw new Error('Could not parse AI response')
   }
+}
+
+async function callOpenAIProxy(prompt, temperature) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const res = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ prompt, temperature }),
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `AI proxy error: ${res.status}`)
+  }
+
+  const { result } = await res.json()
+  return result
 }
