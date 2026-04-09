@@ -313,26 +313,30 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   // AI features — use user's own OpenAI key directly from browser
   tailorResume: async (id) => {
     const job = await api.getJob(id)
-    const candidateContext = await getCandidateContext()
+    const resume = await api.getResume()
+    const rawResume = resume?.raw_text || ''
 
-    const result = await callOpenAI(`You are a professional resume consultant making MINIMAL, safe edits to a resume for a specific role.
+    if (!rawResume.trim()) {
+      throw new Error('Upload your resume first (button in the header)')
+    }
 
-STRICT RULES — DO NOT BREAK THESE:
-- NEVER invent, fabricate, or add experience the candidate didn't have
-- NEVER add job titles, companies, projects, or achievements that aren't in the original resume
-- NEVER change job titles, company names, or dates
-- NEVER add skills the candidate didn't mention
-- Only make SMALL wording changes: swap a verb, add a keyword, rephrase slightly
-- Keep the original structure, sections, and order intact
-- The tailored resume should be 95%+ identical to the original
+    const result = await callOpenAI(`You are editing a resume. Your output MUST preserve the EXACT formatting of the original.
 
-WHAT YOU CAN DO:
-- Replace weak verbs with stronger ones (e.g. "did" → "led")
-- Add keywords from the job posting INTO EXISTING bullet points where they naturally fit
-- Slightly rephrase a bullet to better match the job language
-- Adjust the summary/objective to target this specific role
+CRITICAL FORMAT RULES:
+- Copy the original resume EXACTLY — same line breaks, same spacing, same structure
+- Only change specific WORDS within existing lines
+- Do NOT restructure, reorder, merge, split, or reformat any lines
+- Do NOT add or remove line breaks
+- Do NOT change section headers
+- Do NOT change the order of sections
+- The output must look like a copy-paste of the original with a few words swapped
 
-EVERYTHING ELSE goes into "suggestions" — these are recommendations the candidate can choose to add manually. Each suggestion must specify exactly WHERE in the resume to add it and WHAT to add.
+CONTENT RULES:
+- NEVER invent experience, titles, companies, or skills
+- NEVER add new bullet points or sections
+- Only swap individual words or short phrases within existing bullets
+- Maximum 5-8 small word changes in the entire resume
+- Put ALL other improvements in "suggestions"
 
 JOB POSTING:
 Company: ${job.company}
@@ -340,21 +344,24 @@ Role: ${job.role}
 Description:
 ${job.description}
 
-${candidateContext}
+ORIGINAL RESUME (copy this EXACTLY, only change a few words):
+---START---
+${rawResume}
+---END---
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
-  "tailored_resume": "The resume with ONLY minimal safe edits. Must be 95%+ identical to the original.",
+  "tailored_resume": "The resume copied exactly from between ---START--- and ---END--- with only a few words changed. MUST have identical formatting.",
   "suggestions": [
     {
-      "section": "Which resume section (e.g. EXPERIENCE, SKILLS, SUMMARY)",
+      "section": "EXPERIENCE",
       "type": "add_bullet|add_skill|rephrase|reorder",
-      "original": "The original text (if rephrasing), or empty string if adding new",
-      "suggested": "The suggested new text or addition",
-      "reason": "Why this helps for this specific role"
+      "original": "Original text if rephrasing, or empty if adding",
+      "suggested": "Suggested new text",
+      "reason": "Why this helps"
     }
   ]
-}`, { temperature: 0.2 })
+}`, { temperature: 0.1 })
 
     await api.updateJob(id, {
       tailored_resume: result.tailored_resume || '',
