@@ -5,6 +5,7 @@ import MatchAnalysis from './MatchAnalysis.jsx'
 import CompanyLogo from './CompanyLogo.jsx'
 import ReminderPanel from './ReminderPanel.jsx'
 import { getNextAction, getFollowUp, getTimeline } from './nextAction.js'
+import ResumeTab from './ResumeTab.jsx'
 
 const PALETTE = ['#6b7280', '#4f6ef7', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
 
@@ -275,46 +276,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
 
         {/* ── Resume Tab ── */}
         {activeTab === 'resume' && (
-          <div className="resume-tab">
-            <div className="tab-actions">
-              <button className="btn btn-primary" onClick={tailorResume} disabled={tailoring}>
-                {tailoring ? 'Tailoring...' : job.tailored_resume ? 'Re-tailor Resume' : 'Tailor Resume for This Role'}
-              </button>
-              {job.tailored_resume && (
-                <button className="btn btn-secondary" onClick={exportResume}>
-                  Export to Word
-                </button>
-              )}
-            </div>
-
-            {job.tailored_resume ? (
-              <>
-                <div className="tailored-resume-block">
-                  <h4>Tailored Resume</h4>
-                  <pre className="description-text">{job.tailored_resume}</pre>
-                </div>
-
-                {job.resume_improvements?.length > 0 && (
-                  <div className="improvements-block">
-                    <h4>Improvement Recommendations</h4>
-                    <div className="improvements-list">
-                      {job.resume_improvements.map((imp, i) => (
-                        <div key={i} className="improvement-item">
-                          <span className="improvement-category">{imp.category}</span>
-                          <p>{imp.suggestion}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="empty-tab-state">
-                <p>Click "Tailor Resume for This Role" to generate a resume customized for this specific job posting.</p>
-                <p className="muted">Make sure you've uploaded your resume first (button in the header).</p>
-              </div>
-            )}
-          </div>
+          <ResumeTab job={job} setJob={setJob} jobId={jobId} tailoring={tailoring} onTailor={tailorResume} />
         )}
 
         {/* ── Interview Prep Tab ── */}
