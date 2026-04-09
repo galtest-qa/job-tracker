@@ -93,14 +93,28 @@ export const api = {
     const job = await api.getJob(id)
     const candidateContext = await getCandidateContext()
 
-    const result = await callOpenAI(`You are an expert career advisor analyzing a job posting against a specific candidate. Be honest, specific, and actionable.
+    const result = await callOpenAI(`You are an expert career advisor. Analyze this job posting against the candidate using a structured, transparent scoring system.
 
-INSTRUCTIONS:
-- Compare EVERY requirement in the job description against the candidate's actual experience
-- For each requirement, cite specific evidence from the resume or profile — don't be vague
-- Score the match honestly: 90+ means near-perfect fit, 70-89 is strong, 50-69 is partial, below 50 is a stretch
-- Positioning tips should reference the candidate's ACTUAL experience and suggest how to frame it
-- If the candidate lacks something, say so clearly and suggest how to address it
+SCORING RULES:
+- Start at 100 points
+- Extract every distinct requirement from the job description
+- For each requirement, assign a WEIGHT (how important it is to this role):
+  - "critical" = core requirement, heavily weighted (e.g. years of experience, must-have skills)
+  - "important" = significant but not dealbreaker (e.g. preferred tools, industry knowledge)
+  - "nice_to_have" = bonus, minor impact (e.g. certifications, extra languages)
+- For each requirement, determine STATUS:
+  - "met" = candidate clearly has this (0 point deduction)
+  - "partial" = candidate has related but not exact experience (partial deduction)
+  - "unmet" = candidate lacks this (full deduction based on weight)
+- Point deductions by weight:
+  - critical + unmet = -15 to -25 points (e.g. "requires 15 years, candidate has 1" = -25)
+  - critical + partial = -5 to -12 points
+  - important + unmet = -8 to -12 points
+  - important + partial = -3 to -6 points
+  - nice_to_have + unmet = -2 to -5 points
+  - nice_to_have + partial = -1 to -3 points
+- Be HARSH on experience year gaps (asking for 10+ years when candidate has 1-2 is a critical unmet, -20 to -25)
+- The final match_score = 100 minus all deductions (minimum 0)
 
 JOB POSTING:
 Company: ${job.company}
@@ -112,25 +126,37 @@ ${candidateContext}
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
-  "summary": "2-3 sentence summary of what this role involves and what the hiring company is looking for",
-  "company_overview": "1-2 sentence company description if inferable from the posting",
+  "summary": "2-3 sentence summary of what this role involves",
+  "company_overview": "1-2 sentence company description if inferable",
   "company_industry": "industry category",
-  "requirements_met": ["Requirement X — candidate has Y experience at Z company that directly maps to this"],
-  "requirements_partial": ["Requirement X — candidate has related experience in Y but lacks Z specifically"],
-  "requirements_unmet": ["Requirement X — not found in candidate's background. Consider: suggestion to address this gap"],
-  "match_score": "<integer 0-100 — be precise and honest based on actual evidence>",
-  "positioning_tips": "2-3 specific, actionable suggestions referencing the candidate's real experience. Example: 'Frame your PoC management at Upwind as program management experience since it involved cross-functional coordination'",
-  "tags": ["relevant", "category", "tags"]
+  "score_breakdown": [
+    {
+      "requirement": "The specific requirement from the job posting",
+      "weight": "critical|important|nice_to_have",
+      "status": "met|partial|unmet",
+      "points_deducted": 0,
+      "evidence": "Why this status — cite specific candidate experience or lack thereof"
+    }
+  ],
+  "match_score": "<integer 0-100 = 100 minus total deductions>",
+  "positioning_tips": "2-3 specific suggestions referencing real experience",
+  "tags": ["relevant", "tags"]
 }`)
+
+    // Transform score_breakdown into the legacy format for backward compatibility
+    const breakdown = result.score_breakdown || []
+    const requirements_met = breakdown.filter(r => r.status === 'met').map(r => `${r.requirement} — ${r.evidence}`)
+    const requirements_partial = breakdown.filter(r => r.status === 'partial').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)
+    const requirements_unmet = breakdown.filter(r => r.status === 'unmet').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)
 
     await api.updateJob(id, {
       summary: result.summary || '',
       company_overview: result.company_overview || '',
       company_industry: result.company_industry || '',
-      requirements_met: result.requirements_met || [],
-      requirements_partial: result.requirements_partial || [],
-      requirements_unmet: result.requirements_unmet || [],
-      match_score: result.match_score || null,
+      requirements_met: requirements_met,
+      requirements_partial: requirements_partial,
+      requirements_unmet: requirements_unmet,
+      match_score: typeof result.match_score === 'number' ? result.match_score : parseInt(result.match_score) || null,
       positioning_tips: result.positioning_tips || '',
       tags: result.tags || [],
     })
