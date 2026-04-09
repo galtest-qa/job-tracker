@@ -315,15 +315,24 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     const job = await api.getJob(id)
     const candidateContext = await getCandidateContext()
 
-    const result = await callOpenAI(`You are a professional resume consultant. Your job is to tailor the candidate's resume for a specific role.
+    const result = await callOpenAI(`You are a professional resume consultant making MINIMAL, safe edits to a resume for a specific role.
 
-RULES:
-- Rewrite bullet points to emphasize experience relevant to THIS specific role
-- Mirror keywords and phrases from the job description
-- Reorder sections to lead with the most relevant experience
-- Keep it HONEST — don't fabricate experience, but reframe existing experience to match
-- If the candidate mentioned their strengths or career goals, use that to guide emphasis
-- Use strong action verbs and quantify achievements where possible
+STRICT RULES — DO NOT BREAK THESE:
+- NEVER invent, fabricate, or add experience the candidate didn't have
+- NEVER add job titles, companies, projects, or achievements that aren't in the original resume
+- NEVER change job titles, company names, or dates
+- NEVER add skills the candidate didn't mention
+- Only make SMALL wording changes: swap a verb, add a keyword, rephrase slightly
+- Keep the original structure, sections, and order intact
+- The tailored resume should be 95%+ identical to the original
+
+WHAT YOU CAN DO:
+- Replace weak verbs with stronger ones (e.g. "did" → "led")
+- Add keywords from the job posting INTO EXISTING bullet points where they naturally fit
+- Slightly rephrase a bullet to better match the job language
+- Adjust the summary/objective to target this specific role
+
+EVERYTHING ELSE goes into "suggestions" — these are recommendations the candidate can choose to add manually. Each suggestion must specify exactly WHERE in the resume to add it and WHAT to add.
 
 JOB POSTING:
 Company: ${job.company}
@@ -335,16 +344,21 @@ ${candidateContext}
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
-  "tailored_resume": "The full tailored resume text with clear sections (SUMMARY, EXPERIENCE, SKILLS, EDUCATION). Ready to export.",
-  "improvements": [
-    {"category": "Keywords", "suggestion": "Add these keywords from the job post: X, Y, Z"},
-    {"category": "Experience", "suggestion": "Specific actionable suggestion referencing actual experience"}
+  "tailored_resume": "The resume with ONLY minimal safe edits. Must be 95%+ identical to the original.",
+  "suggestions": [
+    {
+      "section": "Which resume section (e.g. EXPERIENCE, SKILLS, SUMMARY)",
+      "type": "add_bullet|add_skill|rephrase|reorder",
+      "original": "The original text (if rephrasing), or empty string if adding new",
+      "suggested": "The suggested new text or addition",
+      "reason": "Why this helps for this specific role"
+    }
   ]
-}`, { temperature: 0.4 })
+}`, { temperature: 0.2 })
 
     await api.updateJob(id, {
       tailored_resume: result.tailored_resume || '',
-      resume_improvements: result.improvements || [],
+      resume_improvements: result.suggestions || result.improvements || [],
     })
     return await api.getJob(id)
   },

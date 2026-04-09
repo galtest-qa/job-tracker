@@ -647,6 +647,29 @@ body {
 }
 .improvement-item p { font-size: 0.84rem; line-height: 1.55; color: var(--text); }
 
+/* Suggestion cards */
+.suggestion-card {
+  background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  padding: 0.75rem 0.85rem; border-left: 3px solid var(--primary);
+  transition: all var(--transition);
+}
+.suggestion-card.applied { opacity: 0.5; border-left-color: var(--success); }
+.suggestion-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+.suggestion-card-section {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--primary);
+}
+.suggestion-card-type {
+  font-size: 0.62rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 999px;
+  background: var(--border-light); color: var(--text-tertiary); text-transform: uppercase;
+}
+.suggestion-original {
+  font-size: 0.78rem; color: var(--text-tertiary); margin-bottom: 0.3rem;
+  text-decoration: line-through; line-height: 1.5;
+}
+.suggestion-new { font-size: 0.82rem; color: var(--text); margin-bottom: 0.3rem; line-height: 1.5; }
+.suggestion-label { font-weight: 700; font-size: 0.7rem; color: var(--text-secondary); }
+.suggestion-reason { font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 0.4rem; font-style: italic; line-height: 1.5; }
+
 .empty-tab-state {
   text-align: center; padding: 3rem 2rem; color: var(--text-secondary);
   background: var(--surface-hover); border-radius: var(--radius); border: 1px dashed var(--border);

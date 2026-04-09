@@ -62,6 +62,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [originalResume, setOriginalResume] = useState('')
+  const [appliedSuggestions, setAppliedSuggestions] = useState(new Set())
 
   useEffect(() => {
     if (job.tailored_resume) setEditText(job.tailored_resume)
@@ -86,6 +87,63 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     setJob({ ...job, tailored_resume: newText })
     setSaving(false)
     setResumeView('tailored')
+  }
+
+  const handleApplySuggestion = async (idx, imp) => {
+    let currentText = editText || job.tailored_resume
+    const suggested = imp.suggested || imp.suggestion || ''
+
+    if (imp.original && imp.original.trim()) {
+      // Rephrase: find and replace
+      if (currentText.includes(imp.original)) {
+        currentText = currentText.replace(imp.original, suggested)
+      } else {
+        // Try fuzzy match (first 30 chars)
+        const snippet = imp.original.slice(0, 30)
+        const idx = currentText.indexOf(snippet)
+        if (idx >= 0) {
+          const endIdx = currentText.indexOf('\n', idx)
+          currentText = currentText.slice(0, idx) + suggested + (endIdx >= 0 ? currentText.slice(endIdx) : '')
+        } else {
+          // Can't find it — append to section
+          currentText = appendToSection(currentText, imp.section, suggested)
+        }
+      }
+    } else {
+      // Add new: append to the relevant section
+      currentText = appendToSection(currentText, imp.section, suggested)
+    }
+
+    setEditText(currentText)
+    // Save immediately
+    await api.updateJob(jobId, { tailored_resume: currentText })
+    setJob({ ...job, tailored_resume: currentText })
+    setAppliedSuggestions(prev => new Set([...prev, idx]))
+  }
+
+  function appendToSection(text, sectionName, newLine) {
+    if (!sectionName) return text + '\n' + newLine
+
+    const lines = text.split('\n')
+    const sectionPattern = new RegExp(`^${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i')
+    let insertIdx = -1
+
+    for (let i = 0; i < lines.length; i++) {
+      if (sectionPattern.test(lines[i].trim())) {
+        // Find the end of this section (next section header or end of file)
+        let j = i + 1
+        while (j < lines.length && !/^[A-Z][A-Z\s&\/]{2,}$/.test(lines[j].trim())) j++
+        insertIdx = j
+        break
+      }
+    }
+
+    if (insertIdx >= 0) {
+      lines.splice(insertIdx, 0, (newLine.startsWith('-') || newLine.startsWith('•') ? '' : '- ') + newLine)
+    } else {
+      lines.push('', newLine)
+    }
+    return lines.join('\n')
   }
 
   const handleExport = () => {
@@ -154,14 +212,36 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
 
           {job.resume_improvements?.length > 0 && resumeView !== 'edit' && (
             <div className="improvements-block">
-              <h4>Improvement Recommendations</h4>
+              <h4>Suggestions — click to apply</h4>
+              <p className="muted" style={{ marginBottom: '0.5rem' }}>These are optional changes you can add to your resume. Click "Apply" to add each one.</p>
               <div className="improvements-list">
-                {job.resume_improvements.map((imp, i) => (
-                  <div key={i} className="improvement-item">
-                    <span className="improvement-category">{imp.category}</span>
-                    <p>{imp.suggestion}</p>
-                  </div>
-                ))}
+                {job.resume_improvements.map((imp, i) => {
+                  const isApplied = appliedSuggestions.has(i)
+                  return (
+                    <div key={i} className={`suggestion-card ${isApplied ? 'applied' : ''}`}>
+                      <div className="suggestion-card-header">
+                        <span className="suggestion-card-section">{imp.section || imp.category}</span>
+                        <span className="suggestion-card-type">{imp.type || 'suggestion'}</span>
+                      </div>
+                      {imp.original && (
+                        <div className="suggestion-original">
+                          <span className="suggestion-label">Current:</span> {imp.original}
+                        </div>
+                      )}
+                      <div className="suggestion-new">
+                        <span className="suggestion-label">{imp.original ? 'Change to:' : 'Add:'}</span> {imp.suggested || imp.suggestion}
+                      </div>
+                      {imp.reason && <div className="suggestion-reason">{imp.reason}</div>}
+                      <button
+                        className={`btn btn-sm ${isApplied ? 'btn-ghost' : 'btn-primary'}`}
+                        onClick={() => handleApplySuggestion(i, imp)}
+                        disabled={isApplied}
+                      >
+                        {isApplied ? 'Applied' : 'Apply'}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
