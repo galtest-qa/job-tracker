@@ -103,7 +103,7 @@ export default function Discover({ onJobAdded, columns }) {
             {searching ? 'Searching...' : 'Search Jobs'}
           </button>
         </div>
-        <p className="discover-hint">Searches across LinkedIn, Indeed, Glassdoor, and more. Shows jobs posted in the last week.</p>
+        <p className="discover-hint">Searches Google Jobs — aggregates LinkedIn, Indeed, Glassdoor, and more.</p>
       </div>
 
       {error && <div className="error-msg">{error}</div>}
@@ -128,16 +128,15 @@ export default function Discover({ onJobAdded, columns }) {
                       <span className="discover-card-company">{job.company}</span>
                       <div className="discover-card-meta">
                         {job.location && <span>{job.location}</span>}
-                        {job.is_remote && <span className="discover-remote">Remote</span>}
                         {job.type && <span>{job.type}</span>}
-                        {job.posted && <span>{timeAgo(job.posted)}</span>}
-                        <span className="discover-source">{job.source}</span>
+                        {job.posted && <span>{job.posted}</span>}
+                        {job.source && <span className="discover-source">{job.source.replace('via ', '')}</span>}
                       </div>
                     </div>
                     <div className="discover-card-actions">
-                      {job.link && (
-                        <a href={job.link} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
-                          View
+                      {(job.apply_links?.length > 0 ? job.apply_links[0].link : job.link) && (
+                        <a href={job.apply_links?.length > 0 ? job.apply_links[0].link : job.link} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
+                          Apply
                         </a>
                       )}
                       <button
