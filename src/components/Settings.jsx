@@ -4,17 +4,28 @@ import { clearKeyCache, getAIMode } from '../lib/openai.js'
 
 export default function Settings({ onClose }) {
   const [openaiKey, setOpenaiKey] = useState('')
-  const [aiMode, setAiMode] = useState(null) // 'shared' | 'personal'
+  const [aiMode, setAiMode] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
+  // Telegram
+  const [tgEnabled, setTgEnabled] = useState(false)
+  const [tgToken, setTgToken] = useState('')
+  const [tgChatId, setTgChatId] = useState('')
+  const [tgDetecting, setTgDetecting] = useState(false)
+  const [tgTesting, setTgTesting] = useState(false)
+  const [tgSaving, setTgSaving] = useState(false)
+  const [tgStatus, setTgStatus] = useState('')
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase.from('profiles').select('openai_key').eq('id', user.id).single()
+        const { data } = await supabase.from('profiles').select('openai_key, telegram_bot_token, telegram_chat_id, telegram_enabled').eq('id', user.id).single()
         if (data?.openai_key) setOpenaiKey(data.openai_key)
+        if (data?.telegram_bot_token) setTgToken(data.telegram_bot_token)
+        if (data?.telegram_chat_id) setTgChatId(data.telegram_chat_id)
+        if (data?.telegram_enabled) setTgEnabled(data.telegram_enabled)
       }
       const mode = await getAIMode()
       setAiMode(mode)
@@ -55,6 +66,58 @@ export default function Settings({ onClose }) {
     window.postMessage(payload, '*')
     // Also try chrome.runtime.sendMessage if extension ID is known
     alert('Connection sent! If the extension is installed, it should now be connected. Open a LinkedIn job page to test.')
+  }
+
+  // ── Telegram handlers ──
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+
+  const handleTgDetectChat = async () => {
+    if (!tgToken.trim()) { setTgStatus('Enter your bot token first'); return }
+    setTgDetecting(true); setTgStatus('')
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/telegram-detect-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session.access_token}` },
+        body: JSON.stringify({ bot_token: tgToken.trim() }),
+      })
+      const data = await res.json()
+      if (data.chat_id) {
+        setTgChatId(data.chat_id)
+        setTgStatus('Chat ID detected!')
+      } else {
+        setTgStatus(data.error || 'Could not detect chat ID')
+      }
+    } catch (err) { setTgStatus(err.message) }
+    setTgDetecting(false)
+  }
+
+  const handleTgTest = async () => {
+    if (!tgToken.trim() || !tgChatId.trim()) { setTgStatus('Token and chat ID required'); return }
+    setTgTesting(true); setTgStatus('')
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/telegram-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session.access_token}` },
+        body: JSON.stringify({ bot_token: tgToken.trim(), chat_id: tgChatId.trim() }),
+      })
+      const data = await res.json()
+      setTgStatus(data.ok ? 'Test message sent! Check Telegram.' : (data.error || 'Failed'))
+    } catch (err) { setTgStatus(err.message) }
+    setTgTesting(false)
+  }
+
+  const handleTgSave = async () => {
+    setTgSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('profiles').update({
+      telegram_bot_token: tgToken.trim(),
+      telegram_chat_id: tgChatId.trim(),
+      telegram_enabled: tgEnabled,
+    }).eq('id', user.id)
+    setTgSaving(false)
+    setTgStatus('Saved!')
+    setTimeout(() => setTgStatus(''), 2000)
   }
 
   const handleRemoveKey = async () => {
@@ -143,6 +206,63 @@ export default function Settings({ onClose }) {
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+
+            {/* Telegram Notifications */}
+            <div className="settings-section">
+              <h4 className="settings-section-title">Telegram Notifications (Optional)</h4>
+              <p className="settings-guide-text">
+                Get reminder notifications on Telegram — never miss a follow-up, interview, or deadline.
+              </p>
+
+              <div className="settings-toggle-row">
+                <label className="toggle-label">
+                  <input type="checkbox" checked={tgEnabled} onChange={e => setTgEnabled(e.target.checked)} />
+                  <span>Enable Telegram notifications</span>
+                </label>
+              </div>
+
+              {tgEnabled && (
+                <div className="settings-guide" style={{ marginTop: '0.5rem' }}>
+                  <p><strong>Step 1:</strong> Create a bot</p>
+                  <ol>
+                    <li>Open Telegram and search for <strong>@BotFather</strong></li>
+                    <li>Send <code>/newbot</code> and follow the prompts</li>
+                    <li>Copy the bot token and paste it below</li>
+                  </ol>
+
+                  <div className="form-group">
+                    <label>Bot Token</label>
+                    <input type="password" value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
+                  </div>
+
+                  <p><strong>Step 2:</strong> Get your Chat ID</p>
+                  <p>Open Telegram, find your new bot, and send it <code>/start</code>. Then click the button below.</p>
+
+                  <div className="settings-btn-row">
+                    <button className="btn btn-secondary btn-sm" onClick={handleTgDetectChat} disabled={tgDetecting}>
+                      {tgDetecting ? 'Detecting...' : 'Detect Chat ID'}
+                    </button>
+                    {tgChatId && <span className="settings-hint" style={{ marginTop: 0 }}>Chat ID: {tgChatId}</span>}
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                    <label>Chat ID</label>
+                    <input type="text" value={tgChatId} onChange={e => setTgChatId(e.target.value)} placeholder="Auto-detected or enter manually" />
+                  </div>
+
+                  <div className="settings-btn-row">
+                    <button className="btn btn-primary btn-sm" onClick={handleTgSave} disabled={tgSaving}>
+                      {tgSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={handleTgTest} disabled={tgTesting || !tgToken || !tgChatId}>
+                      {tgTesting ? 'Sending...' : 'Send Test'}
+                    </button>
+                  </div>
+
+                  {tgStatus && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{tgStatus}</p>}
+                </div>
               )}
             </div>
 

@@ -1002,6 +1002,14 @@ body {
 .settings-guide a { color: var(--primary); }
 .settings-guide .form-group { margin-top: 0.75rem; }
 .settings-btn-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+.settings-toggle-row { margin-bottom: 0.5rem; }
+.toggle-label {
+  display: flex; align-items: center; gap: 0.5rem; cursor: pointer;
+  font-size: 0.84rem; font-weight: 600; color: var(--text);
+}
+.toggle-label input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;
+}
 .settings-guide-text { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
 .settings-guide code {
   font-size: 0.78rem; background: var(--border-light); padding: 0.1rem 0.35rem;
