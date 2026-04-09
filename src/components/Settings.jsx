@@ -8,6 +8,20 @@ export default function Settings({ onClose }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
+  // Profile questions
+  const PROFILE_QUESTIONS = [
+    { key: 'current_role', label: 'What is your current or most recent role?', placeholder: 'e.g. Release Operations Manager at Upwind Security' },
+    { key: 'years_experience', label: 'How many years of professional experience do you have?', placeholder: 'e.g. 3 years' },
+    { key: 'key_skills', label: 'What are your top skills?', placeholder: 'e.g. Release management, QA, cross-functional collaboration, CI/CD' },
+    { key: 'career_goals', label: 'What kind of roles are you targeting?', placeholder: 'e.g. Product Operations, Technical Program Management, Release Management' },
+    { key: 'strengths', label: 'What makes you stand out?', placeholder: 'e.g. Built release ops from scratch, managed PoCs with enterprise customers' },
+    { key: 'gaps', label: 'What areas are you looking to grow in?', placeholder: 'e.g. Data analysis, SQL, people management' },
+    { key: 'preferences', label: 'Any preferences? (company size, industry, remote, etc.)', placeholder: 'e.g. Prefer startups, cloud/security industry, hybrid work' },
+  ]
+  const [profileContext, setProfileContext] = useState({})
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+
   // Telegram
   const [tgEnabled, setTgEnabled] = useState(false)
   const [tgToken, setTgToken] = useState('')
@@ -21,11 +35,12 @@ export default function Settings({ onClose }) {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase.from('profiles').select('openai_key, telegram_bot_token, telegram_chat_id, telegram_enabled').eq('id', user.id).single()
+        const { data } = await supabase.from('profiles').select('openai_key, telegram_bot_token, telegram_chat_id, telegram_enabled, profile_context').eq('id', user.id).single()
         if (data?.openai_key) setOpenaiKey(data.openai_key)
         if (data?.telegram_bot_token) setTgToken(data.telegram_bot_token)
         if (data?.telegram_chat_id) setTgChatId(data.telegram_chat_id)
         if (data?.telegram_enabled) setTgEnabled(data.telegram_enabled)
+        if (data?.profile_context && typeof data.profile_context === 'object') setProfileContext(data.profile_context)
       }
       const mode = await getAIMode()
       setAiMode(mode)
@@ -43,6 +58,15 @@ export default function Settings({ onClose }) {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleProfileSave = async () => {
+    setProfileSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('profiles').update({ profile_context: profileContext }).eq('id', user.id)
+    setProfileSaving(false)
+    setProfileSaved(true)
+    setTimeout(() => setProfileSaved(false), 2000)
   }
 
   const [connectionCode, setConnectionCode] = useState('')
@@ -203,6 +227,32 @@ export default function Settings({ onClose }) {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Profile Questions */}
+            <div className="settings-section">
+              <h4 className="settings-section-title">About You</h4>
+              <p className="settings-guide-text">
+                Help the AI understand you better. These answers improve job analysis accuracy, resume tailoring, and interview prep.
+              </p>
+
+              <div className="profile-questions">
+                {PROFILE_QUESTIONS.map(q => (
+                  <div key={q.key} className="form-group">
+                    <label>{q.label}</label>
+                    <input
+                      type="text"
+                      value={profileContext[q.key] || ''}
+                      onChange={e => setProfileContext({ ...profileContext, [q.key]: e.target.value })}
+                      placeholder={q.placeholder}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <button className="btn btn-primary btn-sm" onClick={handleProfileSave} disabled={profileSaving}>
+                {profileSaving ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Profile'}
+              </button>
             </div>
 
             {/* Telegram Notifications */}

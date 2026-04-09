@@ -1019,6 +1019,11 @@ body {
   font-size: 0.72rem; color: var(--text-tertiary); margin-top: 0.35rem; line-height: 1.5;
 }
 .settings-hint a { color: var(--primary); }
+.profile-questions { margin-bottom: 0.75rem; }
+.profile-questions .form-group { margin-bottom: 0.6rem; }
+.profile-questions .form-group label { font-size: 0.78rem; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 600; }
+.profile-questions .form-group input { font-size: 0.82rem; }
+
 .connection-code {
   width: 100%; margin-top: 0.4rem; padding: 0.5rem; font-size: 0.68rem;
   font-family: monospace; border: 1px solid var(--border); border-radius: var(--radius-xs);

@@ -1,5 +1,6 @@
 import { supabase } from './lib/supabase.js'
 import { callOpenAI } from './lib/openai.js'
+import { getCandidateContext } from './lib/candidateContext.js'
 
 async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -90,12 +91,16 @@ export const api = {
 
   analyzeJob: async (id) => {
     const job = await api.getJob(id)
-    const resume = await api.getResume()
-    const resumeContext = resume?.raw_text
-      ? `CANDIDATE RESUME:\n${resume.raw_text}`
-      : 'No resume uploaded.'
+    const candidateContext = await getCandidateContext()
 
-    const result = await callOpenAI(`Analyze this job posting against the candidate's profile. Be honest and practical.
+    const result = await callOpenAI(`You are an expert career advisor analyzing a job posting against a specific candidate. Be honest, specific, and actionable.
+
+INSTRUCTIONS:
+- Compare EVERY requirement in the job description against the candidate's actual experience
+- For each requirement, cite specific evidence from the resume or profile — don't be vague
+- Score the match honestly: 90+ means near-perfect fit, 70-89 is strong, 50-69 is partial, below 50 is a stretch
+- Positioning tips should reference the candidate's ACTUAL experience and suggest how to frame it
+- If the candidate lacks something, say so clearly and suggest how to address it
 
 JOB POSTING:
 Company: ${job.company}
@@ -103,19 +108,19 @@ Role: ${job.role}
 Description:
 ${job.description}
 
-${resumeContext}
+${candidateContext}
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
-  "summary": "2-3 sentence summary of what this role involves",
+  "summary": "2-3 sentence summary of what this role involves and what the hiring company is looking for",
   "company_overview": "1-2 sentence company description if inferable from the posting",
   "company_industry": "industry category",
-  "requirements_met": ["requirement the candidate clearly meets"],
-  "requirements_partial": ["requirement partially met with explanation"],
-  "requirements_unmet": ["requirement not met with note"],
-  "match_score": "<integer 0-100, be honest and precise>",
-  "positioning_tips": "2-3 specific suggestions for how to position for this role",
-  "tags": ["relevant", "tags"]
+  "requirements_met": ["Requirement X — candidate has Y experience at Z company that directly maps to this"],
+  "requirements_partial": ["Requirement X — candidate has related experience in Y but lacks Z specifically"],
+  "requirements_unmet": ["Requirement X — not found in candidate's background. Consider: suggestion to address this gap"],
+  "match_score": "<integer 0-100 — be precise and honest based on actual evidence>",
+  "positioning_tips": "2-3 specific, actionable suggestions referencing the candidate's real experience. Example: 'Frame your PoC management at Upwind as program management experience since it involved cross-functional coordination'",
+  "tags": ["relevant", "category", "tags"]
 }`)
 
     await api.updateJob(id, {
@@ -282,16 +287,17 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   // AI features — use user's own OpenAI key directly from browser
   tailorResume: async (id) => {
     const job = await api.getJob(id)
-    const resume = await api.getResume()
-    const resumeContext = resume?.raw_text
-      ? `CANDIDATE RESUME:\n${resume.raw_text}`
-      : 'No resume uploaded.'
+    const candidateContext = await getCandidateContext()
 
-    const result = await callOpenAI(`You are a professional resume consultant. Given the candidate's resume and a target job description, do two things:
+    const result = await callOpenAI(`You are a professional resume consultant. Your job is to tailor the candidate's resume for a specific role.
 
-1. TAILOR the resume for this role. Rewrite bullet points to emphasize relevant experience, reorder sections, and adjust language to mirror the job posting's keywords. Keep it honest.
-
-2. Provide specific IMPROVEMENT RECOMMENDATIONS.
+RULES:
+- Rewrite bullet points to emphasize experience relevant to THIS specific role
+- Mirror keywords and phrases from the job description
+- Reorder sections to lead with the most relevant experience
+- Keep it HONEST — don't fabricate experience, but reframe existing experience to match
+- If the candidate mentioned their strengths or career goals, use that to guide emphasis
+- Use strong action verbs and quantify achievements where possible
 
 JOB POSTING:
 Company: ${job.company}
@@ -299,13 +305,14 @@ Role: ${job.role}
 Description:
 ${job.description}
 
-${resumeContext}
+${candidateContext}
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
-  "tailored_resume": "The full tailored resume text, formatted with clear sections.",
+  "tailored_resume": "The full tailored resume text with clear sections (SUMMARY, EXPERIENCE, SKILLS, EDUCATION). Ready to export.",
   "improvements": [
-    {"category": "Category", "suggestion": "Specific suggestion"}
+    {"category": "Keywords", "suggestion": "Add these keywords from the job post: X, Y, Z"},
+    {"category": "Experience", "suggestion": "Specific actionable suggestion referencing actual experience"}
   ]
 }`, { temperature: 0.4 })
 
@@ -318,31 +325,36 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
 
   interviewPrep: async (id) => {
     const job = await api.getJob(id)
-    const resume = await api.getResume()
-    const resumeContext = resume?.raw_text
-      ? `CANDIDATE RESUME:\n${resume.raw_text}`
-      : 'No resume uploaded.'
+    const candidateContext = await getCandidateContext()
 
-    const result = await callOpenAI(`You are an expert interview coach. Prepare a comprehensive interview preparation guide for this specific role and candidate.
+    const result = await callOpenAI(`You are an expert interview coach preparing a candidate for a specific role. Use their actual experience to craft realistic, compelling answers.
+
+RULES:
+- Suggested answers MUST use the STAR format (Situation, Task, Action, Result) and reference the candidate's REAL experience from their resume
+- Questions to ask should show genuine interest and research about the company
+- Key talking points should be things the candidate can naturally bring up that highlight their fit
+- Potential concerns should be honest about gaps and include a strategy to address each one
+- If the candidate mentioned growth areas or career goals, factor those into the prep
 
 JOB POSTING:
 Company: ${job.company}
 Role: ${job.role}
 Description:
 ${job.description}
+${job.company_overview ? `\nCompany: ${job.company_overview}` : ''}
+${job.company_industry ? `Industry: ${job.company_industry}` : ''}
 
-${resumeContext}
-${job.company_overview ? `Company context: ${job.company_overview}` : ''}
+${candidateContext}
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
   "likely_questions": [
-    {"question": "Question", "suggested_answer": "STAR-format answer from candidate's experience"}
+    {"question": "Tell me about a time you...", "suggested_answer": "At [Company], I [situation]. I was tasked with [task]. I [action] which resulted in [result]."}
   ],
-  "questions_to_ask": ["Question 1", "Question 2"],
-  "key_talking_points": ["Point 1", "Point 2"],
-  "potential_concerns": ["Concern and how to address it"],
-  "company_research_notes": "Key things to know about the company"
+  "questions_to_ask": ["Insightful question showing research about the company/role"],
+  "key_talking_points": ["Specific experience to highlight and how to frame it"],
+  "potential_concerns": ["Gap or concern the interviewer might have + strategy to address it"],
+  "company_research_notes": "Key things to know about this company, their products, culture, and recent news"
 }`, { temperature: 0.4 })
 
     await api.updateJob(id, { interview_prep_ai: result })
