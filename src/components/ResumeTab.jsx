@@ -73,7 +73,7 @@ function generateDocx(text, company, role) {
 }
 
 export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
-  const [resumeView, setResumeView] = useState('tailored')
+  const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState('')
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -93,7 +93,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     await api.updateJob(jobId, { tailored_resume: editText })
     setJob({ ...job, tailored_resume: editText })
     setSaving(false)
-    setResumeView('tailored')
+    setIsEditing(false)
   }
 
   const handleApplyDiff = async (newText) => {
@@ -102,7 +102,6 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     await api.updateJob(jobId, { tailored_resume: newText })
     setJob({ ...job, tailored_resume: newText })
     setSaving(false)
-    setResumeView('tailored')
   }
 
   const handleApplySuggestion = async (idx, imp) => {
@@ -183,53 +182,45 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
       </div>
 
       {job.tailored_resume ? (
-        <>
-          <div className="resume-view-tabs">
-            <button className={`tab ${resumeView === 'tailored' ? 'active' : ''}`}
-              onClick={() => setResumeView('tailored')}>Tailored</button>
-            <button className={`tab ${resumeView === 'diff' ? 'active' : ''}`}
-              onClick={() => setResumeView('diff')}>Review Changes</button>
-            <button className={`tab ${resumeView === 'edit' ? 'active' : ''}`}
-              onClick={() => { setResumeView('edit'); setEditText(job.tailored_resume) }}>Edit</button>
+        <div className="resume-unified">
+          {/* Resume text — editable */}
+          <div className="resume-editor-section">
+            <div className="resume-editor-header">
+              <h4>Tailored Resume</h4>
+              <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(!isEditing)}>
+                {isEditing ? 'Done Editing' : 'Edit'}
+              </button>
+            </div>
+            {isEditing ? (
+              <>
+                <textarea
+                  className="notes-textarea resume-edit-textarea"
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  rows={18}
+                />
+                <button className="btn btn-primary btn-sm" onClick={handleSaveEdit} disabled={saving} style={{ marginTop: '0.5rem' }}>
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              </>
+            ) : (
+              <pre className="description-text">{job.tailored_resume}</pre>
+            )}
           </div>
 
-          {resumeView === 'tailored' && (
-            <div className="tailored-resume-block">
-              <pre className="description-text">{job.tailored_resume}</pre>
+          {/* Changes from original */}
+          {originalResume && (
+            <div className="resume-changes-section">
+              <h4>Changes from Original</h4>
+              <ResumeDiff original={originalResume} tailored={job.tailored_resume} onApply={handleApplyDiff} />
             </div>
           )}
 
-          {resumeView === 'diff' && (
-            <div className="tailored-resume-block">
-              {originalResume ? (
-                <ResumeDiff original={originalResume} tailored={job.tailored_resume} onApply={handleApplyDiff} />
-              ) : (
-                <p className="muted">Upload your original resume to review changes.</p>
-              )}
-            </div>
-          )}
-
-          {resumeView === 'edit' && (
-            <div className="tailored-resume-block">
-              <textarea
-                className="notes-textarea resume-edit-textarea"
-                value={editText}
-                onChange={e => setEditText(e.target.value)}
-                rows={20}
-              />
-              <div className="settings-btn-row" style={{ marginTop: '0.5rem' }}>
-                <button className="btn btn-primary btn-sm" onClick={handleSaveEdit} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setResumeView('tailored')}>Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {job.resume_improvements?.length > 0 && resumeView !== 'edit' && (
-            <div className="improvements-block">
-              <h4>Suggestions — click to apply</h4>
-              <p className="muted" style={{ marginBottom: '0.5rem' }}>These are optional changes you can add to your resume. Click "Apply" to add each one.</p>
+          {/* Suggestions */}
+          {job.resume_improvements?.length > 0 && (
+            <div className="resume-suggestions-section">
+              <h4>Suggestions</h4>
+              <p className="muted" style={{ marginBottom: '0.5rem' }}>Click "Apply" to add to your resume.</p>
               <div className="improvements-list">
                 {job.resume_improvements.map((imp, i) => {
                   const isApplied = appliedSuggestions.has(i)
@@ -261,7 +252,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
               </div>
             </div>
           )}
-        </>
+        </div>
       ) : (
         <div className="empty-tab-state">
           <p>Click "Tailor Resume for This Role" to generate a resume customized for this specific job posting.</p>
