@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { supabase } from './lib/supabase.js'
+import { supabase, isConfigured } from './lib/supabase.js'
 import { api, initUserData } from './api.js'
 import KanbanBoard from './components/KanbanBoard.jsx'
 import JobForm from './components/JobForm.jsx'
@@ -25,6 +25,10 @@ export default function App() {
 
   // Auth listener
   useEffect(() => {
+    if (!isConfigured || !supabase) {
+      setSession(null)
+      return
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })

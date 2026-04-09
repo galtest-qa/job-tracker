@@ -1,11 +1,24 @@
 import React, { useState } from 'react'
-import { supabase } from '../lib/supabase.js'
+import { supabase, isConfigured } from '../lib/supabase.js'
 
 export default function Auth() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState(null)
+
+  if (!isConfigured) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1 className="auth-title">Job Tracker</h1>
+          <div className="error-msg">
+            Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const handleLogin = async (e) => {
     e.preventDefault()
