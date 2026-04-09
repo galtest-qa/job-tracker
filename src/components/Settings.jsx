@@ -148,24 +148,42 @@ export default function Settings({ onClose }) {
 
             {/* Chrome Extension */}
             <div className="settings-section">
-              <h4 className="settings-section-title">Chrome Extension</h4>
-              <p className="settings-guide-text">Save jobs from LinkedIn with one click.</p>
+              <h4 className="settings-section-title">LinkedIn Extension (Optional)</h4>
+              <p className="settings-guide-text">
+                Browse LinkedIn as usual and save interesting jobs to your board with one click — no copy-pasting needed. The extension automatically grabs the job title, company, and description.
+              </p>
 
               <details className="settings-details">
-                <summary>How to install</summary>
+                <summary>Install the Chrome extension</summary>
                 <div className="settings-guide">
+                  <p><strong>Step 1: Download</strong></p>
+                  <p>
+                    <a href="https://github.com/galtest-qa/job-tracker/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer">
+                      Click here to download the ZIP
+                    </a>
+                    , then unzip it. You only need the <code>chrome-extension</code> folder inside.
+                  </p>
+
+                  <p><strong>Step 2: Install in Chrome</strong></p>
                   <ol>
-                    <li>Download the extension files from <a href="https://github.com/galtest-qa/job-tracker" target="_blank" rel="noopener noreferrer">GitHub</a> (the <code>chrome-extension</code> folder)</li>
-                    <li>Open <code>chrome://extensions</code> in Chrome</li>
-                    <li>Enable <strong>Developer mode</strong> (top-right toggle)</li>
+                    <li>Open Chrome and go to <code>chrome://extensions</code></li>
+                    <li>Turn on <strong>Developer mode</strong> (toggle in the top-right corner)</li>
                     <li>Click <strong>Load unpacked</strong></li>
-                    <li>Select the <code>chrome-extension</code> folder</li>
-                    <li>Click the extension icon in your toolbar</li>
-                    <li>Enter this app URL: <code>{window.location.origin}</code></li>
+                    <li>Select the <code>chrome-extension</code> folder you just unzipped</li>
+                  </ol>
+
+                  <p><strong>Step 3: Connect to your account</strong></p>
+                  <ol>
+                    <li>Click the puzzle icon in Chrome's toolbar and pin "Job Tracker"</li>
+                    <li>Click the Job Tracker icon</li>
+                    <li>Enter this URL: <code>{window.location.origin}</code></li>
                     <li>Enter your email and click Connect</li>
                     <li>Check your email for the magic link, click it</li>
-                    <li>Come back to the extension popup and click <strong>"Connect Extension"</strong> below</li>
+                    <li>Come back here and click <strong>"Connect Extension"</strong> below</li>
                   </ol>
+
+                  <p><strong>Step 4: Start saving jobs</strong></p>
+                  <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button at the bottom-right. Click it and the job lands in your Backlog.</p>
                 </div>
               </details>
 
