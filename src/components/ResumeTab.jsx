@@ -3,57 +3,135 @@ import { api } from '../api.js'
 import ResumeDiff from './ResumeDiff.jsx'
 import ResumePreview from './ResumePreview.jsx'
 
-function generateDocx(text, company, role) {
-  // Build a .docx using the docx library loaded from CDN
-  // Since docx is a server-side package, we'll build a clean HTML-based .docx
-  // (Word can open .doc files that are actually HTML)
-  const lines = text.split('\n')
-  let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><style>
-  body { font-family: Calibri, sans-serif; font-size: 11pt; line-height: 1.5; margin: 1in; color: #222; }
-  h1 { font-size: 18pt; font-weight: bold; margin: 0 0 2pt; text-align: center; }
-  .contact { text-align: center; font-size: 10pt; color: #555; margin-bottom: 12pt; }
-  h2 { font-size: 12pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1pt; border-bottom: 1px solid #999; padding-bottom: 2pt; margin: 14pt 0 6pt; }
-  .job-title { font-size: 11pt; font-weight: bold; margin-top: 8pt; }
-  ul { margin: 2pt 0 6pt 18pt; }
-  li { margin-bottom: 2pt; }
-  p { margin: 2pt 0; }
-</style></head><body>`
+function esc(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
 
-  const SECTION_RE = /^[A-Z][A-Z\s&\/]{2,}$/
+function isSectionHeader(line) {
+  return /^[A-Z][A-Z\s&\/]{2,}$/.test(line) ||
+    /^(SUMMARY|EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|PROJECTS|LANGUAGES|AWARDS|PROFESSIONAL SUMMARY|WORK EXPERIENCE|TECHNICAL SKILLS|PROFESSIONAL EXPERIENCE|OBJECTIVE|PROFILE)$/i.test(line)
+}
+
+function isBullet(line) {
+  return /^[-•*]\s/.test(line)
+}
+
+function isJobTitle(line) {
+  return /\d{4}/.test(line) && (line.includes('|') || line.includes('–') || line.includes(' - '))
+}
+
+function isContact(line) {
+  return (line.includes('@') || line.includes('+972') || line.includes('+1') || line.includes('linkedin.com'))
+}
+
+function generateDocx(text, company, role) {
+  const lines = text.split('\n')
+
+  // Pre-process: group consecutive bullets into a single list
+  const blocks = []
+  let bulletBuffer = []
+
+  function flushBullets() {
+    if (bulletBuffer.length > 0) {
+      blocks.push({ type: 'bullets', items: [...bulletBuffer] })
+      bulletBuffer = []
+    }
+  }
+
+  let foundName = false
+  let foundContact = false
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
-    if (!line) { html += '<p>&nbsp;</p>'; continue }
 
-    if (i === 0 && !SECTION_RE.test(line)) {
-      html += `<h1>${esc(line)}</h1>`
-    } else if (i <= 2 && (line.includes('@') || line.includes('+') || line.includes('linkedin'))) {
-      html += `<div class="contact">${esc(line)}</div>`
-    } else if (SECTION_RE.test(line)) {
-      html += `<h2>${esc(line)}</h2>`
-    } else if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
-      html += `<ul><li>${esc(line.replace(/^[-•*]\s*/, ''))}</li></ul>`
-    } else if (/\d{4}/.test(line) && (line.includes('|') || line.includes('–') || line.includes(' - '))) {
-      html += `<div class="job-title">${esc(line)}</div>`
+    if (!line) {
+      flushBullets()
+      // Only add spacing if previous block wasn't empty
+      if (blocks.length > 0 && blocks[blocks.length - 1].type !== 'space') {
+        blocks.push({ type: 'space' })
+      }
+      continue
+    }
+
+    if (isBullet(line)) {
+      bulletBuffer.push(line.replace(/^[-•*]\s*/, ''))
+      continue
+    }
+
+    flushBullets()
+
+    if (!foundName && !isSectionHeader(line) && i < 3) {
+      blocks.push({ type: 'name', text: line })
+      foundName = true
+    } else if (!foundContact && isContact(line) && i < 5) {
+      blocks.push({ type: 'contact', text: line })
+      foundContact = true
+    } else if (isSectionHeader(line)) {
+      blocks.push({ type: 'section', text: line })
+    } else if (isJobTitle(line)) {
+      blocks.push({ type: 'jobtitle', text: line })
     } else {
-      html += `<p>${esc(line)}</p>`
+      blocks.push({ type: 'text', text: line })
+    }
+  }
+  flushBullets()
+
+  // Build Word-compatible HTML
+  let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<style>
+  @page { margin: 0.75in; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #222; }
+  h1 { font-size: 20pt; font-weight: bold; text-align: center; margin: 0 0 2pt; color: #111; }
+  .contact { text-align: center; font-size: 9.5pt; color: #444; margin-bottom: 10pt; }
+  h2 { font-size: 11pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom: 1.5pt solid #333; padding-bottom: 1pt; margin: 12pt 0 4pt; color: #222; }
+  .jobtitle { font-size: 10.5pt; font-weight: bold; margin: 6pt 0 1pt; color: #333; }
+  ul { margin: 1pt 0 4pt 14pt; padding: 0; }
+  li { margin-bottom: 1.5pt; font-size: 10.5pt; }
+  p { margin: 1pt 0; font-size: 10.5pt; }
+  .spacer { height: 4pt; }
+</style>
+</head><body>`
+
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'name':
+        html += `<h1>${esc(block.text)}</h1>`
+        break
+      case 'contact':
+        html += `<div class="contact">${esc(block.text)}</div>`
+        break
+      case 'section':
+        html += `<h2>${esc(block.text)}</h2>`
+        break
+      case 'jobtitle':
+        html += `<div class="jobtitle">${esc(block.text)}</div>`
+        break
+      case 'bullets':
+        html += '<ul>'
+        for (const item of block.items) {
+          html += `<li>${esc(item)}</li>`
+        }
+        html += '</ul>'
+        break
+      case 'text':
+        html += `<p>${esc(block.text)}</p>`
+        break
+      case 'space':
+        html += '<div class="spacer"></div>'
+        break
     }
   }
 
   html += '</body></html>'
 
-  const blob = new Blob([html], { type: 'application/msword' })
+  const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = `Resume_${company.replace(/[^a-zA-Z0-9]/g, '_')}_${role.replace(/[^a-zA-Z0-9]/g, '_')}.doc`
   a.click()
   URL.revokeObjectURL(url)
-}
-
-function esc(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
