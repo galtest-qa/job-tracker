@@ -537,26 +537,70 @@ body {
 .resume-edit-textarea { min-height: 400px; font-size: 0.82rem; font-family: monospace; line-height: 1.7; }
 
 /* Diff viewer */
-.resume-diff { margin-top: 0.5rem; }
-.diff-stats { display: flex; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 0.75rem; font-weight: 700; }
-.diff-added { color: #059669; }
-.diff-removed { color: #dc2626; }
-.diff-content {
-  font-family: monospace; font-size: 0.78rem; line-height: 1.6;
-  background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-sm);
-  overflow-x: auto; max-height: 500px; overflow-y: auto;
+.resume-diff { }
+.diff-toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;
 }
-.diff-line { display: flex; padding: 0.1rem 0.5rem; }
-.diff-same { background: transparent; }
-.diff-added { background: #dcfce7; }
-.diff-removed { background: #fee2e2; text-decoration: line-through; opacity: 0.7; }
-.diff-marker {
-  width: 16px; flex-shrink: 0; font-weight: 700; color: var(--text-tertiary);
-  user-select: none; text-align: center;
+.diff-stats { display: flex; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; }
+.diff-stat { color: var(--text-secondary); }
+.diff-stat-accepted { color: #059669; }
+.diff-stat-rejected { color: #dc2626; }
+.diff-bulk-actions { display: flex; gap: 0.3rem; }
+
+/* Section blocks */
+.diff-section {
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem; overflow: hidden;
 }
-.diff-added .diff-marker { color: #059669; }
-.diff-removed .diff-marker { color: #dc2626; }
-.diff-text { flex: 1; white-space: pre-wrap; word-break: break-word; }
+.diff-section-unchanged { opacity: 0.5; }
+.diff-section-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.45rem 0.75rem; background: var(--surface-hover);
+  border-bottom: 1px solid var(--border-light);
+}
+.diff-section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
+.diff-section-badge { font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 999px; }
+.diff-section-badge.unchanged { background: var(--border-light); color: var(--text-tertiary); }
+
+.diff-section-body { padding: 0.35rem 0; font-size: 0.82rem; line-height: 1.55; }
+
+/* Unchanged lines */
+.diff-line-unchanged { padding: 0.15rem 0.75rem; color: var(--text-secondary); }
+
+/* Change blocks with accept/reject */
+.diff-change {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  padding: 0.35rem 0.75rem; margin: 0.15rem 0;
+  border-left: 3px solid var(--warning); background: #fffbeb;
+  transition: all 0.15s;
+}
+.diff-change.diff-accepted { border-left-color: var(--success); background: #f0fdf4; opacity: 0.7; }
+.diff-change.diff-rejected { border-left-color: var(--danger); background: #fef2f2; opacity: 0.5; }
+.diff-change-content { flex: 1; min-width: 0; }
+
+/* Inline word-level diff */
+.diff-inline { font-size: 0.82rem; line-height: 1.6; }
+.diff-word-same { }
+.diff-word-added { background: #bbf7d0; color: #065f46; font-weight: 600; border-radius: 2px; padding: 0 1px; }
+.diff-word-removed { background: #fecaca; color: #991b1b; text-decoration: line-through; border-radius: 2px; padding: 0 1px; }
+
+/* Full line add/remove */
+.diff-line-added { color: #065f46; }
+.diff-line-added::before { content: '+ '; font-weight: 700; opacity: 0.5; }
+.diff-line-removed { color: #991b1b; text-decoration: line-through; opacity: 0.7; }
+.diff-line-removed::before { content: '- '; font-weight: 700; opacity: 0.5; }
+
+/* Accept/reject buttons */
+.diff-change-actions { display: flex; gap: 0.2rem; flex-shrink: 0; padding-top: 0.1rem; }
+.diff-action-btn {
+  width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); cursor: pointer; font-size: 0.72rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition); color: var(--text-tertiary);
+}
+.diff-accept:hover, .diff-accept.active { background: #d1fae5; color: #059669; border-color: #059669; }
+.diff-reject:hover, .diff-reject.active { background: #fee2e2; color: #dc2626; border-color: #dc2626; }
 
 /* Resume Preview */
 .modal-preview { max-width: 700px; }

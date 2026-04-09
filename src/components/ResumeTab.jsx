@@ -3,8 +3,61 @@ import { api } from '../api.js'
 import ResumeDiff from './ResumeDiff.jsx'
 import ResumePreview from './ResumePreview.jsx'
 
+function generateDocx(text, company, role) {
+  // Build a .docx using the docx library loaded from CDN
+  // Since docx is a server-side package, we'll build a clean HTML-based .docx
+  // (Word can open .doc files that are actually HTML)
+  const lines = text.split('\n')
+  let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><style>
+  body { font-family: Calibri, sans-serif; font-size: 11pt; line-height: 1.5; margin: 1in; color: #222; }
+  h1 { font-size: 18pt; font-weight: bold; margin: 0 0 2pt; text-align: center; }
+  .contact { text-align: center; font-size: 10pt; color: #555; margin-bottom: 12pt; }
+  h2 { font-size: 12pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1pt; border-bottom: 1px solid #999; padding-bottom: 2pt; margin: 14pt 0 6pt; }
+  .job-title { font-size: 11pt; font-weight: bold; margin-top: 8pt; }
+  ul { margin: 2pt 0 6pt 18pt; }
+  li { margin-bottom: 2pt; }
+  p { margin: 2pt 0; }
+</style></head><body>`
+
+  const SECTION_RE = /^[A-Z][A-Z\s&\/]{2,}$/
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) { html += '<p>&nbsp;</p>'; continue }
+
+    if (i === 0 && !SECTION_RE.test(line)) {
+      html += `<h1>${esc(line)}</h1>`
+    } else if (i <= 2 && (line.includes('@') || line.includes('+') || line.includes('linkedin'))) {
+      html += `<div class="contact">${esc(line)}</div>`
+    } else if (SECTION_RE.test(line)) {
+      html += `<h2>${esc(line)}</h2>`
+    } else if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
+      html += `<ul><li>${esc(line.replace(/^[-•*]\s*/, ''))}</li></ul>`
+    } else if (/\d{4}/.test(line) && (line.includes('|') || line.includes('–') || line.includes(' - '))) {
+      html += `<div class="job-title">${esc(line)}</div>`
+    } else {
+      html += `<p>${esc(line)}</p>`
+    }
+  }
+
+  html += '</body></html>'
+
+  const blob = new Blob([html], { type: 'application/msword' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Resume_${company.replace(/[^a-zA-Z0-9]/g, '_')}_${role.replace(/[^a-zA-Z0-9]/g, '_')}.doc`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function esc(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
-  const [resumeView, setResumeView] = useState('tailored') // 'tailored' | 'diff' | 'edit'
+  const [resumeView, setResumeView] = useState('tailored')
   const [editText, setEditText] = useState('')
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -26,17 +79,19 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     setResumeView('tailored')
   }
 
+  const handleApplyDiff = async (newText) => {
+    setEditText(newText)
+    setSaving(true)
+    await api.updateJob(jobId, { tailored_resume: newText })
+    setJob({ ...job, tailored_resume: newText })
+    setSaving(false)
+    setResumeView('tailored')
+  }
+
   const handleExport = () => {
-    // Generate a .txt download (simple, works everywhere)
     const text = editText || job.tailored_resume
     if (!text) return
-    const blob = new Blob([text], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `Resume_${job.company.replace(/[^a-zA-Z0-9]/g, '_')}_${job.role.replace(/[^a-zA-Z0-9]/g, '_')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+    generateDocx(text, job.company, job.role)
   }
 
   return (
@@ -47,24 +102,19 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
         </button>
         {job.tailored_resume && (
           <>
-            <button className="btn btn-secondary" onClick={() => setShowPreview(true)}>
-              Preview
-            </button>
-            <button className="btn btn-secondary" onClick={handleExport}>
-              Export
-            </button>
+            <button className="btn btn-secondary" onClick={() => setShowPreview(true)}>Preview</button>
+            <button className="btn btn-secondary" onClick={handleExport}>Export .docx</button>
           </>
         )}
       </div>
 
       {job.tailored_resume ? (
         <>
-          {/* View mode tabs */}
           <div className="resume-view-tabs">
             <button className={`tab ${resumeView === 'tailored' ? 'active' : ''}`}
               onClick={() => setResumeView('tailored')}>Tailored</button>
             <button className={`tab ${resumeView === 'diff' ? 'active' : ''}`}
-              onClick={() => setResumeView('diff')}>Changes</button>
+              onClick={() => setResumeView('diff')}>Review Changes</button>
             <button className={`tab ${resumeView === 'edit' ? 'active' : ''}`}
               onClick={() => { setResumeView('edit'); setEditText(job.tailored_resume) }}>Edit</button>
           </div>
@@ -77,11 +127,10 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
 
           {resumeView === 'diff' && (
             <div className="tailored-resume-block">
-              <h4>Changes from Original</h4>
               {originalResume ? (
-                <ResumeDiff original={originalResume} tailored={job.tailored_resume} />
+                <ResumeDiff original={originalResume} tailored={job.tailored_resume} onApply={handleApplyDiff} />
               ) : (
-                <p className="muted">Upload your original resume to see the diff.</p>
+                <p className="muted">Upload your original resume to review changes.</p>
               )}
             </div>
           )}
