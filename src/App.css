@@ -1019,6 +1019,12 @@ body {
   font-size: 0.72rem; color: var(--text-tertiary); margin-top: 0.35rem; line-height: 1.5;
 }
 .settings-hint a { color: var(--primary); }
+.connection-code {
+  width: 100%; margin-top: 0.4rem; padding: 0.5rem; font-size: 0.68rem;
+  font-family: monospace; border: 1px solid var(--border); border-radius: var(--radius-xs);
+  background: var(--surface-hover); resize: none; height: 50px; cursor: pointer;
+  color: var(--text-tertiary); word-break: break-all;
+}
 
 /* ═══════════ Responsive ═══════════ */
 @media (max-width: 640px) {

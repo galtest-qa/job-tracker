@@ -15,7 +15,6 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .header p { font-size: 11px; color: #6b7280; margin-top: 4px; }
-
     .status {
       display: flex; align-items: center; gap: 8px;
       padding: 10px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
@@ -23,21 +22,16 @@
     }
     .status-ok { background: #d1fae5; color: #065f46; }
     .status-disconnected { background: #fee2e2; color: #dc2626; }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    }
-    .status-ok .status-dot { background: #10b981; }
-    .status-disconnected .status-dot { background: #ef4444; }
-    .status-email { font-weight: 400; opacity: 0.8; }
-
-    .form-group { margin-bottom: 10px; }
-    .form-group label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
-    .form-group input {
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-ok .dot { background: #10b981; }
+    .status-disconnected .dot { background: #ef4444; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 4px; text-transform: uppercase; }
+    .form-group textarea {
       width: 100%; padding: 8px 10px; border: 1px solid #e2e5ea; border-radius: 6px;
-      font-size: 13px; font-family: inherit; outline: none;
+      font-size: 12px; font-family: monospace; outline: none; resize: vertical; min-height: 60px;
     }
-    .form-group input:focus { border-color: #4f6ef7; box-shadow: 0 0 0 2px rgba(79,110,247,0.1); }
-
+    .form-group textarea:focus { border-color: #4f6ef7; }
     .btn {
       width: 100%; padding: 9px; border-radius: 8px; font-size: 13px;
       font-weight: 600; border: none; cursor: pointer; font-family: inherit;
@@ -45,13 +39,9 @@
     .btn-primary { background: #4f6ef7; color: white; }
     .btn-primary:hover { background: #3b5de7; }
     .btn-primary:disabled { opacity: 0.5; }
-    .btn-ghost { background: none; color: #6b7280; margin-top: 6px; }
-    .btn-ghost:hover { color: #1a1d23; }
-
+    .btn-ghost { background: none; color: #6b7280; margin-top: 8px; font-size: 12px; }
     .error { color: #dc2626; font-size: 12px; margin-bottom: 8px; padding: 8px; background: #fef2f2; border-radius: 6px; }
-    .hint { font-size: 11px; color: #9ca3af; margin-top: 8px; line-height: 1.5; }
-    .hint a { color: #4f6ef7; }
-
+    .hint { font-size: 11px; color: #9ca3af; margin-top: 10px; line-height: 1.5; }
     .hidden { display: none; }
   </style>
 </head>
@@ -61,36 +51,27 @@
     <p>Save jobs from LinkedIn with one click</p>
   </div>
 
-  <div id="status-connected" class="status status-ok hidden">
-    <span class="status-dot"></span>
-    <span>Connected <span id="user-email" class="status-email"></span></span>
-  </div>
-  <div id="status-disconnected" class="status status-disconnected hidden">
-    <span class="status-dot"></span>
-    <span>Not connected</span>
+  <div id="view-connected" class="hidden">
+    <div class="status status-ok">
+      <span class="dot"></span>
+      <span>Connected <span id="user-email" style="font-weight:400; opacity:0.7"></span></span>
+    </div>
+    <p class="hint" style="text-align:center">Browse LinkedIn jobs and click the blue "Save to Tracker" button to save them.</p>
+    <button id="disconnect-btn" class="btn btn-ghost">Disconnect</button>
   </div>
 
-  <div id="login-form">
-    <div class="form-group">
-      <label>App URL</label>
-      <input type="url" id="app-url" placeholder="https://job-tracker-xxx.vercel.app">
+  <div id="view-disconnected">
+    <div class="status status-disconnected">
+      <span class="dot"></span>
+      <span>Not connected</span>
     </div>
     <div class="form-group">
-      <label>Email</label>
-      <input type="email" id="email" placeholder="you@example.com">
-    </div>
-    <div class="form-group">
-      <label>Password / Magic Link</label>
-      <input type="password" id="password" placeholder="Leave empty to send magic link">
+      <label>Connection Code</label>
+      <textarea id="code-input" placeholder="Paste the code from Settings → Chrome Extension → Get Connection Code"></textarea>
     </div>
     <div id="error" class="error hidden"></div>
-    <button id="login-btn" class="btn btn-primary">Connect</button>
-    <p class="hint">Enter the URL of your Job Tracker app and your login email. We'll send a magic link to verify.</p>
-  </div>
-
-  <div id="connected-view" class="hidden">
-    <p class="hint" style="text-align:center; margin-bottom:12px;">Browse LinkedIn jobs and click the blue "Save to Tracker" button to save them.</p>
-    <button id="disconnect-btn" class="btn btn-ghost">Disconnect</button>
+    <button id="connect-btn" class="btn btn-primary">Connect</button>
+    <p class="hint">Open Job Tracker → Settings → Chrome Extension → click "Get Connection Code" and paste it above.</p>
   </div>
 
   <script src="popup.js"></script>

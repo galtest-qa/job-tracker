@@ -45,27 +45,23 @@ export default function Settings({ onClose }) {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const handleConnectExtension = async () => {
+  const [connectionCode, setConnectionCode] = useState('')
+
+  const handleGetCode = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!session || !user) {
-      alert('Not logged in')
-      return
-    }
-    // Post message that the content script on this page can pick up
-    // and forward to the extension
-    const payload = {
-      type: 'job-tracker-connect',
+    if (!session || !user) { alert('Not logged in'); return }
+
+    const code = btoa(JSON.stringify({
       supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
       supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
       accessToken: session.access_token,
       refreshToken: session.refresh_token,
       email: user.email,
       userId: user.id,
-    }
-    window.postMessage(payload, '*')
-    // Also try chrome.runtime.sendMessage if extension ID is known
-    alert('Connection sent! If the extension is installed, it should now be connected. Open a LinkedIn job page to test.')
+    }))
+    setConnectionCode(code)
+    navigator.clipboard.writeText(code).then(() => {}).catch(() => {})
   }
 
   // ── Telegram handlers ──
@@ -294,23 +290,26 @@ export default function Settings({ onClose }) {
 
                   <p><strong>Step 3: Connect to your account</strong></p>
                   <ol>
-                    <li>Click the puzzle icon in Chrome's toolbar and pin "Job Tracker"</li>
-                    <li>Click the Job Tracker icon</li>
-                    <li>Enter this URL: <code>{window.location.origin}</code></li>
-                    <li>Enter your email and click Connect</li>
-                    <li>Check your email for the magic link, click it</li>
-                    <li>Come back here and click <strong>"Connect Extension"</strong> below</li>
+                    <li>Click <strong>"Get Connection Code"</strong> below — it copies a code to your clipboard</li>
+                    <li>Click the Job Tracker extension icon in Chrome's toolbar</li>
+                    <li>Paste the code and click <strong>Connect</strong></li>
                   </ol>
 
                   <p><strong>Step 4: Start saving jobs</strong></p>
-                  <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button at the bottom-right. Click it and the job lands in your Backlog.</p>
+                  <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button. Click it and the job lands in your Backlog.</p>
                 </div>
               </details>
 
-              <button className="btn btn-secondary btn-sm" onClick={handleConnectExtension} style={{ marginTop: '0.5rem' }}>
-                Connect Extension
-              </button>
-              <p className="settings-hint">Sends your login session to the Chrome extension so it can save jobs on your behalf.</p>
+              <div className="settings-btn-row" style={{ marginTop: '0.5rem' }}>
+                <button className="btn btn-secondary btn-sm" onClick={handleGetCode}>
+                  Get Connection Code
+                </button>
+                {connectionCode && <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: 'var(--success)' }}>Copied!</span>}
+              </div>
+              {connectionCode && (
+                <textarea className="connection-code" readOnly value={connectionCode} onClick={e => { e.target.select(); navigator.clipboard.writeText(connectionCode) }} />
+              )}
+              <p className="settings-hint">Click the button, then paste the code in the extension popup to connect.</p>
             </div>
 
             <div className="modal-footer">

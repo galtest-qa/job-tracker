@@ -16,10 +16,6 @@
       "matches": ["https://www.linkedin.com/*"],
       "js": ["content.js"],
       "css": ["styles.css"]
-    },
-    {
-      "matches": ["https://*.vercel.app/*", "http://localhost:*/*"],
-      "js": ["bridge.js"]
     }
   ],
   "icons": {

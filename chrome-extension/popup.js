@@ -17,101 +17,61 @@ function clearConfig() {
 }
 
 function showConnected(email) {
-  $('status-connected').classList.remove('hidden')
-  $('status-disconnected').classList.add('hidden')
-  $('login-form').classList.add('hidden')
-  $('connected-view').classList.remove('hidden')
+  $('view-connected').classList.remove('hidden')
+  $('view-disconnected').classList.add('hidden')
   $('user-email').textContent = `(${email})`
 }
 
 function showDisconnected() {
-  $('status-connected').classList.add('hidden')
-  $('status-disconnected').classList.remove('hidden')
-  $('login-form').classList.remove('hidden')
-  $('connected-view').classList.add('hidden')
-}
-
-function showError(msg) {
-  $('error').textContent = msg
-  $('error').classList.remove('hidden')
+  $('view-connected').classList.add('hidden')
+  $('view-disconnected').classList.remove('hidden')
 }
 
 async function connect() {
-  const appUrl = $('app-url').value.trim().replace(/\/$/, '')
-  const email = $('email').value.trim()
-  const password = $('password').value
+  const raw = $('code-input').value.trim()
+  $('error').classList.add('hidden')
 
-  if (!appUrl || !email) {
-    showError('App URL and email are required')
+  if (!raw) {
+    $('error').textContent = 'Paste the connection code from Settings'
+    $('error').classList.remove('hidden')
     return
   }
 
-  $('login-btn').disabled = true
-  $('login-btn').textContent = 'Connecting...'
-  $('error').classList.add('hidden')
-
   try {
-    // Detect Supabase config from the app's built JS
-    const res = await fetch(appUrl)
-    const html = await res.text()
-    const jsMatch = html.match(/src="(\/assets\/index-[^"]+\.js)"/)
+    // Decode the connection code (base64 JSON)
+    const decoded = JSON.parse(atob(raw))
 
-    let supabaseUrl, supabaseAnonKey
-    if (jsMatch) {
-      const jsRes = await fetch(new URL(jsMatch[1], appUrl).href)
-      const js = await jsRes.text()
-      supabaseUrl = js.match(/(https:\/\/[a-z]+\.supabase\.co)/)?.[1]
-      supabaseAnonKey = js.match(/(eyJ[A-Za-z0-9._-]{100,})/)?.[1]
+    if (!decoded.supabaseUrl || !decoded.accessToken || !decoded.userId) {
+      throw new Error('Invalid code')
     }
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Could not detect app configuration. Check the URL.')
-    }
-
-    // Sign in with magic link (OTP)
-    const authRes = await fetch(`${supabaseUrl}/auth/v1/otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': supabaseAnonKey },
-      body: JSON.stringify({ email }),
+    // Verify the token works
+    const res = await fetch(`${decoded.supabaseUrl}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${decoded.accessToken}`,
+        'apikey': decoded.supabaseAnonKey,
+      },
     })
 
-    if (!authRes.ok) {
-      const err = await authRes.json().catch(() => ({}))
-      throw new Error(err.msg || err.error_description || 'Could not send magic link')
-    }
+    if (!res.ok) throw new Error('Token expired. Generate a new code from Settings.')
 
-    // Save config for later
-    await saveConfig({ supabaseUrl, supabaseAnonKey })
+    await saveConfig({
+      supabaseUrl: decoded.supabaseUrl,
+      supabaseAnonKey: decoded.supabaseAnonKey,
+      accessToken: decoded.accessToken,
+      refreshToken: decoded.refreshToken,
+      userEmail: decoded.email,
+      userId: decoded.userId,
+    })
 
-    $('login-btn').textContent = 'Email sent!'
-    document.querySelector('.hint').innerHTML = `
-      <strong>Check your email!</strong> Click the magic link to log in on the app.<br><br>
-      After logging in, open the app and click your profile → <strong>"Connect Extension"</strong> to finish setup.
-    `
-
+    showConnected(decoded.email)
   } catch (err) {
-    showError(err.message)
-    $('login-btn').disabled = false
-    $('login-btn').textContent = 'Connect'
+    $('error').textContent = err.message === 'Invalid code'
+      ? 'Invalid connection code. Make sure you copied the full code from Settings.'
+      : err.message
+    $('error').classList.remove('hidden')
   }
 }
-
-// Listen for token from the app page
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'job-tracker-connect') {
-    saveConfig({
-      supabaseUrl: message.supabaseUrl,
-      supabaseAnonKey: message.supabaseAnonKey,
-      accessToken: message.accessToken,
-      refreshToken: message.refreshToken,
-      userEmail: message.email,
-      userId: message.userId,
-    }).then(() => {
-      sendResponse({ ok: true })
-    })
-    return true
-  }
-})
 
 async function refreshToken(config) {
   if (!config.refreshToken) return false
@@ -123,18 +83,14 @@ async function refreshToken(config) {
     })
     if (res.ok) {
       const data = await res.json()
-      await saveConfig({
-        ...config,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-      })
+      await saveConfig({ ...config, accessToken: data.access_token, refreshToken: data.refresh_token })
+      config.accessToken = data.access_token
       return true
     }
   } catch {}
   return false
 }
 
-// Init
 document.addEventListener('DOMContentLoaded', async () => {
   const config = await loadConfig()
 
@@ -157,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     showDisconnected()
   }
 
-  $('login-btn').addEventListener('click', connect)
+  $('connect-btn').addEventListener('click', connect)
   $('disconnect-btn').addEventListener('click', async () => {
     await clearConfig()
     showDisconnected()
