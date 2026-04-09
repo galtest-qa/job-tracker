@@ -1219,6 +1219,71 @@ body {
   color: var(--text-tertiary); word-break: break-all;
 }
 
+/* ═══════════ Discover ═══════════ */
+.discover { }
+.discover-search {
+  background: var(--surface); border: 1px solid var(--border-light);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+.discover-inputs { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+.discover-input-group { flex: 1; min-width: 200px; }
+.discover-input-group label {
+  display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.discover-input {
+  width: 100%; padding: 0.55rem 0.75rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 0.875rem; font-family: inherit;
+  outline: none; transition: border var(--transition);
+}
+.discover-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,110,247,0.1); }
+.discover-location { flex: 0.5; min-width: 150px; }
+.discover-search-btn { white-space: nowrap; align-self: flex-end; height: 38px; }
+.discover-hint { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 0.5rem; }
+
+.discover-count { font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.5rem; }
+.discover-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.discover-card {
+  background: var(--surface); border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm); padding: 0.85rem 1rem;
+  transition: all var(--transition); box-shadow: var(--shadow-sm);
+}
+.discover-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+.discover-card-top { display: flex; align-items: center; gap: 0.75rem; }
+.discover-logo {
+  width: 40px; height: 40px; border-radius: 8px; object-fit: contain;
+  background: white; border: 1px solid var(--border-light); flex-shrink: 0;
+}
+.discover-logo-placeholder {
+  width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #667eea, #764ba2); color: white;
+  font-weight: 700; font-size: 1rem;
+}
+.discover-card-info { flex: 1; min-width: 0; }
+.discover-card-role { display: block; font-size: 0.85rem; font-weight: 650; color: var(--text); }
+.discover-card-company { display: block; font-size: 0.78rem; color: var(--text-secondary); }
+.discover-card-meta {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.2rem;
+  font-size: 0.68rem; color: var(--text-tertiary);
+}
+.discover-remote {
+  background: #dbeafe; color: #2563eb; padding: 0.05rem 0.35rem;
+  border-radius: 999px; font-weight: 600;
+}
+.discover-source { font-weight: 600; }
+.discover-card-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.discover-card-desc {
+  font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.5rem;
+  line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.discover-empty {
+  text-align: center; padding: 4rem 2rem; color: var(--text-tertiary);
+  font-size: 0.9rem;
+}
+
 /* ═══════════ Responsive ═══════════ */
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
