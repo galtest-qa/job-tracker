@@ -7,120 +7,58 @@ function esc(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function isSectionHeader(line) {
-  return /^[A-Z][A-Z\s&\/]{2,}$/.test(line) ||
-    /^(SUMMARY|EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|PROJECTS|LANGUAGES|AWARDS|PROFESSIONAL SUMMARY|WORK EXPERIENCE|TECHNICAL SKILLS|PROFESSIONAL EXPERIENCE|OBJECTIVE|PROFILE)$/i.test(line)
-}
-
-function isBullet(line) {
-  return /^[-•*]\s/.test(line)
-}
-
-function isJobTitle(line) {
-  return /\d{4}/.test(line) && (line.includes('|') || line.includes('–') || line.includes(' - '))
-}
-
-function isContact(line) {
-  return (line.includes('@') || line.includes('+972') || line.includes('+1') || line.includes('linkedin.com'))
-}
-
 function generateDocx(text, company, role) {
+  // Convert resume text to Word-compatible HTML preserving exact formatting
+  // Instead of trying to classify each line, we preserve the structure as-is
+  // and only apply minimal styling
+
   const lines = text.split('\n')
-
-  // Pre-process: group consecutive bullets into a single list
-  const blocks = []
-  let bulletBuffer = []
-
-  function flushBullets() {
-    if (bulletBuffer.length > 0) {
-      blocks.push({ type: 'bullets', items: [...bulletBuffer] })
-      bulletBuffer = []
-    }
-  }
-
-  let foundName = false
-  let foundContact = false
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-
-    if (!line) {
-      flushBullets()
-      // Only add spacing if previous block wasn't empty
-      if (blocks.length > 0 && blocks[blocks.length - 1].type !== 'space') {
-        blocks.push({ type: 'space' })
-      }
-      continue
-    }
-
-    if (isBullet(line)) {
-      bulletBuffer.push(line.replace(/^[-•*]\s*/, ''))
-      continue
-    }
-
-    flushBullets()
-
-    if (!foundName && !isSectionHeader(line) && i < 3) {
-      blocks.push({ type: 'name', text: line })
-      foundName = true
-    } else if (!foundContact && isContact(line) && i < 5) {
-      blocks.push({ type: 'contact', text: line })
-      foundContact = true
-    } else if (isSectionHeader(line)) {
-      blocks.push({ type: 'section', text: line })
-    } else if (isJobTitle(line)) {
-      blocks.push({ type: 'jobtitle', text: line })
-    } else {
-      blocks.push({ type: 'text', text: line })
-    }
-  }
-  flushBullets()
-
-  // Build Word-compatible HTML
   let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8">
 <style>
   @page { margin: 0.75in; }
-  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #222; }
-  h1 { font-size: 20pt; font-weight: bold; text-align: center; margin: 0 0 2pt; color: #111; }
-  .contact { text-align: center; font-size: 9.5pt; color: #444; margin-bottom: 10pt; }
-  h2 { font-size: 11pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom: 1.5pt solid #333; padding-bottom: 1pt; margin: 12pt 0 4pt; color: #222; }
-  .jobtitle { font-size: 10.5pt; font-weight: bold; margin: 6pt 0 1pt; color: #333; }
-  ul { margin: 1pt 0 4pt 14pt; padding: 0; }
-  li { margin-bottom: 1.5pt; font-size: 10.5pt; }
-  p { margin: 1pt 0; font-size: 10.5pt; }
-  .spacer { height: 4pt; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.5; color: #222; white-space: pre-wrap; }
+  .line { margin: 0; padding: 0; min-height: 1em; }
+  .bold { font-weight: bold; }
+  .header { font-size: 11pt; font-weight: bold; text-transform: uppercase; border-bottom: 1pt solid #666; padding-bottom: 2pt; margin-top: 8pt; }
+  .name { font-size: 18pt; font-weight: bold; text-align: center; }
+  .contact { text-align: center; font-size: 9.5pt; color: #444; }
 </style>
 </head><body>`
 
-  for (const block of blocks) {
-    switch (block.type) {
-      case 'name':
-        html += `<h1>${esc(block.text)}</h1>`
-        break
-      case 'contact':
-        html += `<div class="contact">${esc(block.text)}</div>`
-        break
-      case 'section':
-        html += `<h2>${esc(block.text)}</h2>`
-        break
-      case 'jobtitle':
-        html += `<div class="jobtitle">${esc(block.text)}</div>`
-        break
-      case 'bullets':
-        html += '<ul>'
-        for (const item of block.items) {
-          html += `<li>${esc(item)}</li>`
-        }
-        html += '</ul>'
-        break
-      case 'text':
-        html += `<p>${esc(block.text)}</p>`
-        break
-      case 'space':
-        html += '<div class="spacer"></div>'
-        break
+  const SECTION_RE = /^[A-Z][A-Z\s&\/]{2,}$/
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
+    const trimmed = raw.trim()
+
+    if (!trimmed) {
+      html += '<div class="line">&nbsp;</div>'
+      continue
     }
+
+    // First non-empty line is likely the name
+    const isFirstContent = i === 0 || (i <= 2 && !lines.slice(0, i).some(l => l.trim()))
+    if (isFirstContent && !SECTION_RE.test(trimmed) && trimmed.length < 60) {
+      html += `<div class="line name">${esc(trimmed)}</div>`
+      continue
+    }
+
+    // Contact line (near top, has email/phone/linkedin)
+    if (i <= 3 && (trimmed.includes('@') || trimmed.includes('+') || trimmed.includes('linkedin'))) {
+      html += `<div class="line contact">${esc(trimmed)}</div>`
+      continue
+    }
+
+    // Section headers
+    if (SECTION_RE.test(trimmed)) {
+      html += `<div class="line header">${esc(trimmed)}</div>`
+      continue
+    }
+
+    // Everything else — preserve as-is with basic bold detection for job titles
+    const isBold = /\d{4}/.test(trimmed) && (trimmed.includes('|') || trimmed.includes('–') || trimmed.includes(' - '))
+    html += `<div class="line${isBold ? ' bold' : ''}">${esc(raw)}</div>`
   }
 
   html += '</body></html>'

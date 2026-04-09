@@ -320,23 +320,23 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       throw new Error('Upload your resume first (button in the header)')
     }
 
-    const result = await callOpenAI(`You are editing a resume. Your output MUST preserve the EXACT formatting of the original.
+    // AI only returns find-and-replace edits + suggestions — never the full resume
+    const result = await callOpenAI(`You are a resume editor. Analyze the resume against the job posting.
 
-CRITICAL FORMAT RULES:
-- Copy the original resume EXACTLY — same line breaks, same spacing, same structure
-- Only change specific WORDS within existing lines
-- Do NOT restructure, reorder, merge, split, or reformat any lines
-- Do NOT add or remove line breaks
-- Do NOT change section headers
-- Do NOT change the order of sections
-- The output must look like a copy-paste of the original with a few words swapped
+DO NOT return the full resume text. Instead, return:
+1. "edits" — a list of small find-and-replace word changes to make in the existing resume (max 5-8 edits)
+2. "suggestions" — bigger improvements the user can choose to add manually
 
-CONTENT RULES:
+RULES FOR EDITS:
+- Each edit is a find-and-replace: "find" = exact text in the resume, "replace" = new text
+- Only change a few WORDS at a time, not full sentences
+- The "find" text MUST exist exactly in the resume (copy it character-for-character)
 - NEVER invent experience, titles, companies, or skills
-- NEVER add new bullet points or sections
-- Only swap individual words or short phrases within existing bullets
-- Maximum 5-8 small word changes in the entire resume
-- Put ALL other improvements in "suggestions"
+- Only swap verbs, add a keyword, or slightly rephrase
+
+RULES FOR SUGGESTIONS:
+- These are optional additions the user can accept or reject
+- Include section, what to add, and why
 
 JOB POSTING:
 Company: ${job.company}
@@ -344,28 +344,37 @@ Role: ${job.role}
 Description:
 ${job.description}
 
-ORIGINAL RESUME (copy this EXACTLY, only change a few words):
----START---
+RESUME:
 ${rawResume}
----END---
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
-  "tailored_resume": "The resume copied exactly from between ---START--- and ---END--- with only a few words changed. MUST have identical formatting.",
+  "edits": [
+    {"find": "exact text from resume to replace", "replace": "new text with small change", "reason": "why this change helps"}
+  ],
   "suggestions": [
     {
       "section": "EXPERIENCE",
-      "type": "add_bullet|add_skill|rephrase|reorder",
-      "original": "Original text if rephrasing, or empty if adding",
-      "suggested": "Suggested new text",
-      "reason": "Why this helps"
+      "type": "add_bullet|add_skill|rephrase",
+      "original": "original text if rephrasing, or empty",
+      "suggested": "suggested text to add or change to",
+      "reason": "why this helps for this role"
     }
   ]
 }`, { temperature: 0.1 })
 
+    // Apply edits to the original resume text — preserves exact formatting
+    let tailored = rawResume
+    const edits = result.edits || []
+    for (const edit of edits) {
+      if (edit.find && edit.replace && tailored.includes(edit.find)) {
+        tailored = tailored.replace(edit.find, edit.replace)
+      }
+    }
+
     await api.updateJob(id, {
-      tailored_resume: result.tailored_resume || '',
-      resume_improvements: result.suggestions || result.improvements || [],
+      tailored_resume: tailored,
+      resume_improvements: result.suggestions || [],
     })
     return await api.getJob(id)
   },
