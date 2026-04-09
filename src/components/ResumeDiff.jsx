@@ -210,16 +210,34 @@ export default function ResumeDiff({ original, tailored, onApply }) {
                   return <div key={key} className="diff-line-unchanged">{change.text || '\u00A0'}</div>
                 }
 
+                if (change.type === 'modified') {
+                  // Show as a normal line with only changed words highlighted
+                  return (
+                    <div key={key} className={`diff-line-modified ${decision ? `diff-decided diff-${decision}ed` : ''}`}>
+                      <div className="diff-inline-sentence">
+                        {change.words.map((w, wi) => (
+                          <span key={wi} className={w.type !== 'same' ? `diff-word-highlight diff-word-${w.type}` : ''}>{w.text}</span>
+                        ))}
+                      </div>
+                      <div className="diff-change-actions">
+                        <button
+                          className={`diff-action-btn diff-accept ${decision === 'accept' ? 'active' : ''}`}
+                          onClick={() => decide(key, decision === 'accept' ? undefined : 'accept')}
+                          title="Accept change"
+                        >&#10003;</button>
+                        <button
+                          className={`diff-action-btn diff-reject ${decision === 'reject' ? 'active' : ''}`}
+                          onClick={() => decide(key, decision === 'reject' ? undefined : 'reject')}
+                          title="Keep original"
+                        >&#10005;</button>
+                      </div>
+                    </div>
+                  )
+                }
+
                 return (
                   <div key={key} className={`diff-change ${decision ? `diff-decided diff-${decision}ed` : ''}`}>
                     <div className="diff-change-content">
-                      {change.type === 'modified' && (
-                        <div className="diff-inline">
-                          {change.words.map((w, wi) => (
-                            <span key={wi} className={`diff-word diff-word-${w.type}`}>{w.text}</span>
-                          ))}
-                        </div>
-                      )}
                       {change.type === 'added' && (
                         <div className="diff-line-added">{change.text}</div>
                       )}

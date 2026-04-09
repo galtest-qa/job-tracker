@@ -579,11 +579,24 @@ body {
 .diff-change.diff-rejected { border-left-color: var(--danger); background: #fef2f2; opacity: 0.5; }
 .diff-change-content { flex: 1; min-width: 0; }
 
-/* Inline word-level diff */
-.diff-inline { font-size: 0.82rem; line-height: 1.6; }
-.diff-word-same { }
-.diff-word-added { background: #bbf7d0; color: #065f46; font-weight: 600; border-radius: 2px; padding: 0 1px; }
-.diff-word-removed { background: #fecaca; color: #991b1b; text-decoration: line-through; border-radius: 2px; padding: 0 1px; }
+/* Modified lines — look normal, only changed words highlighted */
+.diff-line-modified {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  padding: 0.2rem 0.75rem; color: var(--text);
+}
+.diff-line-modified.diff-accepted { opacity: 0.6; }
+.diff-line-modified.diff-rejected { opacity: 0.4; }
+.diff-inline-sentence { flex: 1; font-size: 0.82rem; line-height: 1.6; }
+
+/* Only the changed words get color */
+.diff-word-highlight.diff-word-added {
+  background: #bbf7d0; color: #065f46; font-weight: 600;
+  border-radius: 3px; padding: 1px 3px;
+}
+.diff-word-highlight.diff-word-removed {
+  background: #fecaca; color: #991b1b; text-decoration: line-through;
+  border-radius: 3px; padding: 1px 3px;
+}
 
 /* Full line add/remove */
 .diff-line-added { color: #065f46; }
