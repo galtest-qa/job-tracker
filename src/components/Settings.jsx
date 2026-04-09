@@ -34,6 +34,29 @@ export default function Settings({ onClose }) {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const handleConnectExtension = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!session || !user) {
+      alert('Not logged in')
+      return
+    }
+    // Post message that the content script on this page can pick up
+    // and forward to the extension
+    const payload = {
+      type: 'job-tracker-connect',
+      supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+      supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      email: user.email,
+      userId: user.id,
+    }
+    window.postMessage(payload, '*')
+    // Also try chrome.runtime.sendMessage if extension ID is known
+    alert('Connection sent! If the extension is installed, it should now be connected. Open a LinkedIn job page to test.')
+  }
+
   const handleRemoveKey = async () => {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -121,6 +144,35 @@ export default function Settings({ onClose }) {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Chrome Extension */}
+            <div className="settings-section">
+              <h4 className="settings-section-title">Chrome Extension</h4>
+              <p className="settings-guide-text">Save jobs from LinkedIn with one click.</p>
+
+              <details className="settings-details">
+                <summary>How to install</summary>
+                <div className="settings-guide">
+                  <ol>
+                    <li>Download the extension files from <a href="https://github.com/galtest-qa/job-tracker" target="_blank" rel="noopener noreferrer">GitHub</a> (the <code>chrome-extension</code> folder)</li>
+                    <li>Open <code>chrome://extensions</code> in Chrome</li>
+                    <li>Enable <strong>Developer mode</strong> (top-right toggle)</li>
+                    <li>Click <strong>Load unpacked</strong></li>
+                    <li>Select the <code>chrome-extension</code> folder</li>
+                    <li>Click the extension icon in your toolbar</li>
+                    <li>Enter this app URL: <code>{window.location.origin}</code></li>
+                    <li>Enter your email and click Connect</li>
+                    <li>Check your email for the magic link, click it</li>
+                    <li>Come back to the extension popup and click <strong>"Connect Extension"</strong> below</li>
+                  </ol>
+                </div>
+              </details>
+
+              <button className="btn btn-secondary btn-sm" onClick={handleConnectExtension} style={{ marginTop: '0.5rem' }}>
+                Connect Extension
+              </button>
+              <p className="settings-hint">Sends your login session to the Chrome extension so it can save jobs on your behalf.</p>
             </div>
 
             <div className="modal-footer">

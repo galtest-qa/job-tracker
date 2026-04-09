@@ -1002,6 +1002,15 @@ body {
 .settings-guide a { color: var(--primary); }
 .settings-guide .form-group { margin-top: 0.75rem; }
 .settings-btn-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+.settings-guide-text { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+.settings-guide code {
+  font-size: 0.78rem; background: var(--border-light); padding: 0.1rem 0.35rem;
+  border-radius: 3px; font-family: monospace;
+}
+.settings-hint {
+  font-size: 0.72rem; color: var(--text-tertiary); margin-top: 0.35rem; line-height: 1.5;
+}
+.settings-hint a { color: var(--primary); }
 
 /* ═══════════ Responsive ═══════════ */
 @media (max-width: 640px) {
