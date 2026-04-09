@@ -320,12 +320,15 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       throw new Error('Upload your resume first (button in the header)')
     }
 
-    // AI only returns find-and-replace edits + suggestions — never the full resume
+    // Detect which sections exist in the resume
+    const resumeLines = rawResume.split('\n').map(l => l.trim().toUpperCase())
+    const existingSections = resumeLines.filter(l => /^[A-Z][A-Z\s&\/]{2,}$/.test(l))
+
     const result = await callOpenAI(`You are a resume editor. Analyze the resume against the job posting.
 
 DO NOT return the full resume text. Instead, return:
-1. "edits" — a list of small find-and-replace word changes to make in the existing resume (max 5-8 edits)
-2. "suggestions" — bigger improvements the user can choose to add manually
+1. "edits" — small find-and-replace word changes in the existing resume (max 5-8 edits)
+2. "suggestions" — improvements the user can choose to add manually
 
 RULES FOR EDITS:
 - Each edit is a find-and-replace: "find" = exact text in the resume, "replace" = new text
@@ -333,10 +336,16 @@ RULES FOR EDITS:
 - The "find" text MUST exist exactly in the resume (copy it character-for-character)
 - NEVER invent experience, titles, companies, or skills
 - Only swap verbs, add a keyword, or slightly rephrase
+- NEVER touch the LANGUAGES section — leave it exactly as is
+- NEVER touch personal info (name, email, phone, LinkedIn)
 
 RULES FOR SUGGESTIONS:
 - These are optional additions the user can accept or reject
-- Include section, what to add, and why
+- For each suggestion, check if the target section EXISTS in the resume
+- The resume has these sections: ${existingSections.join(', ') || 'none detected'}
+- If suggesting content for a section that DOES NOT EXIST in the resume, set type to "new_section" and include the section name. Example: if resume has no SKILLS section but you want to suggest skills, use type "new_section" with section "SKILLS"
+- If the section EXISTS, use "add_bullet" or "add_skill" or "rephrase"
+- NEVER suggest changes to the LANGUAGES section
 
 JOB POSTING:
 Company: ${job.company}
@@ -350,14 +359,14 @@ ${rawResume}
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
   "edits": [
-    {"find": "exact text from resume to replace", "replace": "new text with small change", "reason": "why this change helps"}
+    {"find": "exact text from resume", "replace": "new text with small change", "reason": "why"}
   ],
   "suggestions": [
     {
-      "section": "EXPERIENCE",
-      "type": "add_bullet|add_skill|rephrase",
+      "section": "EXPERIENCE or SKILLS or new section name",
+      "type": "add_bullet|add_skill|rephrase|new_section",
       "original": "original text if rephrasing, or empty",
-      "suggested": "suggested text to add or change to",
+      "suggested": "suggested text to add",
       "reason": "why this helps for this role"
     }
   ]

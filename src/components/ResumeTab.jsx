@@ -125,8 +125,8 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
         }
       }
     } else {
-      // Add new: append to the relevant section
-      currentText = appendToSection(currentText, imp.section, suggested)
+      // Add new: append to the relevant section (or create it)
+      currentText = appendToSection(currentText, imp.section, suggested, imp.type === 'new_section')
     }
 
     setEditText(currentText)
@@ -136,7 +136,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     setAppliedSuggestions(prev => new Set([...prev, idx]))
   }
 
-  function appendToSection(text, sectionName, newLine) {
+  function appendToSection(text, sectionName, newLine, isNewSection) {
     if (!sectionName) return text + '\n' + newLine
 
     const lines = text.split('\n')
@@ -154,9 +154,15 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     }
 
     if (insertIdx >= 0) {
-      lines.splice(insertIdx, 0, (newLine.startsWith('-') || newLine.startsWith('•') ? '' : '- ') + newLine)
+      // Section exists — add to it
+      const bullet = (newLine.startsWith('-') || newLine.startsWith('•')) ? '' : '- '
+      lines.splice(insertIdx, 0, bullet + newLine)
     } else {
-      lines.push('', newLine)
+      // Section doesn't exist — create it at the end (before LANGUAGES if present)
+      const langIdx = lines.findIndex(l => /^LANGUAGES\s*$/i.test(l.trim()))
+      const insertAt = langIdx >= 0 ? langIdx : lines.length
+      const newSection = ['', sectionName.toUpperCase(), newLine]
+      lines.splice(insertAt, 0, ...newSection)
     }
     return lines.join('\n')
   }
@@ -228,15 +234,22 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
                     <div key={i} className={`suggestion-card ${isApplied ? 'applied' : ''}`}>
                       <div className="suggestion-card-header">
                         <span className="suggestion-card-section">{imp.section || imp.category}</span>
-                        <span className="suggestion-card-type">{imp.type || 'suggestion'}</span>
+                        <span className={`suggestion-card-type ${imp.type === 'new_section' ? 'new-section' : ''}`}>
+                          {imp.type === 'new_section' ? 'New Section' : imp.type || 'suggestion'}
+                        </span>
                       </div>
+                      {imp.type === 'new_section' && (
+                        <div className="suggestion-new-section-note">
+                          This section doesn't exist in your resume yet. Applying will create it.
+                        </div>
+                      )}
                       {imp.original && (
                         <div className="suggestion-original">
                           <span className="suggestion-label">Current:</span> {imp.original}
                         </div>
                       )}
                       <div className="suggestion-new">
-                        <span className="suggestion-label">{imp.original ? 'Change to:' : 'Add:'}</span> {imp.suggested || imp.suggestion}
+                        <span className="suggestion-label">{imp.type === 'new_section' ? 'New section:' : imp.original ? 'Change to:' : 'Add:'}</span> {imp.suggested || imp.suggestion}
                       </div>
                       {imp.reason && <div className="suggestion-reason">{imp.reason}</div>}
                       <button

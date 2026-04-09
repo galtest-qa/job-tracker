@@ -686,6 +686,11 @@ body {
 .suggestion-new { font-size: 0.82rem; color: var(--text); margin-bottom: 0.3rem; line-height: 1.5; }
 .suggestion-label { font-weight: 700; font-size: 0.7rem; color: var(--text-secondary); }
 .suggestion-reason { font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 0.4rem; font-style: italic; line-height: 1.5; }
+.suggestion-card-type.new-section { background: #dbeafe; color: #2563eb; }
+.suggestion-new-section-note {
+  font-size: 0.72rem; color: #2563eb; background: #eff6ff;
+  padding: 0.3rem 0.5rem; border-radius: var(--radius-xs); margin-bottom: 0.3rem;
+}
 
 .empty-tab-state {
   text-align: center; padding: 3rem 2rem; color: var(--text-secondary);
