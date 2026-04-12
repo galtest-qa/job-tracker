@@ -15,6 +15,8 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   const [focusCollapsed, setFocusCollapsed] = useState(false)
   const [dragOverCol, setDragOverCol] = useState(null)
   const [suggestion, setSuggestion] = useState(null) // { jobId, suggestions[] }
+  const [reminderFilter, setReminderFilter] = useState(null)
+  const [reminderDropdownOpen, setReminderDropdownOpen] = useState(false)
 
   const reminderChipRef = useRef(null)
   useEffect(() => {
@@ -35,9 +37,6 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   // Column drag state
   const [dragColId, setDragColId] = useState(null)
   const [dragOverColId, setDragOverColId] = useState(null)
-
-  const [reminderFilter, setReminderFilter] = useState(null)
-  const [reminderDropdownOpen, setReminderDropdownOpen] = useState(false)
 
   const SCORE_FILTERS = [
     { key: 'All', label: 'All' },
