@@ -1537,3 +1537,11 @@ body {
   color: var(--accent);
   font-weight: 600;
 }
+
+.reminder-summary-item.clickable {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.reminder-summary-item.clickable:hover {
+  opacity: 0.8;
+}

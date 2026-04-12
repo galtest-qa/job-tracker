@@ -209,7 +209,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
 
   return (
     <div className="kanban">
-      <ReminderSummary reminders={reminders} />
+      <ReminderSummary reminders={reminders} onFilter={setReminderFilter} />
 
       {(() => {
         const topActions = getTopActions(jobs, reminders, 8)
