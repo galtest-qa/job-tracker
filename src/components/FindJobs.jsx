@@ -93,16 +93,24 @@ const PLATFORMS = [
 
 export default function FindJobs() {
   const [query, setQuery] = useState('')
+  const [activeQuery, setActiveQuery] = useState('')
 
   const handleSearch = (platform) => {
-    const url = query.trim() ? platform.searchUrl(query.trim()) : platform.homeUrl
+    const url = activeQuery ? platform.searchUrl(activeQuery) : platform.homeUrl
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  const handleSubmit = () => {
+    if (query.trim()) setActiveQuery(query.trim())
+  }
+
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && query.trim()) {
-      // Open all on Enter? No — just focus the first one. Better UX to let user pick.
-    }
+    if (e.key === 'Enter') handleSubmit()
+  }
+
+  const handleClear = () => {
+    setQuery('')
+    setActiveQuery('')
   }
 
   const international = PLATFORMS.filter(p => !p.isLocal)
@@ -112,7 +120,7 @@ export default function FindJobs() {
     <div className="find-jobs">
       <div className="find-jobs-header">
         <h2>Find Jobs</h2>
-        <p className="muted">Search across job platforms. Enter a role or keyword, then click a platform to open it.</p>
+        <p className="muted">Type a role or keyword, press Search, then click a platform to open it.</p>
       </div>
 
       <div className="find-jobs-search">
@@ -130,21 +138,32 @@ export default function FindJobs() {
             autoFocus
           />
           {query && (
-            <button className="find-jobs-clear" onClick={() => setQuery('')} title="Clear">
+            <button className="find-jobs-clear" onClick={handleClear} title="Clear">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           )}
         </div>
-        {query && (
-          <p className="find-jobs-hint">Click a platform below to search for <strong>"{query}"</strong></p>
-        )}
+        <button className="btn btn-primary find-jobs-btn" onClick={handleSubmit} disabled={!query.trim()}>
+          Search
+        </button>
       </div>
+
+      {activeQuery ? (
+        <div className="find-jobs-active-banner">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Searching for <strong>"{activeQuery}"</strong> — click any platform below to open the results
+        </div>
+      ) : (
+        <div className="find-jobs-idle-banner">
+          Enter a keyword above and press <strong>Search</strong>, then choose a platform
+        </div>
+      )}
 
       <div className="find-jobs-section">
         <h3 className="find-jobs-section-title">International</h3>
         <div className="find-jobs-grid">
           {international.map(platform => (
-            <PlatformCard key={platform.name} platform={platform} query={query} onClick={() => handleSearch(platform)} />
+            <PlatformCard key={platform.name} platform={platform} active={!!activeQuery} onClick={() => handleSearch(platform)} />
           ))}
         </div>
       </div>
@@ -153,7 +172,7 @@ export default function FindJobs() {
         <h3 className="find-jobs-section-title">Israel</h3>
         <div className="find-jobs-grid">
           {local.map(platform => (
-            <PlatformCard key={platform.name} platform={platform} query={query} onClick={() => handleSearch(platform)} />
+            <PlatformCard key={platform.name} platform={platform} active={!!activeQuery} onClick={() => handleSearch(platform)} />
           ))}
         </div>
       </div>
@@ -161,9 +180,9 @@ export default function FindJobs() {
   )
 }
 
-function PlatformCard({ platform, query, onClick }) {
+function PlatformCard({ platform, active, onClick }) {
   return (
-    <button className="platform-card" onClick={onClick} title={query ? `Search "${query}" on ${platform.name}` : `Open ${platform.name}`}>
+    <button className={`platform-card ${active ? 'platform-card-active' : ''}`} onClick={onClick} title={active ? `Search on ${platform.name}` : `Open ${platform.name}`}>
       <div className="platform-card-logo" style={{ backgroundColor: platform.color + '15', border: `1.5px solid ${platform.color}30` }}>
         {platform.logo ? (
           <img
