@@ -1481,3 +1481,42 @@ body {
 .todays-focus-header {
   user-select: none;
 }
+
+/* ═══════════ Reminder filters ═══════════ */
+.kanban-filters-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.reminder-filters {
+  display: flex;
+  gap: 0.25rem;
+}
+.reminder-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.reminder-tab.has-overdue {
+  color: #e53e3e;
+}
+.reminder-tab.has-overdue.active {
+  background: #fff5f5;
+  border-color: #e53e3e;
+  color: #e53e3e;
+}
+.reminder-filter-count {
+  background: #e53e3e;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}

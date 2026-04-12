@@ -28,12 +28,21 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   const [dragColId, setDragColId] = useState(null)
   const [dragOverColId, setDragOverColId] = useState(null)
 
+  const [filterReminder, setFilterReminder] = useState('all')
+
   const SCORE_FILTERS = [
     { key: 'All', label: 'All' },
     { key: '70-100', label: '70-100%' },
     { key: '50-70', label: '50-70%' },
     { key: '0-50', label: '0-50%' },
     { key: 'unscored', label: 'No Score' },
+  ]
+
+  const REMINDER_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'overdue', label: 'Overdue' },
+    { key: 'today', label: 'Due Today' },
+    { key: 'none', label: 'No Reminders' },
   ]
 
   const handleAnalyze = async (e, jobId) => {
@@ -143,12 +152,35 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     await onRefresh()
   }
 
+  // Reminder filter helpers
+  const now = new Date()
+  const todayStr = now.toISOString().slice(0, 10)
+  const jobReminderMap = {}
+  for (const r of reminders) {
+    if (!jobReminderMap[r.job_id]) jobReminderMap[r.job_id] = []
+    jobReminderMap[r.job_id].push(r)
+  }
+
   // Filter jobs
   const filtered = jobs.filter(j => {
     if (filterScore === '0-50' && (j.match_score == null || j.match_score > 50)) return false
     if (filterScore === '50-70' && (j.match_score == null || j.match_score < 50 || j.match_score > 70)) return false
     if (filterScore === '70-100' && (j.match_score == null || j.match_score < 70)) return false
     if (filterScore === 'unscored' && j.match_score != null) return false
+
+    if (filterReminder !== 'all') {
+      const jReminders = jobReminderMap[j.id] || []
+      if (filterReminder === 'none' && jReminders.length > 0) return false
+      if (filterReminder === 'overdue') {
+        const hasOverdue = jReminders.some(r => !r.done && r.due_date && r.due_date < todayStr)
+        if (!hasOverdue) return false
+      }
+      if (filterReminder === 'today') {
+        const hasToday = jReminders.some(r => !r.done && r.due_date && r.due_date.slice(0, 10) === todayStr)
+        if (!hasToday) return false
+      }
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       return j.company.toLowerCase().includes(q) ||
@@ -298,14 +330,35 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
           value={searchQuery}
           onChange={e => onSearchChange(e.target.value)}
         />
-        <div className="filter-tabs score-filters kanban-score-filters">
-          {SCORE_FILTERS.map(f => (
-            <button
-              key={f.key}
-              className={`tab score-tab ${filterScore === f.key ? 'active' : ''} ${f.key !== 'All' && f.key !== 'unscored' ? 'score-' + f.key : ''}`}
-              onClick={() => onFilterScoreChange(f.key)}
-            >{f.label}</button>
-          ))}
+        <div className="kanban-filters-row">
+          <div className="filter-tabs score-filters kanban-score-filters">
+            {SCORE_FILTERS.map(f => (
+              <button
+                key={f.key}
+                className={`tab score-tab ${filterScore === f.key ? 'active' : ''} ${f.key !== 'All' && f.key !== 'unscored' ? 'score-' + f.key : ''}`}
+                onClick={() => onFilterScoreChange(f.key)}
+              >{f.label}</button>
+            ))}
+          </div>
+          <div className="filter-tabs reminder-filters">
+            {REMINDER_FILTERS.map(f => {
+              const count = f.key === 'overdue'
+                ? jobs.filter(j => (jobReminderMap[j.id] || []).some(r => !r.done && r.due_date && r.due_date < todayStr)).length
+                : f.key === 'today'
+                ? jobs.filter(j => (jobReminderMap[j.id] || []).some(r => !r.done && r.due_date && r.due_date.slice(0, 10) === todayStr)).length
+                : null
+              return (
+                <button
+                  key={f.key}
+                  className={`tab reminder-tab ${filterReminder === f.key ? 'active' : ''} ${f.key === 'overdue' && count > 0 ? 'has-overdue' : ''}`}
+                  onClick={() => setFilterReminder(f.key)}
+                >
+                  {f.label}
+                  {count > 0 && <span className="reminder-filter-count">{count}</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
