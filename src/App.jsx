@@ -7,7 +7,7 @@ import JobDetail from './components/JobDetail.jsx'
 import ResumeUpload from './components/ResumeUpload.jsx'
 import Auth from './components/Auth.jsx'
 import Settings from './components/Settings.jsx'
-import Discover from './components/Discover.jsx'
+import FindJobs from './components/FindJobs.jsx'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = loading, null = not auth'd
@@ -108,9 +108,9 @@ export default function App() {
           >
             {resumeInfo?.raw_text ? `Resume: ${resumeInfo.filename || 'Uploaded'}` : 'Upload Resume'}
           </button>
-          <button className={`btn ${view === 'discover' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView(view === 'discover' ? 'board' : 'discover')}>
+          <button className={`btn ${view === 'find' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView(view === 'find' ? 'board' : 'find')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Discover
+            Find Jobs
           </button>
           <button className="btn btn-primary" onClick={() => setView('add')}>+ Add Job</button>
           <button className="btn btn-ghost" onClick={() => setShowSettings(true)} title="Settings">
@@ -149,9 +149,7 @@ export default function App() {
             onFilterScoreChange={setFilterScore}
           />
         )}
-        {view === 'discover' && (
-          <Discover columns={columns} onJobAdded={refresh} />
-        )}
+        {view === 'find' && <FindJobs />}
         {view === 'add' && (
           <JobForm
             columns={columns}

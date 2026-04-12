@@ -1294,3 +1294,139 @@ body {
   .detail-hero { flex-direction: column; }
   .kanban-column { flex: 0 0 260px; width: 260px; }
 }
+
+/* ═══════════ Find Jobs ═══════════ */
+.find-jobs {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+.find-jobs-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.find-jobs-search {
+  margin: 1.5rem 0 2rem;
+}
+.find-jobs-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.find-jobs-search-icon {
+  position: absolute;
+  left: 1rem;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+.find-jobs-input {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 2.75rem;
+  font-size: 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.find-jobs-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.find-jobs-clear {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+.find-jobs-clear:hover { color: var(--text-primary); background: var(--surface-raised); }
+.find-jobs-hint {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.find-jobs-section {
+  margin-bottom: 2rem;
+}
+.find-jobs-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 0.75rem;
+}
+.find-jobs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+.platform-card {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  width: 100%;
+}
+.platform-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.platform-card-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.platform-card-logo img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+.platform-initials {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.platform-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.platform-card-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.platform-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+.platform-card-arrow {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.platform-card:hover .platform-card-arrow {
+  opacity: 1;
+}
