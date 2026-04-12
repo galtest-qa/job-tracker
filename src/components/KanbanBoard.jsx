@@ -3,6 +3,7 @@ import { api } from '../api.js'
 import KanbanCard from './KanbanCard.jsx'
 import ReminderSummary from './ReminderSummary.jsx'
 import { getTopActions } from './nextAction.js'
+import { getReminderState } from './reminderUtils.js'
 
 export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, searchQuery, onSearchChange, filterScore, onFilterScoreChange }) {
   const [reminders, setReminders] = useState([])
@@ -175,12 +176,17 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   }
 
   const reminderMatchesFilter = (jobId, key) => {
-    const rs = (jobReminderMap[jobId] || []).filter(r => !r.done)
-    const dueStr = r => (r.due_at || '').slice(0, 10)
-    if (key === 'overdue') return rs.some(r => dueStr(r) && dueStr(r) < todayStr)
-    if (key === 'today')   return rs.some(r => dueStr(r) === todayStr)
-    if (key === '3days')   return rs.some(r => dueStr(r) >= todayStr && dueStr(r) <= in3Str)
-    if (key === '7days')   return rs.some(r => dueStr(r) >= todayStr && dueStr(r) <= in7Str)
+    const rs = (jobReminderMap[jobId] || []).filter(r => !r.completed)
+    if (key === 'overdue') return rs.some(r => getReminderState(r) === 'overdue')
+    if (key === 'today')   return rs.some(r => getReminderState(r) === 'today')
+    if (key === '3days') {
+      const dueStr = r => (r.due_at || '').slice(0, 10)
+      return rs.some(r => dueStr(r) >= todayStr && dueStr(r) <= in3Str)
+    }
+    if (key === '7days') {
+      const dueStr = r => (r.due_at || '').slice(0, 10)
+      return rs.some(r => dueStr(r) >= todayStr && dueStr(r) <= in7Str)
+    }
     return true
   }
 
