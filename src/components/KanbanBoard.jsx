@@ -16,6 +16,14 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   const [dragOverCol, setDragOverCol] = useState(null)
   const [suggestion, setSuggestion] = useState(null) // { jobId, suggestions[] }
 
+  const reminderChipRef = useRef(null)
+  useEffect(() => {
+    if (!reminderDropdownOpen) return
+    const handler = (e) => { if (reminderChipRef.current && !reminderChipRef.current.contains(e.target)) setReminderDropdownOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [reminderDropdownOpen])
+
   const loadReminders = async () => {
     try { const data = await api.getAllReminders(); setReminders(data) } catch {}
   }
@@ -28,7 +36,8 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   const [dragColId, setDragColId] = useState(null)
   const [dragOverColId, setDragOverColId] = useState(null)
 
-  const [filterReminder, setFilterReminder] = useState('all')
+  const [reminderFilter, setReminderFilter] = useState(null)
+  const [reminderDropdownOpen, setReminderDropdownOpen] = useState(false)
 
   const SCORE_FILTERS = [
     { key: 'All', label: 'All' },
@@ -38,11 +47,11 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     { key: 'unscored', label: 'No Score' },
   ]
 
-  const REMINDER_FILTERS = [
-    { key: 'all', label: 'All' },
+  const REMINDER_OPTIONS = [
     { key: 'overdue', label: 'Overdue' },
-    { key: 'today', label: 'Due Today' },
-    { key: 'none', label: 'No Reminders' },
+    { key: 'today', label: 'Today' },
+    { key: '3days', label: 'Next 3 days' },
+    { key: '7days', label: 'Next 7 days' },
   ]
 
   const handleAnalyze = async (e, jobId) => {
@@ -152,13 +161,28 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     await onRefresh()
   }
 
-  // Reminder filter helpers
+  // Reminder date helpers
   const now = new Date()
   const todayStr = now.toISOString().slice(0, 10)
+  const in3 = new Date(now); in3.setDate(in3.getDate() + 3)
+  const in3Str = in3.toISOString().slice(0, 10)
+  const in7 = new Date(now); in7.setDate(in7.getDate() + 7)
+  const in7Str = in7.toISOString().slice(0, 10)
+
   const jobReminderMap = {}
   for (const r of reminders) {
     if (!jobReminderMap[r.job_id]) jobReminderMap[r.job_id] = []
     jobReminderMap[r.job_id].push(r)
+  }
+
+  const reminderMatchesFilter = (jobId, key) => {
+    const rs = (jobReminderMap[jobId] || []).filter(r => !r.done)
+    const dueStr = r => (r.due_at || '').slice(0, 10)
+    if (key === 'overdue') return rs.some(r => dueStr(r) && dueStr(r) < todayStr)
+    if (key === 'today')   return rs.some(r => dueStr(r) === todayStr)
+    if (key === '3days')   return rs.some(r => dueStr(r) >= todayStr && dueStr(r) <= in3Str)
+    if (key === '7days')   return rs.some(r => dueStr(r) >= todayStr && dueStr(r) <= in7Str)
+    return true
   }
 
   // Filter jobs
@@ -167,20 +191,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     if (filterScore === '50-70' && (j.match_score == null || j.match_score < 50 || j.match_score > 70)) return false
     if (filterScore === '70-100' && (j.match_score == null || j.match_score < 70)) return false
     if (filterScore === 'unscored' && j.match_score != null) return false
-
-    if (filterReminder !== 'all') {
-      const jReminders = jobReminderMap[j.id] || []
-      if (filterReminder === 'none' && jReminders.length > 0) return false
-      if (filterReminder === 'overdue') {
-        const hasOverdue = jReminders.some(r => !r.done && r.due_date && r.due_date < todayStr)
-        if (!hasOverdue) return false
-      }
-      if (filterReminder === 'today') {
-        const hasToday = jReminders.some(r => !r.done && r.due_date && r.due_date.slice(0, 10) === todayStr)
-        if (!hasToday) return false
-      }
-    }
-
+    if (reminderFilter && !reminderMatchesFilter(j.id, reminderFilter)) return false
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       return j.company.toLowerCase().includes(q) ||
@@ -340,24 +351,31 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
               >{f.label}</button>
             ))}
           </div>
-          <div className="filter-tabs reminder-filters">
-            {REMINDER_FILTERS.map(f => {
-              const count = f.key === 'overdue'
-                ? jobs.filter(j => (jobReminderMap[j.id] || []).some(r => !r.done && r.due_date && r.due_date < todayStr)).length
-                : f.key === 'today'
-                ? jobs.filter(j => (jobReminderMap[j.id] || []).some(r => !r.done && r.due_date && r.due_date.slice(0, 10) === todayStr)).length
-                : null
-              return (
-                <button
-                  key={f.key}
-                  className={`tab reminder-tab ${filterReminder === f.key ? 'active' : ''} ${f.key === 'overdue' && count > 0 ? 'has-overdue' : ''}`}
-                  onClick={() => setFilterReminder(f.key)}
-                >
-                  {f.label}
-                  {count > 0 && <span className="reminder-filter-count">{count}</span>}
-                </button>
-              )
-            })}
+          <div className="reminder-chip-wrap" ref={reminderChipRef}>
+            <button
+              className={`tab reminder-chip ${reminderFilter ? 'active' : ''}`}
+              onClick={() => setReminderDropdownOpen(o => !o)}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {reminderFilter ? REMINDER_OPTIONS.find(o => o.key === reminderFilter)?.label : 'Reminders'}
+              {reminderFilter
+                ? <span className="reminder-chip-clear" onClick={e => { e.stopPropagation(); setReminderFilter(null); setReminderDropdownOpen(false) }}>×</span>
+                : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              }
+            </button>
+            {reminderDropdownOpen && (
+              <div className="reminder-chip-dropdown">
+                {REMINDER_OPTIONS.map(o => (
+                  <button
+                    key={o.key}
+                    className={`reminder-chip-option ${reminderFilter === o.key ? 'selected' : ''}`}
+                    onClick={() => { setReminderFilter(o.key); setReminderDropdownOpen(false) }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
