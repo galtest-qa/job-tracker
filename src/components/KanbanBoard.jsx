@@ -12,6 +12,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   const [addingFocus, setAddingFocus] = useState(false)
   const [focusInput, setFocusInput] = useState('')
   const [focusRefreshKey, setFocusRefreshKey] = useState(0)
+  const [focusCollapsed, setFocusCollapsed] = useState(false)
   const [dragOverCol, setDragOverCol] = useState(null)
   const [suggestion, setSuggestion] = useState(null) // { jobId, suggestions[] }
 
@@ -176,19 +177,32 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
         if (!hasItems && !addingFocus) return null
         return (
           <div className="todays-focus" key={focusRefreshKey}>
-            <div className="todays-focus-header">
-              <h3 className="todays-focus-title">Today's Focus</h3>
-              <div className="todays-focus-actions">
-                <button className="focus-header-btn" onClick={() => setAddingFocus(true)} title="Add custom focus">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                </button>
-                <button className="focus-header-btn" onClick={() => { setDismissedActions(new Set()); setFocusRefreshKey(k => k + 1) }} title="Refresh">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <div className="todays-focus-header" style={{ cursor: 'pointer' }} onClick={() => setFocusCollapsed(c => !c)}>
+              <h3 className="todays-focus-title">
+                Today's Focus
+                {focusCollapsed && <span className="focus-collapsed-count"> · {topActions.length + customFocusItems.length} items</span>}
+              </h3>
+              <div className="todays-focus-actions" onClick={e => e.stopPropagation()}>
+                {!focusCollapsed && (
+                  <>
+                    <button className="focus-header-btn" onClick={() => setAddingFocus(true)} title="Add custom focus">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <button className="focus-header-btn" onClick={() => { setDismissedActions(new Set()); setFocusRefreshKey(k => k + 1) }} title="Refresh">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    </button>
+                  </>
+                )}
+                <button className="focus-header-btn" onClick={() => setFocusCollapsed(c => !c)} title={focusCollapsed ? 'Expand' : 'Collapse'}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: focusCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
                 </button>
               </div>
             </div>
 
-            {addingFocus && (
+            {!focusCollapsed && addingFocus && (
               <div className="focus-add-row">
                 <input
                   className="reminder-input"
@@ -216,7 +230,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
               </div>
             )}
 
-            <div className="todays-focus-list">
+            {!focusCollapsed && <div className="todays-focus-list">
               {customFocusItems.map(item => (
                 <div key={item.id} className="focus-item focus-custom">
                   <div className="focus-item-main">
@@ -254,7 +268,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
                   </div>
                 </div>
               ))}
-            </div>
+            </div>}
           </div>
         )
       })()}

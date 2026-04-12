@@ -1471,3 +1471,13 @@ body {
 .platform-card-active .platform-card-arrow {
   opacity: 1;
 }
+
+.focus-collapsed-count {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  margin-left: 0.25rem;
+}
+.todays-focus-header {
+  user-select: none;
+}
