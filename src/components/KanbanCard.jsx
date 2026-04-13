@@ -117,7 +117,8 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
 
       <div className="kanban-card-bottom">
         <div className="kanban-card-tags">
-          {job.tags?.slice(0, 3).map(t => <span key={t} className="tag tag-sm">{t}</span>)}
+          {job.department && <span className="tag tag-sm tag-dept">{job.department}</span>}
+          {job.industry && <span className="tag tag-sm tag-industry">{job.industry}</span>}
         </div>
         <div className="kanban-card-actions">
           {job.contact_name && (

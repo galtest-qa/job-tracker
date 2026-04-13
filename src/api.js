@@ -67,7 +67,8 @@ export const api = {
       description: jobData.description || '',
       source: jobData.source || 'LinkedIn',
       status: jobData.status || 'Backlog',
-      tags: jobData.tags || [],
+      department: jobData.department || '',
+      industry: jobData.industry || '',
       notes: jobData.notes || '',
       interview_notes: jobData.interview_notes || '',
       company_overview: jobData.company_overview || '',
@@ -140,7 +141,8 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   ],
   "match_score": "<integer 0-100 = 100 minus total deductions>",
   "positioning_tips": "2-3 specific suggestions referencing real experience",
-  "tags": ["relevant", "tags"]
+  "department": "one of: R&D / Engineering, Product, QA, DevOps / IT, Data, Design, Sales, Marketing, Operations, Customer Success, Finance, HR, Legal",
+  "industry": "one of: AI, Cybersecurity, Cloud, Gaming, AdTech, FinTech, HealthTech, E-commerce, SaaS, Enterprise Software, DevTools, Blockchain / Web3, Defense, Media / Entertainment, EdTech, HR Tech, Mobility / Transport, Retail, Other"
 }`)
 
     // Transform score_breakdown into the legacy format for backward compatibility
@@ -158,7 +160,8 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       requirements_unmet: requirements_unmet,
       match_score: typeof result.match_score === 'number' ? result.match_score : parseInt(result.match_score) || null,
       positioning_tips: result.positioning_tips || '',
-      tags: result.tags || [],
+      department: result.department || '',
+      industry: result.industry || '',
     })
     return await api.getJob(id)
   },

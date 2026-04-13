@@ -2,6 +2,10 @@ import React, { useState } from 'react'
 
 const SOURCES = ['LinkedIn', 'Referral', 'Company Website', 'Job Board', 'Recruiter', 'Other']
 
+const DEPARTMENTS = ['', 'R&D / Engineering', 'Product', 'QA', 'DevOps / IT', 'Data', 'Design', 'Sales', 'Marketing', 'Operations', 'Customer Success', 'Finance', 'HR', 'Legal']
+
+const INDUSTRIES = ['', 'AI', 'Cybersecurity', 'Cloud', 'Gaming', 'AdTech', 'FinTech', 'HealthTech', 'E-commerce', 'SaaS', 'Enterprise Software', 'DevTools', 'Blockchain / Web3', 'Defense', 'Media / Entertainment', 'EdTech', 'HR Tech', 'Mobility / Transport', 'Retail', 'Other']
+
 export default function JobForm({ onSave, onCancel, initial, columns }) {
   const backlog = columns?.find(c => c.is_default)
   const defaultStatus = backlog?.name || columns?.[0]?.name || 'Backlog'
@@ -20,6 +24,8 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
     contact_role: initial?.contact_role || '',
     contact_linkedin: initial?.contact_linkedin || '',
     contact_email: initial?.contact_email || '',
+    department: initial?.department || '',
+    industry: initial?.industry || '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -61,6 +67,18 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
           <label>Source</label>
           <select value={form.source} onChange={set('source')}>
             {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Department</label>
+          <select value={form.department} onChange={set('department')}>
+            {DEPARTMENTS.map(d => <option key={d} value={d}>{d || '— Select —'}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Industry</label>
+          <select value={form.industry} onChange={set('industry')}>
+            {INDUSTRIES.map(i => <option key={i} value={i}>{i || '— Select —'}</option>)}
           </select>
         </div>
       </div>

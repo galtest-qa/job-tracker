@@ -1545,3 +1545,15 @@ body {
 .reminder-summary-item.clickable:hover {
   opacity: 0.8;
 }
+
+/* ═══════════ Department / Industry pills ═══════════ */
+.tag-dept {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  border-color: rgba(99, 102, 241, 0.25);
+}
+.tag-industry {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.25);
+}

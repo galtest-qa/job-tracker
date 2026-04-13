@@ -215,9 +215,10 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
         )
       })()}
 
-      {job.tags?.length > 0 && (
+      {(job.department || job.industry) && (
         <div className="tags detail-tags">
-          {job.tags.map(t => <span key={t} className="tag">{t}</span>)}
+          {job.department && <span className="tag tag-dept">{job.department}</span>}
+          {job.industry && <span className="tag tag-industry">{job.industry}</span>}
         </div>
       )}
 

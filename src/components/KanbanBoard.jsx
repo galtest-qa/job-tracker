@@ -201,7 +201,8 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
       const q = searchQuery.toLowerCase()
       return j.company.toLowerCase().includes(q) ||
         j.role.toLowerCase().includes(q) ||
-        (j.tags || []).some(t => t.toLowerCase().includes(q))
+        (j.department || '').toLowerCase().includes(q) ||
+        (j.industry || '').toLowerCase().includes(q)
     }
     return true
   })
