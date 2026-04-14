@@ -302,12 +302,14 @@ function buildJobTrackerDeck() {
 // ── Helpers ──
 
 function styleText(shape, size, color, bold, align) {
-  var style = shape.getText().getTextStyle();
+  var textRange = shape.getText();
+  var style = textRange.getTextStyle();
   style.setFontSize(size);
   style.setForegroundColor(color);
   style.setBold(bold);
-  var para = shape.getText().getParagraphStyle();
-  para.setParagraphAlignment(align);
+  textRange.getParagraphs().forEach(function(p) {
+    p.getRange().getParagraphStyle().setParagraphAlignment(align);
+  });
 }
 
 function addSlideHeader(slide, tag, title, titleColor, accentColor) {
