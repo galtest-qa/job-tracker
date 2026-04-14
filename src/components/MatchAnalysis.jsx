@@ -119,7 +119,15 @@ export default function MatchAnalysis({ job, onScoreUpdate }) {
       </div>
 
       <div className="req-list">
-        {breakdown.map((item, idx) => {
+        {[...breakdown]
+          .map((item, idx) => ({ item, idx }))
+          .sort((a, b) => {
+            const order = { met: 0, partial: 1, unmet: 2 }
+            const statusA = a.item.status
+            const statusB = b.item.status
+            return (order[statusA] ?? 1) - (order[statusB] ?? 1)
+          })
+          .map(({ item, idx }) => {
           const aiStatus   = item.status
           const userStatus = overrides[idx]
           const current    = userStatus ?? aiStatus
