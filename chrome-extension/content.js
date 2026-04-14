@@ -75,7 +75,32 @@ function extractCompany() {
   return parseTitlePart(1)
 }
 
+function clickShowMore() {
+  // LinkedIn "Show more" button selectors (they change these often)
+  const selectors = [
+    '#job-details button',
+    'button[aria-label*="more"]',
+    'button[aria-label*="More"]',
+    '.jobs-description__footer-button',
+    '.jobs-description button',
+  ]
+  for (const sel of selectors) {
+    const btns = document.querySelectorAll(sel)
+    for (const btn of btns) {
+      const text = (btn.innerText || btn.textContent || '').trim().toLowerCase()
+      if (text.includes('show more') || text.includes('see more') || text.includes('read more') || text === 'more') {
+        btn.click()
+        return true
+      }
+    }
+  }
+  return false
+}
+
 function extractDescription() {
+  // Try to expand first
+  clickShowMore()
+
   const jobDetails = document.querySelector('#job-details')
   if (jobDetails?.innerText?.trim()) return jobDetails.innerText.trim()
 
@@ -130,6 +155,10 @@ async function saveJob() {
     showToast('Not connected. Click the Job Tracker extension icon to set up.')
     return
   }
+
+  // Expand description before extracting
+  clickShowMore()
+  await new Promise(r => setTimeout(r, 300))
 
   const data = extractJobData()
 
