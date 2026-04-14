@@ -50,7 +50,14 @@ function extractCompany() {
   const companyLinks = document.querySelectorAll('a[href*="/company/"]')
   for (const link of companyLinks) {
     const text = link.innerText?.trim()
-    if (text && text.length > 1 && text.length < 80 && !text.includes('\n') && !text.includes('.')) {
+    if (
+      text &&
+      text.length > 1 &&
+      text.length < 80 &&
+      !text.includes('\n') &&
+      !text.includes('.') &&
+      !/show|more|jobs|see|follow|view/i.test(text)
+    ) {
       return text
     }
   }
