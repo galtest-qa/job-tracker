@@ -1707,3 +1707,63 @@ body {
 .req-toggle-met.active     { background: rgba(16,185,129,0.12); color: #059669; font-weight: 700; }
 .req-toggle-partial.active { background: rgba(245,158,11,0.12); color: #d97706; font-weight: 700; }
 .req-toggle-unmet.active   { background: rgba(239,68,68,0.12);  color: #ef4444; font-weight: 700; }
+
+/* ═══════════ AI hover popup ═══════════ */
+.ai-hover-popup {
+  position: fixed;
+  z-index: 9999;
+  width: 220px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  padding: 0.75rem;
+  pointer-events: none;
+}
+.ai-hover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.ai-hover-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.ai-hover-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 0.25rem;
+}
+.ai-hover-section {
+  margin-top: 0.5rem;
+}
+.ai-hover-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.ai-hover-section-label.met   { color: #10b981; }
+.ai-hover-section-label.unmet { color: #ef4444; }
+.ai-hover-item {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding-left: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-hover-footer {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}

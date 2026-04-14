@@ -71,8 +71,12 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
   const nextReminder = getNextActiveReminder(reminders.filter(r => r.job_id === job.id))
   const nextAction = getNextAction(job, reminders)
   const [showTooltip, setShowTooltip] = useState(false)
+  const [showAiHover, setShowAiHover] = useState(false)
+  const [aiHoverPos, setAiHoverPos] = useState(null)
   const hoverTimer = useRef(null)
+  const aiHoverTimer = useRef(null)
   const cardRef = useRef(null)
+  const aiButtonRef = useRef(null)
 
   const handleMouseEnter = () => {
     hoverTimer.current = setTimeout(() => setShowTooltip(true), 400)
@@ -129,10 +133,16 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
             </span>
           )}
           <button
+            ref={aiButtonRef}
             className={`kanban-analyze-btn ${analyzing ? 'analyzing' : ''}`}
             onClick={(e) => { e.stopPropagation(); onAnalyze(e, job.id) }}
             disabled={analyzing}
-            title="Analyze with AI"
+            onMouseEnter={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              setAiHoverPos({ top: rect.bottom + 6, left: rect.left })
+              aiHoverTimer.current = setTimeout(() => setShowAiHover(true), 300)
+            }}
+            onMouseLeave={() => { clearTimeout(aiHoverTimer.current); setShowAiHover(false) }}
           >
             {analyzing ? <span className="spinner spinner-sm" /> : (
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -150,6 +160,55 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
       </div>
 
       {showTooltip && <Tooltip anchor={cardRef.current} job={job} columns={columns} />}
+      {showAiHover && aiHoverPos && <AiHoverPopup job={job} pos={aiHoverPos} />}
     </div>
+  )
+}
+
+function AiHoverPopup({ job, pos }) {
+  const hasScore = job.match_score != null
+  const breakdown = job.score_breakdown || []
+
+  const met   = breakdown.filter(r => r.status === 'met').slice(0, 2)
+  const unmet = breakdown.filter(r => r.status === 'unmet').slice(0, 2)
+
+  // Adjust position so popup doesn't go off screen
+  const left = Math.min(pos.left, window.innerWidth - 240)
+
+  return ReactDOM.createPortal(
+    <div className="ai-hover-popup" style={{ top: pos.top, left }}>
+      {!hasScore ? (
+        <>
+          <div className="ai-hover-title">Analyze with AI</div>
+          <div className="ai-hover-desc">Score this job against your profile — see what you meet, what's missing, and get positioning tips.</div>
+        </>
+      ) : (
+        <>
+          <div className="ai-hover-header">
+            <span className="ai-hover-title">AI Analysis</span>
+            <span className={`score score-sm ${job.match_score >= 70 ? 'high' : job.match_score >= 40 ? 'mid' : 'low'}`}>
+              {job.match_score}%
+            </span>
+          </div>
+          {met.length > 0 && (
+            <div className="ai-hover-section">
+              <span className="ai-hover-section-label met">✓ Meets</span>
+              {met.map((r, i) => <div key={i} className="ai-hover-item">{r.requirement}</div>)}
+            </div>
+          )}
+          {unmet.length > 0 && (
+            <div className="ai-hover-section">
+              <span className="ai-hover-section-label unmet">✗ Gaps</span>
+              {unmet.map((r, i) => <div key={i} className="ai-hover-item">{r.requirement}</div>)}
+            </div>
+          )}
+          {breakdown.length === 0 && job.positioning_tips && (
+            <div className="ai-hover-desc">{job.positioning_tips.slice(0, 100)}…</div>
+          )}
+          <div className="ai-hover-footer">Click to re-analyze</div>
+        </>
+      )}
+    </div>,
+    document.body
   )
 }
