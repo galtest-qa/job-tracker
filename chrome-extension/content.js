@@ -76,41 +76,28 @@ function extractCompany() {
 }
 
 function clickShowMore() {
-  // Search all clickable element types — LinkedIn uses buttons, spans, and anchors
-  const selectors = [
-    '#job-details button',
-    '#job-details span[role="button"]',
-    '#job-details a',
-    '#job-details span',
-    'button[aria-label*="more" i]',
-    'button[aria-label*="More" i]',
-    '.jobs-description__footer-button',
-    '.jobs-description button',
-    '.jobs-description span[role="button"]',
-  ]
-  for (const sel of selectors) {
-    const els = document.querySelectorAll(sel)
-    for (const el of els) {
-      const text = (el.innerText || el.textContent || '').trim().toLowerCase()
-      if (
-        text === '...more' ||
-        text === 'more' ||
-        text.includes('show more') ||
-        text.includes('see more') ||
-        text.includes('read more') ||
-        /^\.{0,3}more$/.test(text)
-      ) {
-        el.click()
-        return true
-      }
+  // Only look inside #job-details to avoid accidentally clicking things elsewhere on the page
+  const container = document.querySelector('#job-details')
+  if (!container) return false
+
+  const candidates = container.querySelectorAll('button, [role="button"]')
+  for (const el of candidates) {
+    const text = (el.innerText || el.textContent || '').trim().toLowerCase()
+    if (/^\.{0,3}more$/.test(text) || text.includes('show more') || text.includes('see more')) {
+      el.click()
+      return true
     }
   }
   return false
 }
 
 function cleanDescription(text) {
-  // Remove trailing "...more" / "…more" artifacts left by LinkedIn's truncation
-  return text.replace(/[\s\n]*\.{2,3}more\s*$/i, '').replace(/[\s\n]*…more\s*$/i, '').trim()
+  // LinkedIn inlines "...more" as a clickable span — remove it wherever it appears
+  return text
+    .replace(/\.{2,3}more/gi, '')
+    .replace(/…more/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
 }
 
 function extractDescription() {
