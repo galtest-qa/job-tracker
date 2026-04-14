@@ -265,7 +265,18 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
               <MatchAnalysis job={job} />
             )}
             {job.positioning_tips && (
-              <div className="tips-block"><h4>Positioning Tips</h4><p>{job.positioning_tips}</p></div>
+              <div className="tips-block">
+                <h4>Positioning Tips</h4>
+                {(() => {
+                  let tips = job.positioning_tips
+                  if (typeof tips === 'string') {
+                    try { tips = JSON.parse(tips) } catch { tips = [tips] }
+                  }
+                  return Array.isArray(tips)
+                    ? <ul>{tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                    : <p>{tips}</p>
+                })()}
+              </div>
             )}
           </div>
         )}
