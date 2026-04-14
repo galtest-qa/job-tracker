@@ -155,7 +155,7 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     }
   ],
   "match_score": "<integer 0-100, must equal 100 minus sum of all points_deducted>",
-  "positioning_tips": "3 specific, concrete suggestions each referencing a real achievement or project from the candidate's background",
+  "positioning_tips": ["tip 1 referencing a specific achievement", "tip 2 referencing a specific achievement", "tip 3 referencing a specific achievement"],
   "department": "one of: R&D / Engineering, Product, QA, DevOps / IT, Data, Design, Sales, Marketing, Operations, Customer Success, Finance, HR, Legal",
   "industry": "one of: AI, Cybersecurity, Cloud, Gaming, AdTech, FinTech, HealthTech, E-commerce, SaaS, Enterprise Software, DevTools, Blockchain / Web3, Defense, Media / Entertainment, EdTech, HR Tech, Mobility / Transport, Retail, Other"
 }`)
@@ -175,7 +175,12 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       score_breakdown: breakdown,
       score_breakdown_overrides: {},
       match_score: typeof result.match_score === 'number' ? result.match_score : parseInt(result.match_score) || null,
-      positioning_tips: result.positioning_tips || '',
+      positioning_tips: (() => {
+        const t = result.positioning_tips
+        if (Array.isArray(t)) return JSON.stringify(t)
+        if (typeof t === 'string' && t.startsWith('[')) return t
+        return t ? JSON.stringify([t]) : ''
+      })(),
       department: result.department || '',
       industry: result.industry || '',
     })
