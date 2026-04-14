@@ -234,9 +234,12 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
                     <div key={i} className={`suggestion-card ${isApplied ? 'applied' : ''}`}>
                       <div className="suggestion-card-header">
                         <span className="suggestion-card-section">{imp.section || imp.category}</span>
-                        <span className={`suggestion-card-type ${imp.type === 'new_section' ? 'new-section' : ''}`}>
-                          {imp.type === 'new_section' ? 'New Section' : imp.type || 'suggestion'}
-                        </span>
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                          {imp.impact === 'high' && <span className="suggestion-impact-high">High impact</span>}
+                          <span className={`suggestion-card-type ${imp.type === 'new_section' ? 'new-section' : ''}`}>
+                            {imp.type === 'new_section' ? 'New Section' : imp.type || 'suggestion'}
+                          </span>
+                        </div>
                       </div>
                       {imp.type === 'new_section' && (
                         <div className="suggestion-new-section-note">

@@ -348,27 +348,31 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     const resumeLines = rawResume.split('\n').map(l => l.trim().toUpperCase())
     const existingSections = resumeLines.filter(l => /^[A-Z][A-Z\s&\/]{2,}$/.test(l))
 
-    const result = await callOpenAI(`You are a resume editor. Analyze the resume against the job posting.
+    const result = await callOpenAI(`You are an expert resume editor specializing in ATS optimization and recruiter impact. Tailor this resume to the job posting.
 
 DO NOT return the full resume text. Instead, return:
-1. "edits" — small find-and-replace word changes in the existing resume (max 5-8 edits)
-2. "suggestions" — improvements the user can choose to add manually
+1. "edits" — targeted find-and-replace changes to inject keywords and sharpen impact (5–10 edits)
+2. "suggestions" — additions or rewrites the user can choose to apply manually
 
-RULES FOR EDITS:
-- Each edit is a find-and-replace: "find" = exact text in the resume, "replace" = new text
-- Only change a few WORDS at a time, not full sentences
-- The "find" text MUST exist exactly in the resume (copy it character-for-character)
-- NEVER invent experience, titles, companies, or skills
-- Only swap verbs, add a keyword, or slightly rephrase
-- NEVER touch the LANGUAGES section — leave it exactly as is
+STEP 1 — IDENTIFY TOP KEYWORDS:
+Before editing, mentally extract the 8–12 most important keywords and phrases from the job description (skills, tools, methodologies, role-specific language). Your edits should prioritize injecting these into the resume where they are absent but truthfully applicable.
+
+STEP 2 — EDITS (find-and-replace):
+- "find" = exact text copied character-for-character from the resume (must exist verbatim)
+- "replace" = improved version — inject a missing keyword, strengthen a verb, or sharpen impact
+- Priority order: (1) inject a missing ATS keyword, (2) replace a weak verb with a stronger one, (3) add a quantified result where missing
+- Only change a few words at a time — never rewrite an entire sentence
+- NEVER invent experience, titles, companies, tools, or metrics that are not in the resume
+- NEVER touch the LANGUAGES section
 - NEVER touch personal info (name, email, phone, LinkedIn)
+- Add "impact": "high" if this edit adds a critical missing keyword or metric; "medium" for verb/phrasing improvements
 
-RULES FOR SUGGESTIONS:
-- These are optional additions the user can accept or reject
-- For each suggestion, check if the target section EXISTS in the resume
-- The resume has these sections: ${existingSections.join(', ') || 'none detected'}
-- If suggesting content for a section that DOES NOT EXIST in the resume, set type to "new_section" and include the section name. Example: if resume has no SKILLS section but you want to suggest skills, use type "new_section" with section "SKILLS"
-- If the section EXISTS, use "add_bullet" or "add_skill" or "rephrase"
+STEP 3 — SUGGESTIONS (optional additions):
+- Each suggestion MUST reference a specific project, achievement, or experience already in the resume — no generic advice
+- Prioritize suggestions that address the biggest gaps between the resume and job requirements
+- Check if the target section EXISTS: resume sections are: ${existingSections.join(', ') || 'none detected'}
+- If the section does NOT exist, set type to "new_section"
+- If it exists, use "add_bullet", "add_skill", or "rephrase"
 - NEVER suggest changes to the LANGUAGES section
 
 JOB POSTING:
@@ -383,18 +387,18 @@ ${rawResume}
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
   "edits": [
-    {"find": "exact text from resume", "replace": "new text with small change", "reason": "why"}
+    {"find": "exact text from resume", "replace": "improved text", "reason": "why this improves ATS or recruiter impact", "impact": "high|medium"}
   ],
   "suggestions": [
     {
       "section": "EXPERIENCE or SKILLS or new section name",
       "type": "add_bullet|add_skill|rephrase|new_section",
       "original": "original text if rephrasing, or empty",
-      "suggested": "suggested text to add",
-      "reason": "why this helps for this role"
+      "suggested": "suggested text referencing a real achievement from the resume",
+      "reason": "which job requirement this addresses and why"
     }
   ]
-}`, { temperature: 0.1 })
+}`, { temperature: 0.3 })
 
     // Apply edits to the original resume text — preserves exact formatting
     let tailored = rawResume
