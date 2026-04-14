@@ -65,9 +65,8 @@ function buildJobTrackerDeck() {
   circle.getFill().setSolidFill('#1A1D2E');
   circle.getBorder().setTransparent();
   var circleInner = s1.insertShape(SlidesApp.ShapeType.ELLIPSE, 580, 180, 140, 140);
-  circleInner.getFill().setSolidFill(ACCENT);
+  circleInner.getFill().setSolidFill('#2D2F4A');
   circleInner.getBorder().setTransparent();
-  circleInner.setOpacity(20);
   var circleIcon = s1.insertTextBox('🎯', 618, 218, 70, 70);
   circleIcon.getText().setText('🎯');
   styleText(circleIcon, 36, WHITE, false, null);
