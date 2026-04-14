@@ -99,11 +99,12 @@ function clickShowMore() {
 }
 
 function cleanDescription(text) {
-  // LinkedIn inlines "...more" as a clickable span — remove it wherever it appears
   return text
-    .replace(/\.{2,3}more/gi, '')
-    .replace(/…more/gi, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/^about the job\s*/i, '')   // strip LinkedIn "About the job" header
+    .replace(/\.{2,3}\s*more\s*$/gi, '') // strip trailing "...more"
+    .replace(/\u2026\s*more\s*$/gi, '')  // strip trailing "…more" (unicode ellipsis)
+    .replace(/\.{2,3}\s*more/gi, '')     // strip inline "...more"
+    .replace(/\u2026\s*more/gi, '')      // strip inline "…more"
     .trim()
 }
 
