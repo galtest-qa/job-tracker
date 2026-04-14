@@ -136,33 +136,44 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     setAppliedSuggestions(prev => new Set([...prev, idx]))
   }
 
+  function isSectionHeader(line) {
+    const t = line.trim()
+    if (!t || t.length < 2 || t.length > 60) return false
+    // Matches ALL CAPS lines or Title Case standalone lines (no punctuation, no numbers)
+    return /^[A-Z][A-Z\s&\/\-]{2,}$/.test(t) || /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$/.test(t)
+  }
+
   function appendToSection(text, sectionName, newLine, isNewSection) {
     if (!sectionName) return text + '\n' + newLine
 
     const lines = text.split('\n')
-    const sectionPattern = new RegExp(`^${sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i')
-    let insertIdx = -1
+    const needle = sectionName.trim().toLowerCase()
 
+    // Fuzzy match: find a section header that contains the target name (or vice versa)
+    let sectionStart = -1
     for (let i = 0; i < lines.length; i++) {
-      if (sectionPattern.test(lines[i].trim())) {
-        // Find the end of this section (next section header or end of file)
-        let j = i + 1
-        while (j < lines.length && !/^[A-Z][A-Z\s&\/]{2,}$/.test(lines[j].trim())) j++
-        insertIdx = j
+      const t = lines[i].trim().toLowerCase()
+      if (isSectionHeader(lines[i]) && (t === needle || t.includes(needle) || needle.includes(t))) {
+        sectionStart = i
         break
       }
     }
 
-    if (insertIdx >= 0) {
-      // Section exists — add to it
+    if (sectionStart >= 0) {
+      // Find end of this section: next section header or end of file
+      let j = sectionStart + 1
+      while (j < lines.length && !isSectionHeader(lines[j])) j++
+      // Walk back over trailing blank lines
+      let insertIdx = j
+      while (insertIdx > sectionStart + 1 && lines[insertIdx - 1].trim() === '') insertIdx--
       const bullet = (newLine.startsWith('-') || newLine.startsWith('•')) ? '' : '- '
       lines.splice(insertIdx, 0, bullet + newLine)
     } else {
-      // Section doesn't exist — create it at the end (before LANGUAGES if present)
-      const langIdx = lines.findIndex(l => /^LANGUAGES\s*$/i.test(l.trim()))
+      // Section doesn't exist — create it before LANGUAGES if present
+      const langIdx = lines.findIndex(l => /^languages\s*$/i.test(l.trim()))
       const insertAt = langIdx >= 0 ? langIdx : lines.length
-      const newSection = ['', sectionName.toUpperCase(), newLine]
-      lines.splice(insertAt, 0, ...newSection)
+      const bullet = (newLine.startsWith('-') || newLine.startsWith('•')) ? '' : '- '
+      lines.splice(insertAt, 0, '', sectionName.toUpperCase(), bullet + newLine)
     }
     return lines.join('\n')
   }
