@@ -76,20 +76,31 @@ function extractCompany() {
 }
 
 function clickShowMore() {
-  // LinkedIn "Show more" button selectors (they change these often)
+  // Search all clickable element types — LinkedIn uses buttons, spans, and anchors
   const selectors = [
     '#job-details button',
-    'button[aria-label*="more"]',
-    'button[aria-label*="More"]',
+    '#job-details span[role="button"]',
+    '#job-details a',
+    '#job-details span',
+    'button[aria-label*="more" i]',
+    'button[aria-label*="More" i]',
     '.jobs-description__footer-button',
     '.jobs-description button',
+    '.jobs-description span[role="button"]',
   ]
   for (const sel of selectors) {
-    const btns = document.querySelectorAll(sel)
-    for (const btn of btns) {
-      const text = (btn.innerText || btn.textContent || '').trim().toLowerCase()
-      if (text.includes('show more') || text.includes('see more') || text.includes('read more') || text === 'more' || text === '...more' || text.endsWith('more')) {
-        btn.click()
+    const els = document.querySelectorAll(sel)
+    for (const el of els) {
+      const text = (el.innerText || el.textContent || '').trim().toLowerCase()
+      if (
+        text === '...more' ||
+        text === 'more' ||
+        text.includes('show more') ||
+        text.includes('see more') ||
+        text.includes('read more') ||
+        /^\.{0,3}more$/.test(text)
+      ) {
+        el.click()
         return true
       }
     }
@@ -97,12 +108,17 @@ function clickShowMore() {
   return false
 }
 
+function cleanDescription(text) {
+  // Remove trailing "...more" / "…more" artifacts left by LinkedIn's truncation
+  return text.replace(/[\s\n]*\.{2,3}more\s*$/i, '').replace(/[\s\n]*…more\s*$/i, '').trim()
+}
+
 function extractDescription() {
   // Try to expand first
   clickShowMore()
 
   const jobDetails = document.querySelector('#job-details')
-  if (jobDetails?.innerText?.trim()) return jobDetails.innerText.trim()
+  if (jobDetails?.innerText?.trim()) return cleanDescription(jobDetails.innerText.trim())
 
   const allElements = document.querySelectorAll('div, section, article')
   let best = null
@@ -118,7 +134,7 @@ function extractDescription() {
     const score = text.length * (hasKeywords ? 3 : 1) * (lineCount > 5 ? 2 : 1) / (childCount + 1)
     if (score > bestScore) { best = text; bestScore = score }
   }
-  return best || ''
+  return best ? cleanDescription(best) : ''
 }
 
 function parseTitlePart(index) {
