@@ -94,28 +94,38 @@ export const api = {
     const job = await api.getJob(id)
     const candidateContext = await getCandidateContext()
 
-    const result = await callOpenAI(`You are an expert career advisor. Analyze this job posting against the candidate using a structured, transparent scoring system.
+    const result = await callOpenAI(`You are an expert career advisor. Analyze this job posting against the candidate using a strict, transparent scoring system.
 
-SCORING RULES:
-- Start at 100 points
-- Extract every distinct requirement from the job description
-- For each requirement, assign a WEIGHT (how important it is to this role):
-  - "critical" = core requirement, heavily weighted (e.g. years of experience, must-have skills)
-  - "important" = significant but not dealbreaker (e.g. preferred tools, industry knowledge)
-  - "nice_to_have" = bonus, minor impact (e.g. certifications, extra languages)
-- For each requirement, determine STATUS:
-  - "met" = candidate clearly has this (0 point deduction)
-  - "partial" = candidate has related but not exact experience (partial deduction)
-  - "unmet" = candidate lacks this (full deduction based on weight)
-- Point deductions by weight:
-  - critical + unmet = -15 to -25 points (e.g. "requires 15 years, candidate has 1" = -25)
-  - critical + partial = -5 to -12 points
-  - important + unmet = -8 to -12 points
-  - important + partial = -3 to -6 points
-  - nice_to_have + unmet = -2 to -5 points
-  - nice_to_have + partial = -1 to -3 points
-- Be HARSH on experience year gaps (asking for 10+ years when candidate has 1-2 is a critical unmet, -20 to -25)
-- The final match_score = 100 minus all deductions (minimum 0)
+STEP 1 — EXTRACT REQUIREMENTS:
+- Extract ALL distinct requirements from the job description. Aim for 8–15 items.
+- If the job description is short or vague, infer standard requirements for the role level and title.
+- Do NOT group multiple requirements into one. Each requirement = one item.
+
+STEP 2 — CLASSIFY EACH REQUIREMENT:
+Assign a WEIGHT:
+  - "critical" = must-have (years of experience, core skills, mandatory tools)
+  - "important" = significant but not a dealbreaker (preferred tools, domain knowledge)
+  - "nice_to_have" = bonus only (extra certifications, minor language, etc.)
+
+Assign a STATUS — be strict:
+  - "met" = candidate clearly and directly has this from their actual experience
+  - "partial" = candidate has done something directly similar but at smaller scale or adjacent context. Only use partial if the connection is strong and clear. If it requires a stretch, use "unmet".
+  - "unmet" = candidate lacks this or the connection is weak
+
+STEP 3 — DEDUCT POINTS (be consistent — the math must be exact):
+  - critical + unmet = 15 to 25 pts (large experience gaps = 20–25)
+  - critical + partial = 5 to 12 pts
+  - important + unmet = 8 to 12 pts
+  - important + partial = 3 to 6 pts
+  - nice_to_have + unmet = 2 to 5 pts
+  - nice_to_have + partial = 1 to 3 pts
+  - met (any weight) = 0 pts
+  - Be HARSH on experience year gaps: if role asks 5+ years and candidate has 1–2, that is critical + unmet = 20–25 pts
+
+STEP 4 — COMPUTE SCORE:
+  - Sum all points_deducted values
+  - match_score = 100 − total_deducted (minimum 0)
+  - IMPORTANT: your match_score field MUST equal exactly 100 minus the sum of all points_deducted in score_breakdown. Double-check this before responding.
 
 JOB POSTING:
 Company: ${job.company}
@@ -124,6 +134,11 @@ Description:
 ${job.description}
 
 ${candidateContext}
+
+POSITIONING TIPS RULES:
+- Write exactly 3 tips
+- Each tip MUST name a specific project, company, achievement, or tool from the candidate's actual experience
+- Do not give generic advice like "highlight your experience in X" — be concrete
 
 Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON):
 {
@@ -136,16 +151,15 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       "weight": "critical|important|nice_to_have",
       "status": "met|partial|unmet",
       "points_deducted": 0,
-      "evidence": "Why this status — cite specific candidate experience or lack thereof"
+      "evidence": "Cite the specific candidate experience that justifies this status, or explain exactly what is missing"
     }
   ],
-  "match_score": "<integer 0-100 = 100 minus total deductions>",
-  "positioning_tips": "2-3 specific suggestions referencing real experience",
+  "match_score": "<integer 0-100, must equal 100 minus sum of all points_deducted>",
+  "positioning_tips": "3 specific, concrete suggestions each referencing a real achievement or project from the candidate's background",
   "department": "one of: R&D / Engineering, Product, QA, DevOps / IT, Data, Design, Sales, Marketing, Operations, Customer Success, Finance, HR, Legal",
   "industry": "one of: AI, Cybersecurity, Cloud, Gaming, AdTech, FinTech, HealthTech, E-commerce, SaaS, Enterprise Software, DevTools, Blockchain / Web3, Defense, Media / Entertainment, EdTech, HR Tech, Mobility / Transport, Retail, Other"
 }`)
 
-    // Transform score_breakdown into the legacy format for backward compatibility
     const breakdown = result.score_breakdown || []
     const requirements_met = breakdown.filter(r => r.status === 'met').map(r => `${r.requirement} — ${r.evidence}`)
     const requirements_partial = breakdown.filter(r => r.status === 'partial').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)
@@ -158,6 +172,8 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       requirements_met: requirements_met,
       requirements_partial: requirements_partial,
       requirements_unmet: requirements_unmet,
+      score_breakdown: breakdown,
+      score_breakdown_overrides: {},
       match_score: typeof result.match_score === 'number' ? result.match_score : parseInt(result.match_score) || null,
       positioning_tips: result.positioning_tips || '',
       department: result.department || '',
