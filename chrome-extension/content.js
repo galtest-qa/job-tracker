@@ -88,7 +88,7 @@ function clickShowMore() {
     const btns = document.querySelectorAll(sel)
     for (const btn of btns) {
       const text = (btn.innerText || btn.textContent || '').trim().toLowerCase()
-      if (text.includes('show more') || text.includes('see more') || text.includes('read more') || text === 'more') {
+      if (text.includes('show more') || text.includes('see more') || text.includes('read more') || text === 'more' || text === '...more' || text.endsWith('more')) {
         btn.click()
         return true
       }
