@@ -32,21 +32,21 @@ function buildJobTrackerDeck() {
   // Tag line
   var tag = s1.insertTextBox('AI-POWERED JOB SEARCH', 60, 120, 600, 40);
   tag.getText().setText('AI-POWERED JOB SEARCH');
-  styleText(tag, 13, ACCENT, true, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(tag, 13, ACCENT, true, null);
   tag.getBorder().setTransparent();
   tag.getFill().setTransparent();
 
   // Main title
   var title = s1.insertTextBox('Job Tracker', 60, 155, 600, 100);
   title.getText().setText('Job Tracker');
-  styleText(title, 64, WHITE, true, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(title, 64, WHITE, true, null);
   title.getBorder().setTransparent();
   title.getFill().setTransparent();
 
   // Subtitle
   var sub = s1.insertTextBox('From first search to signed offer —\nmanaged, scored, and guided by AI.', 60, 265, 520, 70);
   sub.getText().setText('From first search to signed offer —\nmanaged, scored, and guided by AI.');
-  styleText(sub, 22, GRAY, false, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(sub, 22, GRAY, false, null);
   sub.getBorder().setTransparent();
   sub.getFill().setTransparent();
 
@@ -56,7 +56,7 @@ function buildJobTrackerDeck() {
   pill.getBorder().setTransparent();
   var pillText = s1.insertTextBox('job-tracker-omega-nine.vercel.app', 68, 366, 310, 24);
   pillText.getText().setText('job-tracker-omega-nine.vercel.app');
-  styleText(pillText, 12, ACCENT2, false, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(pillText, 12, ACCENT2, false, null);
   pillText.getBorder().setTransparent();
   pillText.getFill().setTransparent();
 
@@ -70,14 +70,14 @@ function buildJobTrackerDeck() {
   circleInner.setOpacity(20);
   var circleIcon = s1.insertTextBox('🎯', 618, 218, 70, 70);
   circleIcon.getText().setText('🎯');
-  styleText(circleIcon, 36, WHITE, false, SlidesApp.ParagraphAlignment.CENTER);
+  styleText(circleIcon, 36, WHITE, false, null);
   circleIcon.getBorder().setTransparent();
   circleIcon.getFill().setTransparent();
 
   // Bottom note
   var note = s1.insertTextBox('Built for serious job seekers', 60, 460, 400, 28);
   note.getText().setText('Built for serious job seekers');
-  styleText(note, 13, GRAY, false, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(note, 13, GRAY, false, null);
   note.getBorder().setTransparent();
   note.getFill().setTransparent();
 
@@ -105,19 +105,19 @@ function buildJobTrackerDeck() {
 
     var emoji = s2.insertTextBox(p[0], x + 10, 215, 50, 50);
     emoji.getText().setText(p[0]);
-    styleText(emoji, 28, DARK_TEXT, false, SlidesApp.ParagraphAlignment.LEFT);
+    styleText(emoji, 28, DARK_TEXT, false, null);
     emoji.getBorder().setTransparent();
     emoji.getFill().setTransparent();
 
     var cardTitle = s2.insertTextBox(p[1], x + 10, 265, 180, 28);
     cardTitle.getText().setText(p[1]);
-    styleText(cardTitle, 14, DARK_TEXT, true, SlidesApp.ParagraphAlignment.LEFT);
+    styleText(cardTitle, 14, DARK_TEXT, true, null);
     cardTitle.getBorder().setTransparent();
     cardTitle.getFill().setTransparent();
 
     var cardDesc = s2.insertTextBox(p[2], x + 10, 295, 180, 70);
     cardDesc.getText().setText(p[2]);
-    styleText(cardDesc, 11, '#64748B', false, SlidesApp.ParagraphAlignment.LEFT);
+    styleText(cardDesc, 11, '#64748B', false, null);
     cardDesc.getBorder().setTransparent();
     cardDesc.getFill().setTransparent();
   });
@@ -158,19 +158,19 @@ function buildJobTrackerDeck() {
 
     var fEmoji = s3.insertTextBox(f[0], x + 12, y + 12, 36, 36);
     fEmoji.getText().setText(f[0]);
-    styleText(fEmoji, 20, WHITE, false, SlidesApp.ParagraphAlignment.LEFT);
+    styleText(fEmoji, 20, WHITE, false, null);
     fEmoji.getBorder().setTransparent();
     fEmoji.getFill().setTransparent();
 
     var fTitle = s3.insertTextBox(f[1], x + 12, y + 48, 185, 22);
     fTitle.getText().setText(f[1]);
-    styleText(fTitle, 12, WHITE, true, SlidesApp.ParagraphAlignment.LEFT);
+    styleText(fTitle, 12, WHITE, true, null);
     fTitle.getBorder().setTransparent();
     fTitle.getFill().setTransparent();
 
     var fDesc = s3.insertTextBox(f[2], x + 12, y + 68, 185, 28);
     fDesc.getText().setText(f[2]);
-    styleText(fDesc, 9.5, GRAY, false, SlidesApp.ParagraphAlignment.LEFT);
+    styleText(fDesc, 9.5, GRAY, false, null);
     fDesc.getBorder().setTransparent();
     fDesc.getFill().setTransparent();
   });
@@ -203,7 +203,7 @@ function buildJobTrackerDeck() {
 
     var num = s4.insertTextBox(step.emoji, x + 60, y + 10, 50, 34);
     num.getText().setText(step.emoji);
-    styleText(num, 18, WHITE, true, SlidesApp.ParagraphAlignment.CENTER);
+    styleText(num, 18, WHITE, true, null);
     num.getBorder().setTransparent();
     num.getFill().setTransparent();
 
@@ -211,20 +211,20 @@ function buildJobTrackerDeck() {
     if (i < steps.length - 1) {
       var arrow = s4.insertTextBox('→', x + 118, y + 12, 30, 30);
       arrow.getText().setText('→');
-      styleText(arrow, 18, ACCENT, true, SlidesApp.ParagraphAlignment.CENTER);
+      styleText(arrow, 18, ACCENT, true, null);
       arrow.getBorder().setTransparent();
       arrow.getFill().setTransparent();
     }
 
     var sLabel = s4.insertTextBox(step.label, x + 20, y + 60, 130, 24);
     sLabel.getText().setText(step.label);
-    styleText(sLabel, 13, DARK_TEXT, true, SlidesApp.ParagraphAlignment.CENTER);
+    styleText(sLabel, 13, DARK_TEXT, true, null);
     sLabel.getBorder().setTransparent();
     sLabel.getFill().setTransparent();
 
     var sDesc = s4.insertTextBox(step.desc, x + 10, y + 86, 150, 60);
     sDesc.getText().setText(step.desc);
-    styleText(sDesc, 10, '#64748B', false, SlidesApp.ParagraphAlignment.CENTER);
+    styleText(sDesc, 10, '#64748B', false, null);
     sDesc.getBorder().setTransparent();
     sDesc.getFill().setTransparent();
   });
@@ -235,7 +235,7 @@ function buildJobTrackerDeck() {
   highlight.getBorder().setTransparent();
   var hlText = s4.insertTextBox('💡  The AI doesn\'t just score — it explains every deduction, suggests how to position yourself, and rewrites your resume without inventing experience.', 60, 340, 610, 40);
   hlText.getText().setText('💡  The AI doesn\'t just score — it explains every deduction, suggests how to position yourself, and rewrites your resume without inventing experience.');
-  styleText(hlText, 11, ACCENT, false, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(hlText, 11, ACCENT, false, null);
   hlText.getBorder().setTransparent();
   hlText.getFill().setTransparent();
 
@@ -253,19 +253,19 @@ function buildJobTrackerDeck() {
 
   var ctaTag = s5.insertTextBox('TRY IT NOW', 60, 110, 600, 36);
   ctaTag.getText().setText('TRY IT NOW');
-  styleText(ctaTag, 13, ACCENT2, true, SlidesApp.ParagraphAlignment.CENTER);
+  styleText(ctaTag, 13, ACCENT2, true, null);
   ctaTag.getBorder().setTransparent();
   ctaTag.getFill().setTransparent();
 
   var ctaTitle = s5.insertTextBox('Start your smarter\njob search today.', 60, 145, 600, 130);
   ctaTitle.getText().setText('Start your smarter\njob search today.');
-  styleText(ctaTitle, 48, WHITE, true, SlidesApp.ParagraphAlignment.CENTER);
+  styleText(ctaTitle, 48, WHITE, true, null);
   ctaTitle.getBorder().setTransparent();
   ctaTitle.getFill().setTransparent();
 
   var ctaSub = s5.insertTextBox('Free to use. No setup. Just sign up and start tracking.', 60, 280, 600, 36);
   ctaSub.getText().setText('Free to use. No setup. Just sign up and start tracking.');
-  styleText(ctaSub, 16, GRAY, false, SlidesApp.ParagraphAlignment.CENTER);
+  styleText(ctaSub, 16, GRAY, false, null);
   ctaSub.getBorder().setTransparent();
   ctaSub.getFill().setTransparent();
 
@@ -275,7 +275,7 @@ function buildJobTrackerDeck() {
   btnBg.getBorder().setTransparent();
   var btnText = s5.insertTextBox('job-tracker-omega-nine.vercel.app', 210, 354, 300, 28);
   btnText.getText().setText('job-tracker-omega-nine.vercel.app');
-  styleText(btnText, 13, WHITE, true, SlidesApp.ParagraphAlignment.CENTER);
+  styleText(btnText, 13, WHITE, true, null);
   btnText.getBorder().setTransparent();
   btnText.getFill().setTransparent();
 
@@ -285,13 +285,13 @@ function buildJobTrackerDeck() {
     var sx = 100 + i * 200;
     var num = s5.insertTextBox(stat[0], sx, 420, 120, 40);
     num.getText().setText(stat[0]);
-    styleText(num, 28, ACCENT2, true, SlidesApp.ParagraphAlignment.CENTER);
+    styleText(num, 28, ACCENT2, true, null);
     num.getBorder().setTransparent();
     num.getFill().setTransparent();
 
     var lbl = s5.insertTextBox(stat[1], sx, 458, 120, 22);
     lbl.getText().setText(stat[1]);
-    styleText(lbl, 11, GRAY, false, SlidesApp.ParagraphAlignment.CENTER);
+    styleText(lbl, 11, GRAY, false, null);
     lbl.getBorder().setTransparent();
     lbl.getFill().setTransparent();
   });
@@ -302,20 +302,16 @@ function buildJobTrackerDeck() {
 // ── Helpers ──
 
 function styleText(shape, size, color, bold, align) {
-  var textRange = shape.getText();
-  var style = textRange.getTextStyle();
+  var style = shape.getText().getTextStyle();
   style.setFontSize(size);
   style.setForegroundColor(color);
   style.setBold(bold);
-  textRange.getParagraphs().forEach(function(p) {
-    p.getRange().getParagraphStyle().setParagraphAlignment(align);
-  });
 }
 
 function addSlideHeader(slide, tag, title, titleColor, accentColor) {
   var tagBox = slide.insertTextBox(tag.toUpperCase(), 40, 40, 640, 28);
   tagBox.getText().setText(tag.toUpperCase());
-  styleText(tagBox, 11, accentColor, true, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(tagBox, 11, accentColor, true, null);
   tagBox.getBorder().setTransparent();
   tagBox.getFill().setTransparent();
 
@@ -325,7 +321,7 @@ function addSlideHeader(slide, tag, title, titleColor, accentColor) {
 
   var titleBox = slide.insertTextBox(title, 40, 82, 640, 80);
   titleBox.getText().setText(title);
-  styleText(titleBox, 28, titleColor, true, SlidesApp.ParagraphAlignment.LEFT);
+  styleText(titleBox, 28, titleColor, true, null);
   titleBox.getBorder().setTransparent();
   titleBox.getFill().setTransparent();
 }
