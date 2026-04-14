@@ -123,8 +123,8 @@ export default function MatchAnalysis({ job, onScoreUpdate }) {
           .map((item, idx) => ({ item, idx }))
           .sort((a, b) => {
             const order = { met: 0, partial: 1, unmet: 2 }
-            const statusA = a.item.status
-            const statusB = b.item.status
+            const statusA = overrides[a.idx] ?? a.item.status
+            const statusB = overrides[b.idx] ?? b.item.status
             return (order[statusA] ?? 1) - (order[statusB] ?? 1)
           })
           .map(({ item, idx }) => {
