@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { api } from '../api.js'
 import ResumeDiff from './ResumeDiff.jsx'
 import ResumePreview from './ResumePreview.jsx'
@@ -79,6 +79,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
   const [showPreview, setShowPreview] = useState(false)
   const [originalResume, setOriginalResume] = useState('')
   const [appliedSuggestions, setAppliedSuggestions] = useState(new Set())
+  const diffRef = useRef(null)
 
   useEffect(() => {
     if (job.tailored_resume) setEditText(job.tailored_resume)
@@ -179,7 +180,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
   }
 
   const handleExport = () => {
-    const text = editText || job.tailored_resume
+    const text = diffRef.current?.getEffectiveText() || editText || job.tailored_resume
     if (!text) return
     generateDocx(text, job.company, job.role)
   }
@@ -229,7 +230,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
           {originalResume && (
             <div className="resume-changes-section">
               <h4>Changes from Original</h4>
-              <ResumeDiff original={originalResume} tailored={job.tailored_resume} onApply={handleApplyDiff} />
+              <ResumeDiff ref={diffRef} original={originalResume} tailored={job.tailored_resume} onApply={handleApplyDiff} />
             </div>
           )}
 

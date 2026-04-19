@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
 
 const SECTION_PATTERN = /^(SUMMARY|EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|PROJECTS|LANGUAGES|AWARDS|PROFESSIONAL SUMMARY|WORK EXPERIENCE|TECHNICAL SKILLS|PROFESSIONAL EXPERIENCE|OBJECTIVE|PROFILE)\s*$/i
 
@@ -73,7 +73,31 @@ function diffSectionLines(origLines, tailLines) {
   return changes
 }
 
-export default function ResumeDiff({ original, tailored, onApply }) {
+function buildEffectiveText(allSections, decisions) {
+  const lines = []
+  let changeIdx = 0
+  for (const sec of allSections) {
+    if (sec.title !== 'HEADER') lines.push(sec.title)
+    for (const change of sec.changes) {
+      const key = `${sec.title}-${changeIdx}`
+      const decision = decisions[key]
+      if (change.type === 'unchanged') {
+        lines.push(change.text)
+      } else if (change.type === 'modified') {
+        lines.push(decision === 'reject' ? change.original : change.tailored)
+      } else if (change.type === 'added') {
+        if (decision !== 'reject') lines.push(change.text)
+      } else if (change.type === 'removed') {
+        if (decision !== 'accept') lines.push(change.text)
+      }
+      changeIdx++
+    }
+    lines.push('')
+  }
+  return lines.join('\n').trim()
+}
+
+const ResumeDiff = forwardRef(function ResumeDiff({ original, tailored, onApply }, ref) {
   const origSections = splitIntoSections(original)
   const tailSections = splitIntoSections(tailored)
 
@@ -107,6 +131,10 @@ export default function ResumeDiff({ original, tailored, onApply }) {
   // Track accepted/rejected per change
   const [decisions, setDecisions] = useState({}) // key -> 'accept' | 'reject'
 
+  useImperativeHandle(ref, () => ({
+    getEffectiveText: () => buildEffectiveText(allSections, decisions)
+  }), [allSections, decisions])
+
   const totalChanges = allSections.reduce((sum, s) =>
     sum + s.changes.filter(c => c.type !== 'unchanged').length, 0)
   const decided = Object.keys(decisions).length
@@ -118,29 +146,7 @@ export default function ResumeDiff({ original, tailored, onApply }) {
   }
 
   const handleApplyAll = () => {
-    // Build final resume from decisions
-    const lines = []
-    let changeIdx = 0
-    for (const sec of allSections) {
-      if (sec.title !== 'HEADER') lines.push(sec.title)
-      for (const change of sec.changes) {
-        const key = `${sec.title}-${changeIdx}`
-        const decision = decisions[key]
-
-        if (change.type === 'unchanged') {
-          lines.push(change.text)
-        } else if (change.type === 'modified') {
-          lines.push(decision === 'reject' ? change.original : change.tailored)
-        } else if (change.type === 'added') {
-          if (decision !== 'reject') lines.push(change.text)
-        } else if (change.type === 'removed') {
-          if (decision !== 'accept') lines.push(change.text)
-        }
-        changeIdx++
-      }
-      lines.push('')
-    }
-    if (onApply) onApply(lines.join('\n').trim())
+    if (onApply) onApply(buildEffectiveText(allSections, decisions))
   }
 
   // Accept all / reject all
@@ -266,4 +272,6 @@ export default function ResumeDiff({ original, tailored, onApply }) {
       })}
     </div>
   )
-}
+})
+
+export default ResumeDiff
