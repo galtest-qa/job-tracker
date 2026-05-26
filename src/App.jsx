@@ -193,15 +193,15 @@ export default function App() {
         <>
           <div className="panel-backdrop" onClick={closePanel} />
           <div className={`side-panel${panelWide ? ' side-panel-wide' : ''}`}>
-            <div className="side-panel-bar">
+            <div className="side-panel-bar" style={{ justifyContent: 'flex-start' }}>
+              <button className="panel-btn" onClick={closePanel} title="Close">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
               <button className="panel-btn" onClick={() => setPanelWide(w => !w)} title={panelWide ? 'Shrink panel' : 'Expand panel'}>
                 {panelWide
                   ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/><polyline points="21 18 15 12 21 6"/></svg>
                   : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/><polyline points="3 18 9 12 3 6"/></svg>
                 }
-              </button>
-              <button className="panel-btn" onClick={closePanel} title="Close">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
             <div className="side-panel-content">

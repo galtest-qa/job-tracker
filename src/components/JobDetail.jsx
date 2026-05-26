@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { api } from '../api.js'
 import JobForm from './JobForm.jsx'
 import MatchAnalysis from './MatchAnalysis.jsx'
@@ -18,6 +18,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState(initialTab || 'analysis')
   const [jobReminders, setJobReminders] = useState([])
+  const touchStartX = useRef(null)
 
   const load = async () => {
     const data = await api.getJob(jobId)
@@ -189,76 +190,90 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
         </div>
       </div>
 
-      {/* Follow-up banner */}
-      {job && (() => {
-        const fu = getFollowUp(job)
-        if (!fu.shouldFollowUp) return null
-        return (
-          <div className="followup-banner">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            No activity for {fu.daysSinceLastAction} days — consider following up
-          </div>
-        )
-      })()}
-
-      {/* Job Timeline */}
-      {job && (() => {
-        const stages = getTimeline(job)
-        return (
-          <div className="job-timeline">
-            {stages.map((stage, i) => (
-              <div key={stage.key} className={`timeline-stage ${stage.completed ? 'completed' : ''} ${stage.current ? 'current' : ''}`}>
-                <div className="timeline-dot">{stage.completed ? '\u2713' : (i + 1)}</div>
-                {i < stages.length - 1 && <div className={`timeline-line ${stages[i + 1].completed ? 'completed' : ''}`} />}
-                <span className="timeline-label">{stage.label}</span>
-              </div>
-            ))}
-          </div>
-        )
-      })()}
-
-      {(job.department || job.industry) && (
-        <div className="tags detail-tags">
-          {job.department && <span className="tag tag-dept">{job.department}</span>}
-          {job.industry && <span className="tag tag-industry">{job.industry}</span>}
-        </div>
-      )}
-
-      {job && (() => {
-        const na = getNextAction(job, jobReminders)
-        return (
-          <div className={`next-step-block next-step-${na.priority}`}>
-            <div className="next-step-content">
-              <span className="next-step-label">Recommended Next Step</span>
-              <span className="next-step-action">{na.action}</span>
-              <span className="next-step-reason">{na.reason}</span>
-            </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab(na.tab)}>
-              Go to {na.tab === 'analysis' ? 'Analysis' : na.tab === 'resume' ? 'Resume' : na.tab === 'interview' ? 'Interview Prep' : na.tab === 'notes' ? 'Notes' : na.tab}
-            </button>
-          </div>
-        )
-      })()}
-
       <div className="detail-tabs">
-        {['analysis', 'reminders', 'resume', 'interview', 'description', 'notes'].map(tab => (
-          <button key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab)}>
-            {tab === 'analysis' ? 'Analysis' :
-             tab === 'reminders' ? 'Reminders' :
-             tab === 'resume' ? 'Resume' :
-             tab === 'interview' ? 'Interview Prep' :
-             tab === 'description' ? 'Description' : 'Notes'}
+        {[
+          { key: 'analysis', label: 'Analysis', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+          { key: 'reminders', label: 'Reminders', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
+          { key: 'resume', label: 'Resume', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
+          { key: 'interview', label: 'Interview', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+          { key: 'description', label: 'Description', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg> },
+          { key: 'notes', label: 'Notes', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
+        ].map(({ key, label, icon }) => (
+          <button key={key} className={`detail-tab-btn ${activeTab === key ? 'active' : ''}`} onClick={() => setActiveTab(key)}>
+            <span className="detail-tab-icon">{icon}</span>
+            <span>{label}</span>
           </button>
         ))}
       </div>
 
       {error && <div className="error-msg">{error}</div>}
 
-      <div className="detail-content">
+      <div
+        className="detail-content"
+        onTouchStart={e => { touchStartX.current = e.touches[0].clientX }}
+        onTouchEnd={e => {
+          if (touchStartX.current === null) return
+          const delta = e.changedTouches[0].clientX - touchStartX.current
+          const TABS = ['analysis', 'reminders', 'resume', 'interview', 'description', 'notes']
+          if (Math.abs(delta) > 60) {
+            const idx = TABS.indexOf(activeTab)
+            if (delta < 0 && idx < TABS.length - 1) setActiveTab(TABS[idx + 1])
+            if (delta > 0 && idx > 0) setActiveTab(TABS[idx - 1])
+          }
+          touchStartX.current = null
+        }}
+      >
         {/* ── Analysis Tab ── */}
         {activeTab === 'analysis' && (
           <div className="analysis-tab">
+            {(() => {
+              const fu = getFollowUp(job)
+              return fu.shouldFollowUp ? (
+                <div className="followup-banner">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  No activity for {fu.daysSinceLastAction} days — consider following up
+                </div>
+              ) : null
+            })()}
+
+            {(() => {
+              const stages = getTimeline(job)
+              return (
+                <div className="job-timeline">
+                  {stages.map((stage, i) => (
+                    <div key={stage.key} className={`timeline-stage ${stage.completed ? 'completed' : ''} ${stage.current ? 'current' : ''}`}>
+                      <div className="timeline-dot">{stage.completed ? '✓' : (i + 1)}</div>
+                      {i < stages.length - 1 && <div className={`timeline-line ${stages[i + 1].completed ? 'completed' : ''}`} />}
+                      <span className="timeline-label">{stage.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {(job.department || job.industry) && (
+              <div className="tags detail-tags">
+                {job.department && <span className="tag tag-dept">{job.department}</span>}
+                {job.industry && <span className="tag tag-industry">{job.industry}</span>}
+              </div>
+            )}
+
+            {(() => {
+              const na = getNextAction(job, jobReminders)
+              return (
+                <div className={`next-step-block next-step-${na.priority}`}>
+                  <div className="next-step-content">
+                    <span className="next-step-label">Recommended Next Step</span>
+                    <span className="next-step-action">{na.action}</span>
+                    <span className="next-step-reason">{na.reason}</span>
+                  </div>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab(na.tab)}>
+                    Go to {na.tab === 'analysis' ? 'Analysis' : na.tab === 'resume' ? 'Resume' : na.tab === 'interview' ? 'Interview Prep' : na.tab === 'notes' ? 'Notes' : na.tab}
+                  </button>
+                </div>
+              )
+            })()}
+
             <button className="btn btn-primary analyze-btn" onClick={analyze} disabled={analyzing}>
               {analyzing ? 'Analyzing...' : job.match_score != null ? 'Re-analyze with AI' : 'Analyze with AI'}
             </button>
