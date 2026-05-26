@@ -109,7 +109,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="header-left" onClick={goHome} style={{ cursor: 'pointer' }}>
-          <img src="/logo.png" alt="Job Maker" style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
+          <img src="/logo.png" alt="Job Maker" style={{ height: '48px', width: '48px', objectFit: 'contain', mixBlendMode: 'multiply' }} />
           <h1>Job Maker</h1>
         </div>
         <div className="header-right">
