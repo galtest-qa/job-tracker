@@ -11,7 +11,7 @@ export default function Auth() {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <h1 className="auth-title">Job Tracker</h1>
+          <h1 className="auth-title">Job Maker</h1>
           <div className="error-msg">
             Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.
           </div>
@@ -44,7 +44,7 @@ export default function Auth() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="auth-title">Job Tracker</h1>
+        <h1 className="auth-title">Job Maker</h1>
         <p className="auth-desc">Track, analyze, and manage your job search in one place.</p>
 
         {sent ? (
