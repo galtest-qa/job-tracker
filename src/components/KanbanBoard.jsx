@@ -70,7 +70,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     setDragOverCol(null)
     // Ignore if this is a column drag
     if (e.dataTransfer.getData('column-id')) return
-    const jobId = Number(e.dataTransfer.getData('text/plain'))
+    const jobId = Number(e.dataTransfer.getData('job-id'))
     console.log('[card drop] jobId:', jobId, 'column:', columnName)
     if (!jobId) return
     const job = jobs.find(j => j.id === jobId)
