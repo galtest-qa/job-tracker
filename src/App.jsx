@@ -53,6 +53,22 @@ export default function App() {
     setLoading(false)
   }, [])
 
+  const moveJob = useCallback((jobId, status) => {
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status } : j))
+    api.updateJob(jobId, { status }).catch(err => {
+      console.error('Move job failed:', err)
+      refresh()
+    })
+  }, [refresh])
+
+  const reorderCols = useCallback((orderedIds) => {
+    setColumns(prev => orderedIds.map(id => prev.find(c => c.id === id)).filter(Boolean))
+    api.reorderColumns(orderedIds).catch(err => {
+      console.error('Reorder columns failed:', err)
+      refresh()
+    })
+  }, [refresh])
+
   const loadResume = useCallback(async () => {
     try { const r = await api.getResume(); setResumeInfo(r) } catch {}
   }, [])
@@ -143,6 +159,8 @@ export default function App() {
             columns={columns}
             onSelect={openDetail}
             onRefresh={refresh}
+            onMoveJob={moveJob}
+            onReorderColumns={reorderCols}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             filterScore={filterScore}

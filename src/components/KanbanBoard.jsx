@@ -5,7 +5,7 @@ import ReminderSummary from './ReminderSummary.jsx'
 import { getTopActions } from './nextAction.js'
 import { getReminderState } from './reminderUtils.js'
 
-export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, searchQuery, onSearchChange, filterScore, onFilterScoreChange }) {
+export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
   const [dismissedActions, setDismissedActions] = useState(new Set())
@@ -70,10 +70,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     if (!jobId) return
     const job = jobs.find(j => j.id === jobId)
     if (job && job.status !== columnName) {
-      try {
-        await api.updateJob(jobId, { status: columnName })
-        await onRefresh()
-      } catch (err) { console.error('[card drop] API error:', err) }
+      onMoveJob(jobId, columnName)
       try {
         const sug = await api.getReminderSuggestions(jobId)
         if (sug.length > 0) setSuggestion({ jobId, company: job.company, role: job.role, suggestions: sug })
@@ -116,8 +113,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
 
     setDragColId(null)
     setDragOverColId(null)
-    await api.reorderColumns(ids)
-    await onRefresh()
+    onReorderColumns(ids)
   }
 
   const handleColDragEnd = () => {

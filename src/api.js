@@ -243,9 +243,9 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   },
 
   reorderColumns: async (orderedIds) => {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await supabase.from('columns').update({ sort_order: i }).eq('id', orderedIds[i])
-    }
+    await Promise.all(
+      orderedIds.map((id, i) => supabase.from('columns').update({ sort_order: i }).eq('id', id))
+    )
   },
 
   // Reminders
