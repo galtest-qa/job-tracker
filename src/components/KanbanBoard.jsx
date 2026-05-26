@@ -111,7 +111,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   const handleColDrop = async (e, targetColId) => {
     e.preventDefault()
     e.stopPropagation()
-    const sourceId = Number(e.dataTransfer.getData('column-id'))
+    const sourceId = e.dataTransfer.getData('column-id')
     console.log('[col drop] sourceId:', sourceId, 'targetColId:', targetColId)
     if (!sourceId || sourceId === targetColId) {
       setDragColId(null)
