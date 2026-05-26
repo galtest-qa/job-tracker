@@ -65,22 +65,15 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
   }
 
   // ── Card drag (between columns) ──
-  const handleCardDrop = async (e, columnName) => {
-    e.preventDefault()
+  const handleCardDrop = async (jobId, columnName) => {
     setDragOverCol(null)
-    // Ignore if this is a column drag
-    if (e.dataTransfer.getData('column-id')) return
-    const jobId = e.dataTransfer.getData('job-id')
-    console.log('[card drop] jobId:', jobId, 'column:', columnName)
     if (!jobId) return
     const job = jobs.find(j => j.id === jobId)
-    console.log('[card drop] job found:', job?.company, 'current status:', job?.status)
     if (job && job.status !== columnName) {
       try {
         await api.updateJob(jobId, { status: columnName })
         await onRefresh()
       } catch (err) { console.error('[card drop] API error:', err) }
-      // Fetch reminder suggestions for the new stage
       try {
         const sug = await api.getReminderSuggestions(jobId)
         if (sug.length > 0) setSuggestion({ jobId, company: job.company, role: job.role, suggestions: sug })
@@ -99,7 +92,6 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     e.dataTransfer.setData('column-id', String(colId))
     e.dataTransfer.effectAllowed = 'move'
     setDragColId(colId)
-    console.log('[col dragstart] colId:', colId, 'types:', [...e.dataTransfer.types])
   }
 
   const handleColDragOver = (e, colId) => {
@@ -108,18 +100,13 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     if (dragOverColId !== colId) setDragOverColId(colId)
   }
 
-  const handleColDrop = async (e, targetColId) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const sourceId = e.dataTransfer.getData('column-id')
-    console.log('[col drop] sourceId:', sourceId, 'targetColId:', targetColId)
+  const handleColDrop = async (sourceId, targetColId) => {
     if (!sourceId || sourceId === targetColId) {
       setDragColId(null)
       setDragOverColId(null)
       return
     }
 
-    // Reorder
     const ids = columns.map(c => c.id)
     const fromIdx = ids.indexOf(sourceId)
     const toIdx = ids.indexOf(targetColId)
@@ -407,11 +394,13 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
               }}
               onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setDragOverCol(null); setDragOverColId(null) } }}
               onDrop={(e) => {
-                if (e.dataTransfer.getData('column-id')) {
-                  handleColDrop(e, col.id)
-                } else {
-                  handleCardDrop(e, col.name)
-                }
+                e.preventDefault()
+                const colId = e.dataTransfer.getData('column-id')
+                const jobId = e.dataTransfer.getData('job-id')
+                setDragOverCol(null)
+                setDragOverColId(null)
+                if (colId) handleColDrop(colId, col.id)
+                else if (jobId) handleCardDrop(jobId, col.name)
               }}
             >
               <div

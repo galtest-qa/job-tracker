@@ -95,7 +95,6 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
         e.dataTransfer.setData('job-id', String(job.id))
         e.dataTransfer.effectAllowed = 'move'
         e.currentTarget.classList.add('dragging')
-        console.log('[card dragstart] jobId:', job.id)
         clearTimeout(hoverTimer.current)
         setShowTooltip(false)
       }}
