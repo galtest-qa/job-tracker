@@ -71,11 +71,15 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     // Ignore if this is a column drag
     if (e.dataTransfer.getData('column-id')) return
     const jobId = Number(e.dataTransfer.getData('text/plain'))
+    console.log('[card drop] jobId:', jobId, 'column:', columnName)
     if (!jobId) return
     const job = jobs.find(j => j.id === jobId)
+    console.log('[card drop] job found:', job?.company, 'current status:', job?.status)
     if (job && job.status !== columnName) {
-      await api.updateJob(jobId, { status: columnName })
-      await onRefresh()
+      try {
+        await api.updateJob(jobId, { status: columnName })
+        await onRefresh()
+      } catch (err) { console.error('[card drop] API error:', err) }
       // Fetch reminder suggestions for the new stage
       try {
         const sug = await api.getReminderSuggestions(jobId)
@@ -95,12 +99,12 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     e.dataTransfer.setData('column-id', String(colId))
     e.dataTransfer.effectAllowed = 'move'
     setDragColId(colId)
+    console.log('[col dragstart] colId:', colId, 'types:', [...e.dataTransfer.types])
   }
 
   const handleColDragOver = (e, colId) => {
     e.preventDefault()
-    // Only react to column drags
-    if (dragColId == null) return
+    if (!e.dataTransfer.types.includes('column-id')) return
     if (dragOverColId !== colId) setDragOverColId(colId)
   }
 
@@ -108,6 +112,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
     e.preventDefault()
     e.stopPropagation()
     const sourceId = Number(e.dataTransfer.getData('column-id'))
+    console.log('[col drop] sourceId:', sourceId, 'targetColId:', targetColId)
     if (!sourceId || sourceId === targetColId) {
       setDragColId(null)
       setDragOverColId(null)
@@ -400,7 +405,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, search
                 handleCardDragOver(e, col.name)
                 handleColDragOver(e, col.id)
               }}
-              onDragLeave={() => { setDragOverCol(null); setDragOverColId(null) }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setDragOverCol(null); setDragOverColId(null) } }}
               onDrop={(e) => {
                 if (e.dataTransfer.getData('column-id')) {
                   handleColDrop(e, col.id)
