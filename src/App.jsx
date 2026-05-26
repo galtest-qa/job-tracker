@@ -23,6 +23,7 @@ export default function App() {
   const [showResume, setShowResume] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [resumeInfo, setResumeInfo] = useState(null)
+  const [panelWide, setPanelWide] = useState(false)
 
   // Auth listener
   useEffect(() => {
@@ -85,8 +86,15 @@ export default function App() {
     }
   }, [session, refresh, loadResume])
 
-  const openDetail = (id, tab = null) => { setSelectedJobId(id); setInitialTab(tab); setView('detail') }
-  const goHome = () => { setView('board'); setSelectedJobId(null); setInitialTab(null); refresh() }
+  const closePanel = () => { setSelectedJobId(null); setInitialTab(null); setPanelWide(false) }
+  const openDetail = (id, tab = null) => { setSelectedJobId(id); setInitialTab(tab ?? null) }
+  const goHome = () => { setView('board'); closePanel() }
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') closePanel() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -179,16 +187,36 @@ export default function App() {
             onCancel={goHome}
           />
         )}
-        {view === 'detail' && selectedJobId && (
-          <JobDetail
-            jobId={selectedJobId}
-            columns={columns}
-            initialTab={initialTab}
-            onBack={goHome}
-            onRefresh={refresh}
-          />
-        )}
       </main>
+
+      {selectedJobId && (
+        <>
+          <div className="panel-backdrop" onClick={closePanel} />
+          <div className={`side-panel${panelWide ? ' side-panel-wide' : ''}`}>
+            <div className="side-panel-bar">
+              <button className="panel-btn" onClick={() => setPanelWide(w => !w)} title={panelWide ? 'Shrink panel' : 'Expand panel'}>
+                {panelWide
+                  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/><polyline points="21 18 15 12 21 6"/></svg>
+                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/><polyline points="3 18 9 12 3 6"/></svg>
+                }
+              </button>
+              <button className="panel-btn" onClick={closePanel} title="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="side-panel-content">
+              <JobDetail
+                jobId={selectedJobId}
+                columns={columns}
+                initialTab={initialTab}
+                onBack={closePanel}
+                onRefresh={refresh}
+                isPanel
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

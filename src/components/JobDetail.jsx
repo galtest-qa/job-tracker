@@ -9,7 +9,7 @@ import ResumeTab from './ResumeTab.jsx'
 
 const PALETTE = ['#6b7280', '#4f6ef7', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
 
-export default function JobDetail({ jobId, columns = [], initialTab, onBack, onRefresh }) {
+export default function JobDetail({ jobId, columns = [], initialTab, onBack, onRefresh, isPanel = false }) {
   const [job, setJob] = useState(null)
   const [editing, setEditing] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -77,7 +77,9 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
 
   const handleDelete = async () => {
     if (!confirm('Delete this job?')) return
-    await api.deleteJob(jobId); onBack()
+    await api.deleteJob(jobId)
+    onRefresh()
+    onBack()
   }
 
   if (!job) return <div className="loading">Loading...</div>
@@ -100,7 +102,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   return (
     <div className="job-detail">
       <div className="detail-header">
-        <button className="btn btn-ghost" onClick={onBack}>&larr; Back</button>
+        {!isPanel && <button className="btn btn-ghost" onClick={onBack}>&larr; Back</button>}
         <div className="detail-actions">
           <button className="btn btn-secondary" onClick={() => setEditing(true)}>Edit</button>
           <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
