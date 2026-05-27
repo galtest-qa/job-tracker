@@ -160,7 +160,10 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   "industry": "one of: AI, Cybersecurity, Cloud, Gaming, AdTech, FinTech, HealthTech, E-commerce, SaaS, Enterprise Software, DevTools, Blockchain / Web3, Defense, Media / Entertainment, EdTech, HR Tech, Mobility / Transport, Retail, Other"
 }`)
 
-    const breakdown = result.score_breakdown || []
+    const breakdown = (result.score_breakdown || []).map(r => ({
+      ...r,
+      points_deducted: Number(r.points_deducted) || 0,
+    }))
     const requirements_met = breakdown.filter(r => r.status === 'met').map(r => `${r.requirement} — ${r.evidence}`)
     const requirements_partial = breakdown.filter(r => r.status === 'partial').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)
     const requirements_unmet = breakdown.filter(r => r.status === 'unmet').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)

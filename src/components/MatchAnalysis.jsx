@@ -15,7 +15,7 @@ function computeScore(breakdown, overrides) {
     const status = overrides[i] ?? item.status
     if (status === 'met') continue
     // Use original points_deducted — scale for partial vs unmet
-    const origPts = item.points_deducted || 0
+    const origPts = Number(item.points_deducted) || 0
     if (status === item.status) {
       total += origPts
     } else if (status === 'partial' && item.status === 'unmet') {
