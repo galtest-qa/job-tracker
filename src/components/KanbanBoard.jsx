@@ -374,7 +374,24 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
         </div>
       </div>
 
-      <div className="kanban-board">
+      <div className="kanban-col-dots">
+        {columns.map((col, i) => (
+          <span key={col.id} className="kanban-col-dot" title={col.name} />
+        ))}
+      </div>
+
+      <div className="kanban-board" ref={boardRef => {
+        if (!boardRef) return
+        const dots = boardRef.previousSibling?.querySelectorAll('.kanban-col-dot')
+        if (!dots) return
+        const onScroll = () => {
+          const colW = boardRef.firstChild?.offsetWidth || 1
+          const idx = Math.round(boardRef.scrollLeft / (colW + 12))
+          dots.forEach((d, i) => d.classList.toggle('active', i === idx))
+        }
+        boardRef.addEventListener('scroll', onScroll, { passive: true })
+        onScroll()
+      }}>
         {columns.map(col => {
           const colJobs = filtered.filter(j => j.status === col.name)
           const isColDragging = dragColId === col.id
