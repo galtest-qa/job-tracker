@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, isConfigured } from './lib/supabase.js'
 import { api, initUserData } from './api.js'
+import { trackWin } from './lib/winTracker.js'
 import KanbanBoard from './components/KanbanBoard.jsx'
 import JobForm from './components/JobForm.jsx'
 import JobDetail from './components/JobDetail.jsx'
@@ -78,9 +79,9 @@ export default function App() {
 
   const autoGenerate = useCallback(async (jobId, hasDescription, hasResume) => {
     const calls = []
-    if (hasDescription) calls.push(api.analyzeJob(jobId))
+    if (hasDescription) calls.push(api.analyzeJob(jobId).then(() => trackWin('analyzed')))
     if (hasDescription && hasResume) {
-      calls.push(api.tailorResume(jobId))
+      calls.push(api.tailorResume(jobId).then(() => trackWin('tailored')))
       calls.push(api.interviewPrep(jobId))
     }
     if (!calls.length) return

@@ -2,20 +2,12 @@ import React, { useState, useRef, useEffect } from 'react'
 import { api } from '../api.js'
 import KanbanCard from './KanbanCard.jsx'
 import ReminderSummary from './ReminderSummary.jsx'
-import { getTopActions } from './nextAction.js'
+import TodaysFocus from './TodaysFocus.jsx'
 import { getReminderState } from './reminderUtils.js'
 
 export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set() }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
-  const [dismissedActions, setDismissedActions] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('focusDismissed') || '[]')) } catch { return new Set() }
-  })
-  const [customFocusItems, setCustomFocusItems] = useState([])
-  const [addingFocus, setAddingFocus] = useState(false)
-  const [focusInput, setFocusInput] = useState('')
-  const [focusRefreshKey, setFocusRefreshKey] = useState(0)
-  const [focusCollapsed, setFocusCollapsed] = useState(false)
   const [dragOverCol, setDragOverCol] = useState(null)
   const [suggestion, setSuggestion] = useState(null) // { jobId, suggestions[] }
   const [reminderFilter, setReminderFilter] = useState(null)
@@ -208,117 +200,13 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
     <div className="kanban">
       <ReminderSummary reminders={reminders} onFilter={setReminderFilter} />
 
-      {(() => {
-        const TERMINAL = /reject|close|declin|withdraw|pass|archive/i
-        const activeJobs = jobs.filter(j => !TERMINAL.test(j.status || ''))
-        const currentIds = new Set(jobs.map(j => j.id))
-        const topActions = getTopActions(activeJobs, reminders, 8)
-          .filter(a => !dismissedActions.has(a.job.id))
-          .slice(0, 5)
-        // Prune stale dismissed IDs for jobs that no longer exist
-        const stale = [...dismissedActions].filter(id => !currentIds.has(id))
-        if (stale.length > 0) {
-          setDismissedActions(prev => { const next = new Set([...prev].filter(id => currentIds.has(id))); localStorage.setItem('focusDismissed', JSON.stringify([...next])); return next })
-        }
-        const hasItems = topActions.length > 0 || customFocusItems.length > 0
-        if (!hasItems && !addingFocus) return null
-        return (
-          <div className="todays-focus" key={focusRefreshKey}>
-            <div className="todays-focus-header" style={{ cursor: 'pointer' }} onClick={() => setFocusCollapsed(c => !c)}>
-              <h3 className="todays-focus-title">
-                Today's Focus
-                {focusCollapsed && <span className="focus-collapsed-count"> · {topActions.length + customFocusItems.length} items</span>}
-              </h3>
-              <div className="todays-focus-actions" onClick={e => e.stopPropagation()}>
-                {!focusCollapsed && (
-                  <>
-                    <button className="focus-header-btn" onClick={() => setAddingFocus(true)} title="Add custom focus">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
-                    <button className="focus-header-btn" onClick={() => { setDismissedActions(new Set()); localStorage.removeItem('focusDismissed'); setFocusRefreshKey(k => k + 1) }} title="Refresh">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                    </button>
-                  </>
-                )}
-                <button className="focus-header-btn" onClick={() => setFocusCollapsed(c => !c)} title={focusCollapsed ? 'Expand' : 'Collapse'}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ transform: focusCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {!focusCollapsed && addingFocus && (
-              <div className="focus-add-row">
-                <input
-                  className="reminder-input"
-                  value={focusInput}
-                  onChange={e => setFocusInput(e.target.value)}
-                  placeholder="What do you want to focus on?"
-                  autoFocus
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && focusInput.trim()) {
-                      setCustomFocusItems(prev => [...prev, { id: Date.now(), text: focusInput.trim() }])
-                      setFocusInput('')
-                      setAddingFocus(false)
-                    }
-                    if (e.key === 'Escape') setAddingFocus(false)
-                  }}
-                />
-                <button className="btn btn-primary btn-sm" onClick={() => {
-                  if (focusInput.trim()) {
-                    setCustomFocusItems(prev => [...prev, { id: Date.now(), text: focusInput.trim() }])
-                    setFocusInput('')
-                  }
-                  setAddingFocus(false)
-                }}>Add</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setAddingFocus(false)}>Cancel</button>
-              </div>
-            )}
-
-            {!focusCollapsed && <div className="todays-focus-list">
-              {customFocusItems.map(item => (
-                <div key={item.id} className="focus-item focus-custom">
-                  <div className="focus-item-main">
-                    <span className="focus-item-action">{item.text}</span>
-                    <span className="focus-item-job">Custom focus</span>
-                  </div>
-                  <button
-                    className="focus-done-btn"
-                    onClick={(e) => { e.stopPropagation(); setCustomFocusItems(prev => prev.filter(f => f.id !== item.id)) }}
-                    title="Done"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  </button>
-                </div>
-              ))}
-              {topActions.map(({ job, action, reason, priority, tab }) => (
-                <div
-                  key={job.id}
-                  className={`focus-item focus-${priority}`}
-                  onClick={() => onSelect(job.id, tab)}
-                >
-                  <div className="focus-item-main">
-                    <span className="focus-item-action">{action}</span>
-                    <span className="focus-item-job">{job.role} at {job.company}</span>
-                  </div>
-                  <div className="focus-item-right">
-                    <span className="focus-item-reason">{reason}</span>
-                    <button
-                      className="focus-done-btn"
-                      onClick={(e) => { e.stopPropagation(); setDismissedActions(prev => { const next = new Set([...prev, job.id]); localStorage.setItem('focusDismissed', JSON.stringify([...next])); return next }) }}
-                      title="Mark done"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>}
-          </div>
-        )
-      })()}
+      <TodaysFocus
+        jobs={jobs}
+        reminders={reminders}
+        columns={columns}
+        onSelect={onSelect}
+        onMoveJob={onMoveJob}
+      />
 
       {suggestion && (
         <div className="suggestion-toast">

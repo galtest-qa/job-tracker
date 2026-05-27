@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { api } from '../api.js'
+import { trackWin } from '../lib/winTracker.js'
 import JobForm from './JobForm.jsx'
 import MatchAnalysis from './MatchAnalysis.jsx'
 import CompanyLogo from './CompanyLogo.jsx'
@@ -36,7 +37,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
 
   const analyze = async () => {
     setAnalyzing(true); setError(null)
-    try { const updated = await api.analyzeJob(jobId); setJob(updated) }
+    try { const updated = await api.analyzeJob(jobId); setJob(updated); trackWin('analyzed') }
     catch (err) { setError(err.message) }
     setAnalyzing(false)
   }
@@ -45,7 +46,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
     setTailoring(true); setError(null)
     try {
       const updated = await api.tailorResume(jobId)
-      setJob(updated)
+      setJob(updated); trackWin('tailored')
     } catch (err) { setError(err.message) }
     setTailoring(false)
   }
@@ -69,6 +70,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const updateStatus = async (status) => {
     const updated = await api.updateJob(jobId, { status })
     setJob(updated); onRefresh()
+    if (/applied/i.test(status)) trackWin('applied')
   }
 
   const updateNotes = async (field, value) => {

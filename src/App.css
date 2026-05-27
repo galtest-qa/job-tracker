@@ -1103,53 +1103,104 @@ body {
 .timeline-stage.current .timeline-label { color: var(--primary); font-weight: 700; }
 
 /* ═══════════ Today's Focus ═══════════ */
-.todays-focus {
-  margin-bottom: 1rem; background: var(--surface); border: 1px solid var(--border-light);
-  border-radius: var(--radius); padding: 0.85rem 1rem; box-shadow: var(--shadow-sm);
+/* ═══════════ Today's Focus v2 ═══════════ */
+.todays-focus-v2 {
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
-.todays-focus-header {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;
+.focus-v2-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.65rem 1rem;
+  background: var(--surface); border-bottom: 1px solid var(--border-light);
+  cursor: pointer; user-select: none;
 }
-.todays-focus-title {
+.focus-v2-title {
+  display: flex; align-items: center; gap: 0.4rem;
   font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0;
+  letter-spacing: 0.05em; color: var(--text-secondary); margin: 0;
 }
-.todays-focus-actions { display: flex; gap: 0.25rem; }
+.focus-v2-collapsed-hint {
+  font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--text-tertiary); font-size: 0.75rem;
+}
+.focus-v2-header-btns { display: flex; gap: 0.2rem; }
 .focus-header-btn {
   background: none; border: 1px solid var(--border-light); border-radius: var(--radius-xs);
-  width: 28px; height: 28px; cursor: pointer; color: var(--text-tertiary);
+  width: 26px; height: 26px; cursor: pointer; color: var(--text-tertiary);
   display: flex; align-items: center; justify-content: center;
   transition: all var(--transition);
 }
 .focus-header-btn:hover { color: var(--primary); background: var(--primary-light); border-color: var(--primary); }
-.todays-focus-list { display: flex; flex-direction: column; gap: 0.35rem; }
-.focus-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0.5rem 0.7rem; border-radius: var(--radius-sm); cursor: pointer;
-  transition: all var(--transition); border-left: 3px solid transparent;
+
+/* Primary card */
+.focus-primary-card {
+  padding: 1.1rem 1.25rem 1rem;
+  border-left: 4px solid;
+  background: var(--surface);
 }
-.focus-item:hover { background: var(--surface-hover); }
-.focus-high { border-left-color: var(--danger); }
-.focus-medium { border-left-color: var(--warning); }
-.focus-low { border-left-color: var(--text-tertiary); }
-.focus-item-main { display: flex; flex-direction: column; gap: 0.05rem; }
-.focus-item-action { font-size: 0.82rem; font-weight: 650; color: var(--text); }
-.focus-item-job { font-size: 0.72rem; color: var(--text-secondary); }
-.focus-item-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-.focus-item-reason { font-size: 0.68rem; color: var(--text-tertiary); font-weight: 500; }
-.focus-done-btn {
-  background: none; border: 1px solid var(--border-light); border-radius: 50%;
-  width: 24px; height: 24px; cursor: pointer; color: var(--text-tertiary);
-  display: flex; align-items: center; justify-content: center;
-  transition: all var(--transition); flex-shrink: 0; opacity: 0;
+.focus-primary-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 0.75rem; margin-bottom: 0.5rem;
 }
-.focus-item:hover .focus-done-btn, .focus-custom .focus-done-btn { opacity: 1; }
-.focus-done-btn:hover { color: var(--success); background: #d1fae5; border-color: var(--success); }
-.focus-custom { border-left-color: var(--primary); }
-.focus-add-row {
-  display: flex; gap: 0.35rem; align-items: center; margin-bottom: 0.5rem;
+.focus-primary-titles { flex: 1; min-width: 0; }
+.focus-primary-headline {
+  font-size: 0.97rem; font-weight: 750; color: var(--text);
+  margin-bottom: 0.15rem; line-height: 1.3;
 }
-.focus-add-row .reminder-input { flex: 1; }
+.focus-primary-job { font-size: 0.78rem; color: var(--text-secondary); }
+.focus-primary-context {
+  font-size: 0.83rem; color: var(--text); line-height: 1.55;
+  margin: 0.5rem 0 0.75rem;
+}
+.focus-rec-box {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg); border: 1px solid var(--border-light);
+  border-radius: var(--radius-xs); margin-bottom: 0.85rem;
+}
+.focus-rec-label {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-tertiary);
+}
+.focus-rec-text { font-size: 0.8rem; color: var(--text); line-height: 1.5; }
+.focus-primary-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+
+/* Secondary cards */
+.focus-secondary-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem; padding: 0.85rem 1rem;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg);
+}
+.focus-secondary-card {
+  padding: 0.85rem 0.9rem 0.75rem;
+  border: 1px solid var(--border-light); border-left: 3px solid;
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition);
+  background: var(--surface);
+}
+.focus-secondary-card:hover { background: var(--surface-hover); box-shadow: var(--shadow-sm); }
+.focus-secondary-headline {
+  font-size: 0.8rem; font-weight: 700; color: var(--text); margin-bottom: 0.1rem; line-height: 1.3;
+}
+.focus-secondary-job { font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.35rem; }
+.focus-secondary-context {
+  font-size: 0.73rem; color: var(--text-secondary); line-height: 1.45; margin: 0 0 0.6rem;
+}
+.focus-secondary-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+/* Wins */
+.focus-wins {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+  padding: 0.5rem 1rem; border-top: 1px solid var(--border-light);
+  font-size: 0.76rem; color: var(--text-secondary); background: var(--bg);
+}
+.focus-wins svg { color: var(--success); flex-shrink: 0; }
+.focus-wins-label { font-weight: 600; color: var(--text-tertiary); }
+.focus-wins-sep { color: var(--border); }
 
 /* ═══════════ Next Action on Card ═══════════ */
 .kanban-card-next-action {
@@ -1614,9 +1665,6 @@ body {
   font-weight: 400;
   color: var(--text-tertiary);
   margin-left: 0.25rem;
-}
-.todays-focus-header {
-  user-select: none;
 }
 
 /* ═══════════ Reminder filter chip ═══════════ */
