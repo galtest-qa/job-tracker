@@ -1315,7 +1315,7 @@ body {
 
 /* Kanban: full-width snap scrolling on touch/mobile */
 @media (max-width: 768px) {
-  .app { padding: 0 0.75rem 3rem; }
+  .app { padding: 0 0.75rem 3rem; overflow-x: hidden; }
   .kanban-board {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
