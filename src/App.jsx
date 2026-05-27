@@ -77,15 +77,15 @@ export default function App() {
   }, [])
 
   const autoGenerate = useCallback(async (jobId, hasDescription, hasResume) => {
+    const calls = []
+    if (hasDescription) calls.push(api.analyzeJob(jobId))
+    if (hasDescription && hasResume) {
+      calls.push(api.tailorResume(jobId))
+      calls.push(api.interviewPrep(jobId))
+    }
+    if (!calls.length) return
     setGeneratingJobIds(prev => new Set([...prev, jobId]))
-    try {
-      const calls = [api.analyzeJob(jobId)]
-      if (hasResume) {
-        calls.push(api.tailorResume(jobId))
-        calls.push(api.interviewPrep(jobId))
-      }
-      await Promise.allSettled(calls)
-    } catch {}
+    try { await Promise.allSettled(calls) } catch {}
     setGeneratingJobIds(prev => { const s = new Set(prev); s.delete(jobId); return s })
     refresh()
   }, [refresh])
