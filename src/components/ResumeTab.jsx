@@ -77,7 +77,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
   const [editText, setEditText] = useState('')
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
-  const [originalResume, setOriginalResume] = useState('')
+  const [originalResume, setOriginalResume] = useState(null)
   const [appliedSuggestions, setAppliedSuggestions] = useState(new Set())
   const diffRef = useRef(null)
 
@@ -86,7 +86,7 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
   }, [job.tailored_resume])
 
   useEffect(() => {
-    api.getResume().then(r => { if (r?.raw_text) setOriginalResume(r.raw_text) }).catch(() => {})
+    api.getResume().then(r => setOriginalResume(r?.raw_text || '')).catch(() => setOriginalResume(''))
   }, [])
 
   const handleSaveEdit = async () => {
@@ -185,10 +185,18 @@ export default function ResumeTab({ job, setJob, jobId, tailoring, onTailor }) {
     generateDocx(text, job.company, job.role)
   }
 
+  const resumeLoaded = originalResume !== null
+
   return (
     <div className="resume-tab">
+      {resumeLoaded && !originalResume && (
+        <div className="info-banner info-banner-warn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          No resume uploaded yet — tailoring won't work without one. Upload your resume using the button in the top header.
+        </div>
+      )}
       <div className="tab-actions">
-        <button className="btn btn-primary" onClick={onTailor} disabled={tailoring}>
+        <button className="btn btn-primary" onClick={onTailor} disabled={tailoring || !originalResume}>
           {tailoring ? 'Tailoring...' : job.tailored_resume ? 'Re-tailor Resume' : 'Tailor Resume for This Role'}
         </button>
         {job.tailored_resume && (

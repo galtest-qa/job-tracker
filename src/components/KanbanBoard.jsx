@@ -5,7 +5,7 @@ import ReminderSummary from './ReminderSummary.jsx'
 import { getTopActions } from './nextAction.js'
 import { getReminderState } from './reminderUtils.js'
 
-export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange }) {
+export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set() }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
   const [dismissedActions, setDismissedActions] = useState(new Set())
@@ -467,6 +467,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
                     onSelect={onSelect}
                     onAnalyze={handleAnalyze}
                     analyzing={analyzingId === job.id}
+                    generating={generatingJobIds.has(job.id)}
                   />
                 ))}
                 {colJobs.length === 0 && (

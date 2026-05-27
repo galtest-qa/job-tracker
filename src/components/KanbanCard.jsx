@@ -67,7 +67,7 @@ function Tooltip({ anchor, job, columns }) {
   )
 }
 
-export default function KanbanCard({ job, columns, reminders = [], onSelect, onAnalyze, analyzing }) {
+export default function KanbanCard({ job, columns, reminders = [], onSelect, onAnalyze, analyzing, generating }) {
   const nextReminder = getNextActiveReminder(reminders.filter(r => r.job_id === job.id))
   const nextAction = getNextAction(job, reminders)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -109,7 +109,11 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
           <span className="kanban-card-role">{job.role}</span>
           <span className="kanban-card-company">{job.company}</span>
         </div>
-        {job.match_score != null && (
+        {generating ? (
+          <span className="score score-sm generating" title="AI analysis in progress...">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="spin-icon"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          </span>
+        ) : job.match_score != null && (
           <span className={`score score-sm ${job.match_score >= 70 ? 'high' : job.match_score >= 40 ? 'mid' : 'low'}`}>
             {job.match_score}%
           </span>

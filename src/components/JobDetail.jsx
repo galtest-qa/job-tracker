@@ -274,6 +274,12 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
               )
             })()}
 
+            {!job.description && (
+              <div className="info-banner">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                No job description added — AI analysis will be limited. <button className="inline-link" onClick={() => setEditing(true)}>Edit this job</button> to paste the full description for a better match score.
+              </div>
+            )}
             <button className="btn btn-primary analyze-btn" onClick={analyze} disabled={analyzing}>
               {analyzing ? 'Analyzing...' : job.match_score != null ? 'Re-analyze with AI' : 'Analyze with AI'}
             </button>

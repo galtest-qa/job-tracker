@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, isConfigured } from './lib/supabase.js'
 import { api, initUserData } from './api.js'
 import KanbanBoard from './components/KanbanBoard.jsx'
@@ -24,6 +24,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [resumeInfo, setResumeInfo] = useState(null)
   const [panelWide, setPanelWide] = useState(false)
+  const [generatingJobIds, setGeneratingJobIds] = useState(new Set())
+  const resumeInfoRef = useRef(null)
 
   // Auth listener
   useEffect(() => {
@@ -71,8 +73,22 @@ export default function App() {
   }, [refresh])
 
   const loadResume = useCallback(async () => {
-    try { const r = await api.getResume(); setResumeInfo(r) } catch {}
+    try { const r = await api.getResume(); setResumeInfo(r); resumeInfoRef.current = r } catch {}
   }, [])
+
+  const autoGenerate = useCallback(async (jobId, hasDescription, hasResume) => {
+    setGeneratingJobIds(prev => new Set([...prev, jobId]))
+    try {
+      const calls = [api.analyzeJob(jobId)]
+      if (hasResume) {
+        calls.push(api.tailorResume(jobId))
+        calls.push(api.interviewPrep(jobId))
+      }
+      await Promise.allSettled(calls)
+    } catch {}
+    setGeneratingJobIds(prev => { const s = new Set(prev); s.delete(jobId); return s })
+    refresh()
+  }, [refresh])
 
   // Load data after auth
   useEffect(() => {
@@ -174,6 +190,7 @@ export default function App() {
             onSearchChange={setSearchQuery}
             filterScore={filterScore}
             onFilterScoreChange={setFilterScore}
+            generatingJobIds={generatingJobIds}
           />
         )}
         {view === 'find' && <FindJobs />}
@@ -181,8 +198,10 @@ export default function App() {
           <JobForm
             columns={columns}
             onSave={async (data) => {
-              await api.createJob(data)
+              const newJob = await api.createJob(data)
+              await refresh()
               goHome()
+              autoGenerate(newJob.id, !!data.description, !!resumeInfoRef.current?.raw_text)
             }}
             onCancel={goHome}
           />
