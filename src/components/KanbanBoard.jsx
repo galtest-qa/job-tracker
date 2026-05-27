@@ -8,7 +8,9 @@ import { getReminderState } from './reminderUtils.js'
 export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set() }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
-  const [dismissedActions, setDismissedActions] = useState(new Set())
+  const [dismissedActions, setDismissedActions] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('focusDismissed') || '[]')) } catch { return new Set() }
+  })
   const [customFocusItems, setCustomFocusItems] = useState([])
   const [addingFocus, setAddingFocus] = useState(false)
   const [focusInput, setFocusInput] = useState('')
@@ -207,9 +209,17 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
       <ReminderSummary reminders={reminders} onFilter={setReminderFilter} />
 
       {(() => {
-        const topActions = getTopActions(jobs, reminders, 8)
+        const TERMINAL = /reject|close|declin|withdraw|pass|archive/i
+        const activeJobs = jobs.filter(j => !TERMINAL.test(j.status || ''))
+        const currentIds = new Set(jobs.map(j => j.id))
+        const topActions = getTopActions(activeJobs, reminders, 8)
           .filter(a => !dismissedActions.has(a.job.id))
           .slice(0, 5)
+        // Prune stale dismissed IDs for jobs that no longer exist
+        const stale = [...dismissedActions].filter(id => !currentIds.has(id))
+        if (stale.length > 0) {
+          setDismissedActions(prev => { const next = new Set([...prev].filter(id => currentIds.has(id))); localStorage.setItem('focusDismissed', JSON.stringify([...next])); return next })
+        }
         const hasItems = topActions.length > 0 || customFocusItems.length > 0
         if (!hasItems && !addingFocus) return null
         return (
@@ -225,7 +235,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
                     <button className="focus-header-btn" onClick={() => setAddingFocus(true)} title="Add custom focus">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     </button>
-                    <button className="focus-header-btn" onClick={() => { setDismissedActions(new Set()); setFocusRefreshKey(k => k + 1) }} title="Refresh">
+                    <button className="focus-header-btn" onClick={() => { setDismissedActions(new Set()); localStorage.removeItem('focusDismissed'); setFocusRefreshKey(k => k + 1) }} title="Refresh">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                     </button>
                   </>
@@ -297,7 +307,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
                     <span className="focus-item-reason">{reason}</span>
                     <button
                       className="focus-done-btn"
-                      onClick={(e) => { e.stopPropagation(); setDismissedActions(prev => new Set([...prev, job.id])) }}
+                      onClick={(e) => { e.stopPropagation(); setDismissedActions(prev => { const next = new Set([...prev, job.id]); localStorage.setItem('focusDismissed', JSON.stringify([...next])); return next }) }}
                       title="Mark done"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
