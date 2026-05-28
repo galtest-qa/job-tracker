@@ -206,6 +206,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
         columns={columns}
         onSelect={onSelect}
         onMoveJob={onMoveJob}
+        onRefresh={onRefresh}
       />
 
       {suggestion && (

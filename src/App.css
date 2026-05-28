@@ -1135,79 +1135,136 @@ body {
 }
 .focus-header-btn:hover { color: var(--primary); background: var(--primary-light); border-color: var(--primary); }
 
-/* Primary card */
-.focus-primary-card {
-  padding: 1.1rem 1.25rem 1rem;
+/* Hero card */
+.focus-hero-card {
+  display: flex; align-items: flex-start; gap: 1.25rem;
+  padding: 1.25rem 1.25rem 1.1rem;
   border-left: 4px solid;
   background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
 }
-.focus-primary-top {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 0.75rem; margin-bottom: 0.5rem;
+.focus-hero-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.focus-hero-badge {
+  display: inline-block; padding: 0.2rem 0.55rem;
+  border-radius: 999px; font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; align-self: flex-start;
 }
-.focus-primary-titles { flex: 1; min-width: 0; }
-.focus-primary-headline {
-  font-size: 0.97rem; font-weight: 750; color: var(--text);
-  margin-bottom: 0.15rem; line-height: 1.3;
+.focus-hero-headline {
+  font-size: 1.05rem; font-weight: 800; color: var(--text); line-height: 1.25; margin: 0;
 }
-.focus-primary-job { font-size: 0.78rem; color: var(--text-secondary); }
-.focus-primary-context {
-  font-size: 0.83rem; color: var(--text); line-height: 1.55;
-  margin: 0.5rem 0 0.75rem;
-}
-.focus-rec-box {
-  display: flex; flex-direction: column; gap: 0.2rem;
-  padding: 0.55rem 0.75rem;
+.focus-hero-company { font-size: 0.8rem; color: var(--text-secondary); }
+.focus-hero-context { font-size: 0.84rem; color: var(--text); line-height: 1.55; margin: 0; }
+.focus-hero-rec {
+  display: flex; flex-direction: column; gap: 0.15rem;
+  padding: 0.5rem 0.75rem;
   background: var(--bg); border: 1px solid var(--border-light);
-  border-radius: var(--radius-xs); margin-bottom: 0.85rem;
+  border-radius: var(--radius-xs);
 }
-.focus-rec-label {
-  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+.focus-hero-rec-label {
+  font-size: 0.63rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--text-tertiary);
 }
-.focus-rec-text { font-size: 0.8rem; color: var(--text); line-height: 1.5; }
-.focus-primary-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.focus-hero-rec-text { font-size: 0.8rem; color: var(--text); line-height: 1.5; }
+.focus-hero-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 
-/* Secondary cards */
-.focus-secondary-cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+/* Hero right sidebar (score + meta) */
+.focus-hero-right {
+  display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+  flex-shrink: 0; padding-top: 0.2rem;
+}
+.focus-score-svg { display: block; }
+.focus-score-num { fill: var(--text); }
+.focus-score-label { fill: var(--text-secondary); }
+.focus-hero-meta { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-start; }
+.focus-hero-meta-item {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap;
+}
+.focus-meta-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* AI Suggestions section */
+.focus-suggestions-section {
   padding: 0.85rem 1.25rem;
-  width: 100%;
-  box-sizing: border-box;
-  border-top: 1px solid var(--border-light);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.focus-section-label {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 0.6rem;
+}
+.focus-suggestions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.focus-suggestion-card {
+  padding: 0.75rem 0.8rem 0.7rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition);
+  display: flex; flex-direction: column; gap: 0.25rem;
+  min-width: 0;
+}
+.focus-suggestion-card:hover { background: var(--surface-hover); box-shadow: var(--shadow-sm); }
+.focus-suggestion-top {
+  display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.1rem;
+}
+.focus-suggestion-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.focus-suggestion-label { font-size: 0.67rem; font-weight: 700; flex: 1; }
+.focus-suggestion-dismiss {
+  background: none; border: none; cursor: pointer; padding: 0.1rem;
+  color: var(--text-tertiary); display: flex; align-items: center; justify-content: center;
+  border-radius: 3px; transition: color var(--transition), background var(--transition);
+  margin-left: auto;
+}
+.focus-suggestion-dismiss:hover { color: var(--danger); background: #fef2f2; }
+.focus-suggestion-headline {
+  font-size: 0.78rem; font-weight: 700; color: var(--text); line-height: 1.3;
+}
+.focus-suggestion-company { font-size: 0.7rem; color: var(--text-secondary); }
+.focus-suggestion-desc {
+  font-size: 0.72rem; color: var(--text-secondary); line-height: 1.45; margin: 0.1rem 0 0.35rem;
+}
+.focus-suggestion-btn { width: 100%; margin-top: auto; }
+
+/* Progress & Wins section */
+.focus-progress-section {
+  padding: 0.85rem 1.25rem;
+  background: var(--surface);
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.focus-progress-header { display: flex; align-items: center; }
+.focus-stats-rows { display: flex; flex-direction: column; gap: 0.3rem; }
+.focus-stat-row { display: flex; align-items: baseline; gap: 0.5rem; }
+.focus-stat-period {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-tertiary); min-width: 64px;
+}
+.focus-stat-text { font-size: 0.78rem; color: var(--text-secondary); }
+.focus-goal-block { display: flex; flex-direction: column; gap: 0.35rem; }
+.focus-goal-top { display: flex; justify-content: space-between; align-items: baseline; }
+.focus-goal-label { font-size: 0.75rem; font-weight: 600; color: var(--text); }
+.focus-goal-count { font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); }
+.focus-goal-track {
+  height: 6px; background: var(--border-light); border-radius: 999px; overflow: hidden;
+}
+.focus-goal-fill {
+  height: 100%; background: var(--primary); border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.focus-goal-bottom { display: flex; justify-content: space-between; align-items: center; }
+.focus-goal-message { font-size: 0.73rem; color: var(--text-secondary); }
+.focus-goal-pct { font-size: 0.7rem; font-weight: 700; color: var(--text-tertiary); }
+
+/* Empty state */
+.focus-empty {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 1.1rem 1.25rem;
+  font-size: 0.82rem; color: var(--text-secondary);
   background: var(--surface);
 }
-.focus-secondary-card {
-  min-width: 0;
-  width: 100%;
-  padding: 0.85rem 0.9rem 0.75rem;
-  border: 1px solid var(--border-light); border-left: 3px solid;
-  border-radius: var(--radius-sm); cursor: pointer;
-  transition: background var(--transition), box-shadow var(--transition);
-  background: var(--bg);
-  box-sizing: border-box;
-}
-.focus-secondary-card:hover { background: var(--surface-hover); box-shadow: var(--shadow-sm); }
-.focus-secondary-headline {
-  font-size: 0.8rem; font-weight: 700; color: var(--text); margin-bottom: 0.1rem; line-height: 1.3;
-}
-.focus-secondary-job { font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.35rem; }
-.focus-secondary-context {
-  font-size: 0.73rem; color: var(--text-secondary); line-height: 1.45; margin: 0 0 0.6rem;
-}
-.focus-secondary-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
-
-/* Wins */
-.focus-wins {
-  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
-  padding: 0.5rem 1.25rem; border-top: 1px solid var(--border-light);
-  font-size: 0.76rem; color: var(--text-secondary); background: var(--surface);
-}
-.focus-wins svg { color: var(--success); flex-shrink: 0; }
-.focus-wins-label { font-weight: 600; color: var(--text-tertiary); }
-.focus-wins-sep { color: var(--border); }
 
 /* ═══════════ Next Action on Card ═══════════ */
 .kanban-card-next-action {
@@ -1382,7 +1439,9 @@ body {
 /* ═══════════ Responsive ═══════════ */
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
-  .focus-secondary-cards { grid-template-columns: 1fr; }
+  .focus-suggestions-grid { grid-template-columns: 1fr; }
+  .focus-hero-card { flex-direction: column; }
+  .focus-hero-right { flex-direction: row; align-items: center; padding-top: 0; }
   .status-pipeline { flex-wrap: wrap; }
   .detail-title { flex-direction: column; gap: 0.75rem; }
   .detail-hero { flex-direction: column; }
