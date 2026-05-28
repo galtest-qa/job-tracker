@@ -177,7 +177,10 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       headline: 'Your backlog needs attention',
       context: `${staleBacklog.length} jobs haven't been touched in 7+ days. A clean pipeline reduces overwhelm.`,
       recommendation: 'Review and either progress or archive stale roles.',
-      actions: [{ label: 'Dismiss', action: 'dismiss_backlog' }]
+      actions: [
+        { label: 'Review Backlog', action: 'open_backlog', variant: 'primary' },
+        { label: 'Dismiss', action: 'dismiss_backlog' },
+      ]
     }
     const insertAt = cards.findIndex(c => c.priority > 5.5)
     if (insertAt === -1) cards.push(bc)
@@ -231,6 +234,11 @@ function FocusCard({ card, size, columns, onSelect, onMoveJob, onDismiss }) {
       else if (card.job) onSelect(card.job.id, 'analysis')
     }
     else if (action.action === 'dismiss_backlog') { onDismiss('_backlog') }
+    else if (action.action === 'open_backlog') {
+      const el = document.querySelector('.kanban-column')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      onDismiss('_backlog')
+    }
     else if (action.link) { window.open(action.link, '_blank') }
     else if (action.tab && card.job) { onSelect(card.job.id, action.tab) }
   }
@@ -271,7 +279,9 @@ function FocusCard({ card, size, columns, onSelect, onMoveJob, onDismiss }) {
   }
 
   const primaryAction = card.actions.find(a => a.variant === 'primary') || card.actions[0]
-  const secondaryAction = card.actions.find(a => a.action === 'archive' || a.action === 'dismiss' || a.action === 'dismiss_backlog')
+  const secondaryAction = card.actions.find(a =>
+    a !== primaryAction && (a.action === 'archive' || a.action === 'dismiss' || a.action === 'dismiss_backlog')
+  )
 
   return (
     <div className="focus-secondary-card" style={{ borderLeftColor: color }}

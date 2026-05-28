@@ -1170,18 +1170,24 @@ body {
 
 /* Secondary cards */
 .focus-secondary-cards {
-  display: flex; gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
   padding: 0.85rem 1rem;
+  width: 100%;
+  box-sizing: border-box;
   border-top: 1px solid var(--border-light);
   background: var(--bg);
 }
 .focus-secondary-card {
-  flex: 1 1 0; min-width: 0;
+  min-width: 0;
+  width: 100%;
   padding: 0.85rem 0.9rem 0.75rem;
   border: 1px solid var(--border-light); border-left: 3px solid;
   border-radius: var(--radius-sm); cursor: pointer;
   transition: background var(--transition), box-shadow var(--transition);
   background: var(--surface);
+  box-sizing: border-box;
 }
 .focus-secondary-card:hover { background: var(--surface-hover); box-shadow: var(--shadow-sm); }
 .focus-secondary-headline {
@@ -1376,6 +1382,7 @@ body {
 /* ═══════════ Responsive ═══════════ */
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
+  .focus-secondary-cards { grid-template-columns: 1fr; }
   .status-pipeline { flex-wrap: wrap; }
   .detail-title { flex-direction: column; gap: 0.75rem; }
   .detail-hero { flex-direction: column; }
