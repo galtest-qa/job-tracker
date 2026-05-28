@@ -1177,7 +1177,7 @@ body {
   width: 100%;
   box-sizing: border-box;
   border-top: 1px solid var(--border-light);
-  background: var(--bg);
+  background: var(--surface);
 }
 .focus-secondary-card {
   min-width: 0;
@@ -1186,7 +1186,7 @@ body {
   border: 1px solid var(--border-light); border-left: 3px solid;
   border-radius: var(--radius-sm); cursor: pointer;
   transition: background var(--transition), box-shadow var(--transition);
-  background: var(--surface);
+  background: var(--bg);
   box-sizing: border-box;
 }
 .focus-secondary-card:hover { background: var(--surface-hover); box-shadow: var(--shadow-sm); }
@@ -1203,7 +1203,7 @@ body {
 .focus-wins {
   display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
   padding: 0.5rem 1.25rem; border-top: 1px solid var(--border-light);
-  font-size: 0.76rem; color: var(--text-secondary); background: var(--bg);
+  font-size: 0.76rem; color: var(--text-secondary); background: var(--surface);
 }
 .focus-wins svg { color: var(--success); flex-shrink: 0; }
 .focus-wins-label { font-weight: 600; color: var(--text-tertiary); }
