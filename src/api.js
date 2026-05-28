@@ -1,6 +1,7 @@
 import { supabase } from './lib/supabase.js'
 import { callOpenAI } from './lib/openai.js'
 import { getCandidateContext } from './lib/candidateContext.js'
+import { FIXED_COLUMNS, guessFixedColumn } from './lib/columns.js'
 
 async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,32 +14,52 @@ function throwIfError({ data, error }) {
   return data
 }
 
-// ── Seed default columns for new users ──
+// ── Ensure fixed columns, migrating any custom columns ──
 
 let _columnsInitialized = false
 
-async function ensureDefaultColumns(userId) {
+async function ensureFixedColumns(userId) {
   if (_columnsInitialized) return
   _columnsInitialized = true
 
-  const { data } = await supabase.from('columns').select('id').eq('user_id', userId).limit(1)
-  if (data && data.length > 0) return
+  const { data: existing } = await supabase.from('columns').select('*').eq('user_id', userId).order('sort_order')
 
-  const defaults = [
-    { name: 'Backlog', sort_order: 0, is_default: true },
-    { name: 'Want to Send Resume', sort_order: 1, is_default: false },
-    { name: 'Applied', sort_order: 2, is_default: false },
-    { name: 'Interview', sort_order: 3, is_default: false },
-    { name: 'Offer', sort_order: 4, is_default: false },
-    { name: 'Rejected', sort_order: 5, is_default: false },
-  ]
-  await supabase.from('columns').insert(defaults.map(c => ({ ...c, user_id: userId })))
+  const fixedNames = FIXED_COLUMNS.map(c => c.name)
+  const alreadyFixed = existing && existing.length === FIXED_COLUMNS.length &&
+    existing.every(c => fixedNames.includes(c.name))
+
+  if (alreadyFixed) return
+
+  // Build the fixed column rows
+  const { data: inserted } = await supabase
+    .from('columns')
+    .insert(FIXED_COLUMNS.map(c => ({ ...c, user_id: userId })))
+    .select()
+
+  if (!inserted) return
+
+  // Migrate jobs from old columns to nearest fixed column
+  if (existing && existing.length > 0) {
+    const fixedByName = Object.fromEntries(inserted.map(c => [c.name, c]))
+    await Promise.all(existing.map(async oldCol => {
+      const targetName = guessFixedColumn(oldCol.name)
+      const target = fixedByName[targetName]
+      if (!target) return
+      await supabase.from('jobs')
+        .update({ status: target.name })
+        .eq('user_id', userId)
+        .eq('status', oldCol.name)
+    }))
+    // Delete old columns
+    await supabase.from('columns').delete().eq('user_id', userId)
+      .not('id', 'in', `(${inserted.map(c => c.id).join(',')})`)
+  }
 }
 
 // Called once after login
 export async function initUserData() {
   const userId = await getUserId()
-  await ensureDefaultColumns(userId)
+  await ensureFixedColumns(userId)
 }
 
 // ── API (same interface as before) ──

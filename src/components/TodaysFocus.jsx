@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import CompanyLogo from './CompanyLogo.jsx'
 import { getWinsForDate, getWinsForPeriod } from '../lib/winTracker.js'
-
-const TERMINAL = /reject|close|declin|withdraw|pass|archive/i
+import { getStage, isPreApply, isApplied, isInterview, isTerminal } from '../lib/columns.js'
 
 const TYPE_META = {
   INTERVIEW_ALERT: { color: '#ef4444', bg: '#fef2f2', label: 'Urgent' },
@@ -26,11 +25,11 @@ function daysSince(dateStr) {
 
 function deriveFocusCards(jobs, reminders, dismissed) {
   const now = new Date()
-  const active = jobs.filter(j => !TERMINAL.test(j.status || '') && !dismissed.has(j.id))
+  const active = jobs.filter(j => !isTerminal(j.status) && !dismissed.has(j.id))
   const cards = []
 
   for (const job of active) {
-    const status = (job.status || '').toLowerCase()
+    const status = job.status || ''
     const days = daysSince(job.updated_at || job.created_at)
     const score = job.match_score
     const hasResume = !!job.tailored_resume
@@ -39,9 +38,9 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       (typeof job.interview_prep_ai === 'object'
         ? Object.keys(job.interview_prep_ai).length > 0
         : job.interview_prep_ai.length > 10))
-    const isApplied = /applied/i.test(status)
-    const isInterview = /interview/i.test(status)
-    const isPreApply = !isApplied && !isInterview && !TERMINAL.test(status)
+    const jobIsPreApply   = isPreApply(status)
+    const jobIsApplied    = isApplied(status)
+    const jobIsInterview  = isInterview(status)
 
     const upcomingInterview = reminders.find(r =>
       r.job_id === job.id && !r.completed &&
@@ -62,7 +61,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score != null && score >= 80 && hasResume && isPreApply) {
+    if (score != null && score >= 80 && hasResume && jobIsPreApply) {
       cards.push({ type: 'READY_TO_APPLY', priority: 2, job,
         headline: "You're one step away from applying",
         context: `${score}% match and your resume is already tailored. You already did the hard part.`,
@@ -76,7 +75,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score != null && score >= 80 && !hasResume && isPreApply) {
+    if (score != null && score >= 80 && !hasResume && jobIsPreApply) {
       cards.push({ type: 'HOT_MATCH', priority: 3, job,
         headline: 'High match, low effort',
         context: `${score}% match — the only thing missing is a tailored resume.`,
@@ -89,7 +88,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score != null && score >= 60 && score < 80 && !hasResume && isPreApply) {
+    if (score != null && score >= 60 && score < 80 && !hasResume && jobIsPreApply) {
       cards.push({ type: 'GOOD_MATCH', priority: 3.5, job,
         headline: 'Worth pursuing — tailor your resume',
         context: `${score}% match at ${job.company}. A tailored resume can make you competitive.`,
@@ -103,7 +102,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score != null && isPreApply && !hasResume && days < 5) {
+    if (score != null && jobIsPreApply && !hasResume && days < 5) {
       cards.push({ type: 'BACKLOG_MOVE', priority: 4.5, job,
         headline: 'Ready to move this one forward?',
         context: `${job.role} at ${job.company} is sitting in your backlog. ${score != null ? `You're a ${score}% match.` : ''} Time to decide.`,
@@ -117,7 +116,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score == null && !hasDesc && isPreApply && days < 3) {
+    if (score == null && !hasDesc && jobIsPreApply && days < 3) {
       cards.push({ type: 'FRESH_UNSCORED', priority: 6.5, job,
         headline: 'New job added — add a description',
         context: `You added ${job.role} at ${job.company} but there's no description yet. AI analysis needs it.`,
@@ -130,7 +129,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (isApplied && days >= 3) {
+    if (jobIsApplied && days >= 3) {
       cards.push({ type: 'FOLLOW_UP', priority: 4, job,
         headline: 'This opportunity is going quiet',
         context: `No activity for ${Math.floor(days)} days since applying to ${job.company}.`,
@@ -143,7 +142,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (isInterview && !hasPrep) {
+    if (jobIsInterview && !hasPrep) {
       cards.push({ type: 'INTERVIEW_PREP', priority: 4, job,
         headline: 'Interview scheduled — no prep yet',
         context: `You're in the interview stage at ${job.company} but haven't generated prep.`,
@@ -156,7 +155,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score != null && score >= 65 && isPreApply && days >= 5) {
+    if (score != null && score >= 65 && jobIsPreApply && days >= 5) {
       cards.push({ type: 'STALE_GOOD', priority: 5, job,
         headline: 'This is getting cold',
         context: `${score}% match but sitting in "${job.status}" for ${Math.floor(days)} days. This one deserves a decision.`,
@@ -171,7 +170,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (isPreApply && days >= 7) {
+    if (jobIsPreApply && days >= 7) {
       cards.push({ type: 'STALE', priority: 6, job,
         headline: 'Still interested in this role?',
         context: `Untouched for ${Math.floor(days)} days. You're probably overthinking this one.`,
@@ -185,7 +184,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
       continue
     }
 
-    if (score == null && hasDesc && isPreApply) {
+    if (score == null && hasDesc && jobIsPreApply) {
       cards.push({ type: 'NEEDS_ANALYSIS', priority: 7, job,
         headline: 'Unscored opportunity',
         context: `You haven't analyzed ${job.role} at ${job.company} yet. You might be a great fit.`,
@@ -200,7 +199,7 @@ function deriveFocusCards(jobs, reminders, dismissed) {
   cards.sort((a, b) => a.priority - b.priority || daysSince(b.job?.updated_at) - daysSince(a.job?.updated_at))
 
   const staleBacklog = jobs.filter(j =>
-    !TERMINAL.test(j.status || '') && /backlog/i.test(j.status || '') &&
+    j.status === 'Backlog' &&
     daysSince(j.updated_at || j.created_at) >= 7
   )
   if (staleBacklog.length >= 3 && !dismissed.has('_backlog')) {
@@ -247,7 +246,7 @@ function HeroCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
   const runAction = (action) => {
     if (action.action === 'dismiss') onDismiss(job?.id)
     else if (action.action === 'archive') {
-      const col = columns.find(c => TERMINAL.test(c.name))
+      const col = columns.find(c => c.name === 'Rejected')
       if (col && job) { onMoveJob(job.id, col.name); onDismiss(job.id) }
       else if (job) onSelect(job.id, 'analysis')
     }
@@ -323,7 +322,7 @@ function SuggestionCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
   const runAction = (action) => {
     if (action.action === 'dismiss') onDismiss(job?.id)
     else if (action.action === 'archive') {
-      const col = columns.find(c => TERMINAL.test(c.name))
+      const col = columns.find(c => c.name === 'Rejected')
       if (col && job) { onMoveJob(job.id, col.name); onDismiss(job.id) }
       else if (job) onSelect(job.id, 'analysis')
     }

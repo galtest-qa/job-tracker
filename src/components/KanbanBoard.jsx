@@ -25,14 +25,6 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
     try { const data = await api.getAllReminders(); setReminders(data) } catch {}
   }
   useEffect(() => { loadReminders() }, [jobs])
-  const [editingColId, setEditingColId] = useState(null)
-  const [editingName, setEditingName] = useState('')
-  const [addingColumn, setAddingColumn] = useState(false)
-  const [newColName, setNewColName] = useState('')
-  // Column drag state
-  const [dragColId, setDragColId] = useState(null)
-  const [dragOverColId, setDragOverColId] = useState(null)
-
   const SCORE_FILTERS = [
     { key: 'All', label: 'All' },
     { key: '70-100', label: '70-100%' },
@@ -78,69 +70,7 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
     if (dragOverCol !== colName) setDragOverCol(colName)
   }
 
-  // ── Column drag (reorder columns) ──
-  const handleColDragStart = (e, colId) => {
-    e.dataTransfer.setData('column-id', String(colId))
-    e.dataTransfer.effectAllowed = 'move'
-    setDragColId(colId)
-  }
-
-  const handleColDragOver = (e, colId) => {
-    e.preventDefault()
-    if (!e.dataTransfer.types.includes('column-id')) return
-    if (dragOverColId !== colId) setDragOverColId(colId)
-  }
-
-  const handleColDrop = async (sourceId, targetColId) => {
-    if (!sourceId || sourceId === targetColId) {
-      setDragColId(null)
-      setDragOverColId(null)
-      return
-    }
-
-    const ids = columns.map(c => c.id)
-    const fromIdx = ids.indexOf(sourceId)
-    const toIdx = ids.indexOf(targetColId)
-    if (fromIdx < 0 || toIdx < 0) return
-    ids.splice(fromIdx, 1)
-    ids.splice(toIdx, 0, sourceId)
-
-    setDragColId(null)
-    setDragOverColId(null)
-    onReorderColumns(ids)
-  }
-
-  const handleColDragEnd = () => {
-    setDragColId(null)
-    setDragOverColId(null)
-  }
-
-  // ── Column CRUD ──
-  const startEditColumn = (col) => {
-    setEditingColId(col.id)
-    setEditingName(col.name)
-  }
-
-  const saveColumnName = async () => {
-    if (editingName.trim() && editingColId) {
-      await api.updateColumn(editingColId, editingName.trim())
-      await onRefresh()
-    }
-    setEditingColId(null)
-  }
-
-  const deleteColumn = async (colId) => {
-    if (!confirm('Delete this column? Jobs will be moved to the first column.')) return
-    await api.deleteColumn(colId)
-    await onRefresh()
-  }
-
-  const addColumn = async () => {
-    if (!newColName.trim()) return
-    await api.createColumn(newColName.trim())
-    setNewColName('')
-    setAddingColumn(false)
-    await onRefresh()
+  const handleColDragEnd = () => { // kept for column div onDragEnd
   }
 
   // Reminder date helpers
@@ -293,67 +223,23 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
       }}>
         {columns.map(col => {
           const colJobs = filtered.filter(j => j.status === col.name)
-          const isColDragging = dragColId === col.id
-          const isColDropTarget = dragOverColId === col.id && dragColId !== col.id
 
           return (
             <div
               key={col.id}
-              className={`kanban-column ${dragOverCol === col.name ? 'card-drag-over' : ''} ${isColDragging ? 'col-dragging' : ''} ${isColDropTarget ? 'col-drop-target' : ''}`}
-              onDragOver={(e) => {
-                handleCardDragOver(e, col.name)
-                handleColDragOver(e, col.id)
-              }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setDragOverCol(null); setDragOverColId(null) } }}
+              className={`kanban-column ${dragOverCol === col.name ? 'card-drag-over' : ''}`}
+              onDragOver={(e) => handleCardDragOver(e, col.name)}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCol(null) }}
               onDrop={(e) => {
                 e.preventDefault()
-                const colId = e.dataTransfer.getData('column-id')
                 const jobId = e.dataTransfer.getData('job-id')
                 setDragOverCol(null)
-                setDragOverColId(null)
-                if (colId) handleColDrop(colId, col.id)
-                else if (jobId) handleCardDrop(jobId, col.name)
+                if (jobId) handleCardDrop(jobId, col.name)
               }}
             >
-              <div
-                className="kanban-column-header"
-                draggable
-                onDragStart={(e) => handleColDragStart(e, col.id)}
-                onDragEnd={handleColDragEnd}
-              >
-                <div className="kanban-col-drag-handle" title="Drag to reorder column">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                    <circle cx="5" cy="3" r="1.3"/><circle cx="11" cy="3" r="1.3"/>
-                    <circle cx="5" cy="8" r="1.3"/><circle cx="11" cy="8" r="1.3"/>
-                    <circle cx="5" cy="13" r="1.3"/><circle cx="11" cy="13" r="1.3"/>
-                  </svg>
-                </div>
-                {editingColId === col.id ? (
-                  <input
-                    className="kanban-col-edit-input"
-                    value={editingName}
-                    onChange={e => setEditingName(e.target.value)}
-                    onBlur={saveColumnName}
-                    onKeyDown={e => { if (e.key === 'Enter') saveColumnName(); if (e.key === 'Escape') setEditingColId(null) }}
-                    autoFocus
-                    onClick={e => e.stopPropagation()}
-                  />
-                ) : (
-                  <span className="kanban-col-title" onDoubleClick={() => startEditColumn(col)}>
-                    {col.name}
-                  </span>
-                )}
+              <div className="kanban-column-header">
+                <span className="kanban-col-title">{col.name}</span>
                 <span className="kanban-col-count">{colJobs.length}</span>
-                <div className="kanban-col-actions">
-                  <button className="kanban-col-btn" onClick={() => startEditColumn(col)} title="Rename">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                  </button>
-                  {columns.length > 1 && !col.is_default && (
-                    <button className="kanban-col-btn danger" onClick={() => deleteColumn(col.id)} title="Delete column">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    </button>
-                  )}
-                </div>
               </div>
 
               <div className="kanban-column-body">
@@ -377,29 +263,6 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
           )
         })}
 
-        {/* Add Column */}
-        <div className="kanban-column kanban-add-column">
-          {addingColumn ? (
-            <div className="kanban-add-col-form">
-              <input
-                className="kanban-col-edit-input"
-                value={newColName}
-                onChange={e => setNewColName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addColumn(); if (e.key === 'Escape') setAddingColumn(false) }}
-                placeholder="Column name..."
-                autoFocus
-              />
-              <div className="kanban-add-col-btns">
-                <button className="btn btn-primary btn-sm" onClick={addColumn}>Add</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setAddingColumn(false)}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <button className="kanban-add-col-btn" onClick={() => setAddingColumn(true)}>
-              + Add Column
-            </button>
-          )}
-        </div>
       </div>
     </div>
   )
