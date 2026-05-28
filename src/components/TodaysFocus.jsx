@@ -222,19 +222,19 @@ function deriveFocusCards(jobs, reminders, dismissed) {
 }
 
 function ScoreCircle({ score }) {
-  const r = 30
+  const r = 34
   const circ = 2 * Math.PI * r
   const dash = (score / 100) * circ
   const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444'
   return (
-    <svg width="76" height="76" viewBox="0 0 76 76" className="focus-score-svg">
-      <circle cx="38" cy="38" r={r} fill="none" stroke="var(--border-light)" strokeWidth="5"/>
-      <circle cx="38" cy="38" r={r} fill="none" stroke={color} strokeWidth="5"
+    <svg width="88" height="88" viewBox="0 0 88 88" className="focus-score-svg">
+      <circle cx="44" cy="44" r={r} fill="none" stroke="var(--border-light)" strokeWidth="5.5"/>
+      <circle cx="44" cy="44" r={r} fill="none" stroke={color} strokeWidth="5.5"
         strokeLinecap="round" strokeDasharray={`${dash} ${circ}`}
-        transform="rotate(-90 38 38)"
+        transform="rotate(-90 44 44)"
       />
-      <text x="38" y="35" textAnchor="middle" fontSize="16" fontWeight="800" fill="currentColor" className="focus-score-num">{score}</text>
-      <text x="38" y="49" textAnchor="middle" fontSize="9" fill="currentColor" className="focus-score-label">match</text>
+      <text x="44" y="40" textAnchor="middle" fontSize="18" fontWeight="800" fill="currentColor" className="focus-score-num">{score}</text>
+      <text x="44" y="54" textAnchor="middle" fontSize="10" fill="currentColor" className="focus-score-label">match</text>
     </svg>
   )
 }
