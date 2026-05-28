@@ -371,6 +371,13 @@ function SuggestionCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
   )
 }
 
+const METRIC_COLORS = {
+  added:    '#4f6ef7',
+  analyzed: '#06b6d4',
+  tailored: '#8b5cf6',
+  applied:  '#10b981',
+}
+
 function getMotivation(pct, count) {
   if (count === 0) return "Let's get the week started"
   if (pct < 25) return "Building momentum — keep going"
@@ -385,43 +392,49 @@ function ProgressSection({ jobs }) {
     try { return parseInt(localStorage.getItem('weeklyGoal') || '10') } catch { return 10 }
   })
 
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-  const weekAgo = new Date(Date.now() - 7 * 86400000)
+  const CHART_H = 52
 
-  const todayWins = getWinsForDate(0)
-  const yesterdayWins = getWinsForDate(1)
+  const dayData = Array.from({ length: 7 }, (_, i) => {
+    const daysAgo = 6 - i
+    const d = new Date(Date.now() - daysAgo * 86400000)
+    const dateStr = d.toISOString().slice(0, 10)
+    const wins = getWinsForDate(daysAgo)
+    const added    = jobs.filter(j => (j.created_at || '').slice(0, 10) === dateStr).length
+    const analyzed = wins.filter(w => w.type === 'analyzed').length
+    const tailored = wins.filter(w => w.type === 'tailored').length
+    // applied: win tracker events + jobs whose updated_at is today and status matches applied
+    const appliedWins = wins.filter(w => w.type === 'applied').length
+    const appliedJobs = jobs.filter(j =>
+      /applied/i.test(j.status || '') && (j.updated_at || '').slice(0, 10) === dateStr
+    ).length
+    const applied = Math.max(appliedWins, appliedJobs)
+    return {
+      label: d.toLocaleDateString('en', { weekday: 'short' }).slice(0, 1),
+      fullLabel: d.toLocaleDateString('en', { weekday: 'short' }),
+      isToday: daysAgo === 0,
+      added, analyzed, tailored, applied,
+      total: added + analyzed + tailored + applied,
+    }
+  })
+
+  const maxTotal = Math.max(...dayData.map(d => d.total), 1)
+  const today = dayData[6]
+
   const weekWins = getWinsForPeriod(7)
-
-  const addedToday = jobs.filter(j => (j.created_at || '').slice(0, 10) === todayStr).length
-  const addedYesterday = jobs.filter(j => (j.created_at || '').slice(0, 10) === yesterdayStr).length
-  const addedThisWeek = jobs.filter(j => new Date(j.created_at) > weekAgo).length
-
-  const count = (arr, type) => arr.filter(w => w.type === type).length
-
-  const todayStats = [
-    addedToday > 0 && `${addedToday} added`,
-    count(todayWins, 'analyzed') > 0 && `${count(todayWins, 'analyzed')} analyzed`,
-    count(todayWins, 'tailored') > 0 && `${count(todayWins, 'tailored')} tailored`,
-    count(todayWins, 'applied') > 0 && `${count(todayWins, 'applied')} applied`,
-  ].filter(Boolean)
-
-  const yesterdayStats = [
-    addedYesterday > 0 && `${addedYesterday} added`,
-    count(yesterdayWins, 'analyzed') > 0 && `${count(yesterdayWins, 'analyzed')} analyzed`,
-    count(yesterdayWins, 'tailored') > 0 && `${count(yesterdayWins, 'tailored')} tailored`,
-    count(yesterdayWins, 'applied') > 0 && `${count(yesterdayWins, 'applied')} applied`,
-  ].filter(Boolean)
-
-  const weekStats = [
-    addedThisWeek > 0 && `${addedThisWeek} added`,
-    count(weekWins, 'analyzed') > 0 && `${count(weekWins, 'analyzed')} analyzed`,
-    count(weekWins, 'tailored') > 0 && `${count(weekWins, 'tailored')} tailored`,
-    count(weekWins, 'applied') > 0 && `${count(weekWins, 'applied')} applied`,
-  ].filter(Boolean)
-
-  const appliedThisWeek = count(weekWins, 'applied')
+  const appliedThisWeek = Math.max(
+    weekWins.filter(w => w.type === 'applied').length,
+    jobs.filter(j => /applied/i.test(j.status || '') &&
+      new Date(j.updated_at) > new Date(Date.now() - 7 * 86400000)
+    ).length
+  )
   const pct = Math.min(100, Math.round((appliedThisWeek / weeklyGoal) * 100))
+
+  const todayMetrics = [
+    { key: 'added',    label: 'added',    value: today.added },
+    { key: 'analyzed', label: 'analyzed', value: today.analyzed },
+    { key: 'tailored', label: 'tailored', value: today.tailored },
+    { key: 'applied',  label: 'applied',  value: today.applied },
+  ]
 
   return (
     <div className="focus-progress-section">
@@ -429,29 +442,59 @@ function ProgressSection({ jobs }) {
         <span className="focus-section-label">Your Progress</span>
       </div>
 
-      {(todayStats.length > 0 || yesterdayStats.length > 0 || weekStats.length > 0) && (
-        <div className="focus-stats-rows">
-          {todayStats.length > 0 && (
-            <div className="focus-stat-row">
-              <span className="focus-stat-period">Today</span>
-              <span className="focus-stat-text">{todayStats.join(' · ')}</span>
-            </div>
-          )}
-          {yesterdayStats.length > 0 && (
-            <div className="focus-stat-row">
-              <span className="focus-stat-period">Yesterday</span>
-              <span className="focus-stat-text">{yesterdayStats.join(' · ')}</span>
-            </div>
-          )}
-          {weekStats.length > 0 && (weekStats.length > (todayStats.length > 0 ? todayStats.length : 0) || true) && (
-            <div className="focus-stat-row">
-              <span className="focus-stat-period">This Week</span>
-              <span className="focus-stat-text">{weekStats.join(' · ')}</span>
-            </div>
-          )}
+      {/* 7-day stacked bar chart */}
+      <div className="focus-chart-wrap">
+        <div className="focus-chart-bars">
+          {dayData.map((day, i) => {
+            const barH = day.total > 0 ? Math.max(4, (day.total / maxTotal) * CHART_H) : 0
+            const segs = [
+              { key: 'added',    h: day.added    / Math.max(day.total, 1) * barH },
+              { key: 'analyzed', h: day.analyzed / Math.max(day.total, 1) * barH },
+              { key: 'tailored', h: day.tailored / Math.max(day.total, 1) * barH },
+              { key: 'applied',  h: day.applied  / Math.max(day.total, 1) * barH },
+            ].filter(s => s.h > 0)
+            return (
+              <div key={i} className={`focus-chart-col${day.isToday ? ' is-today' : ''}`}>
+                <div className="focus-chart-track" style={{ height: CHART_H }}>
+                  {barH > 0 && (
+                    <div className="focus-chart-bar" style={{ height: barH }}>
+                      {segs.map(s => (
+                        <div key={s.key} style={{ height: s.h, background: METRIC_COLORS[s.key] }} />
+                      ))}
+                    </div>
+                  )}
+                  {barH === 0 && <div className="focus-chart-empty-bar" />}
+                </div>
+                <div className="focus-chart-day-label">{day.label}</div>
+              </div>
+            )
+          })}
         </div>
-      )}
+        <div className="focus-chart-legend">
+          {Object.entries(METRIC_COLORS).map(([key, color]) => (
+            <span key={key} className="focus-legend-item">
+              <span className="focus-legend-dot" style={{ background: color }} />
+              {key}
+            </span>
+          ))}
+        </div>
+      </div>
 
+      {/* Today's metric pills */}
+      <div className="focus-today-row">
+        <span className="focus-today-label">Today</span>
+        <div className="focus-metric-pills">
+          {todayMetrics.map(m => (
+            <div key={m.key} className={`focus-metric-pill${m.value === 0 ? ' zero' : ''}`}
+              style={{ '--mc': METRIC_COLORS[m.key] }}>
+              <span className="focus-metric-val">{m.value}</span>
+              <span className="focus-metric-name">{m.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Weekly applications goal */}
       <div className="focus-goal-block">
         <div className="focus-goal-top">
           <span className="focus-goal-label">Weekly Applications Goal</span>
