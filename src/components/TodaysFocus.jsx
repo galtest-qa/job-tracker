@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import CompanyLogo from './CompanyLogo.jsx'
+import { api } from '../api.js'
 import { getWinsForDate, getWinsForPeriod } from '../lib/winTracker.js'
 import { getStage, isPreApply, isApplied, isInterview, isTerminal } from '../lib/columns.js'
 
@@ -377,19 +378,80 @@ const METRIC_COLORS = {
   applied:  '#10b981',
 }
 
-function getMotivation(pct, count) {
-  if (count === 0) return "Let's get the week started"
-  if (pct < 25) return "Building momentum — keep going"
-  if (pct < 50) return "Good progress! You're making moves"
-  if (pct < 75) return "Great momentum! Keep going 💪"
-  if (pct < 100) return "Almost there — one final push"
-  return "Weekly goal reached! Outstanding work 🎉"
+function getMotivation(pct) {
+  if (pct === 0)   return "Let's get the week started"
+  if (pct < 25)   return "Building momentum — keep going"
+  if (pct < 50)   return "Good progress! You're making moves"
+  if (pct < 75)   return "Great momentum! Keep going"
+  if (pct < 100)  return "Almost there — one final push"
+  return "Goal reached! Outstanding work 🎉"
 }
 
-function ProgressSection({ jobs }) {
-  const [weeklyGoal] = useState(() => {
-    try { return parseInt(localStorage.getItem('weeklyGoal') || '10') } catch { return 10 }
-  })
+function GoalsPopover({ goals, onSave, onClose }) {
+  const [draft, setDraft] = useState({ ...goals })
+  const [saving, setSaving] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', handler)
+    const esc = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', esc) }
+  }, [onClose])
+
+  const set = (key, val) => {
+    const n = Math.max(1, Math.min(99, parseInt(val) || 1))
+    setDraft(d => ({ ...d, [key]: n }))
+  }
+
+  const save = async () => {
+    setSaving(true)
+    await onSave(draft)
+    setSaving(false)
+    onClose()
+  }
+
+  const fields = [
+    { key: 'weekly_goal_applied',  label: 'Applications sent',  color: METRIC_COLORS.applied  },
+    { key: 'weekly_goal_tailored', label: 'Resumes tailored',   color: METRIC_COLORS.tailored },
+    { key: 'weekly_goal_added',    label: 'Jobs added',         color: METRIC_COLORS.added    },
+  ]
+
+  return (
+    <div className="goals-popover" ref={ref}>
+      <div className="goals-popover-header">
+        <span>Set Weekly Goals</span>
+        <button className="goals-popover-close" onClick={onClose}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div className="goals-popover-fields">
+        {fields.map(f => (
+          <div key={f.key} className="goals-popover-row">
+            <span className="goals-popover-dot" style={{ background: f.color }} />
+            <span className="goals-popover-label">{f.label}</span>
+            <input
+              type="number" min="1" max="99"
+              className="goals-popover-input"
+              value={draft[f.key]}
+              onChange={e => set(f.key, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="goals-popover-footer">
+        <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Goals'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProgressSection({ jobs, goals, onSaveGoals }) {
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const pencilRef = useRef(null)
 
   const CHART_H = 52
 
@@ -401,15 +463,13 @@ function ProgressSection({ jobs }) {
     const added    = jobs.filter(j => (j.created_at || '').slice(0, 10) === dateStr).length
     const analyzed = wins.filter(w => w.type === 'analyzed').length
     const tailored = wins.filter(w => w.type === 'tailored').length
-    // applied: win tracker events + jobs whose updated_at is today and status matches applied
     const appliedWins = wins.filter(w => w.type === 'applied').length
     const appliedJobs = jobs.filter(j =>
-      /applied/i.test(j.status || '') && (j.updated_at || '').slice(0, 10) === dateStr
+      isApplied(j.status) && (j.updated_at || '').slice(0, 10) === dateStr
     ).length
     const applied = Math.max(appliedWins, appliedJobs)
     return {
       label: d.toLocaleDateString('en', { weekday: 'short' }).slice(0, 1),
-      fullLabel: d.toLocaleDateString('en', { weekday: 'short' }),
       isToday: daysAgo === 0,
       added, analyzed, tailored, applied,
       total: added + analyzed + tailored + applied,
@@ -418,15 +478,23 @@ function ProgressSection({ jobs }) {
 
   const maxTotal = Math.max(...dayData.map(d => d.total), 1)
   const today = dayData[6]
-
+  const weekAgo = new Date(Date.now() - 7 * 86400000)
   const weekWins = getWinsForPeriod(7)
-  const appliedThisWeek = Math.max(
-    weekWins.filter(w => w.type === 'applied').length,
-    jobs.filter(j => /applied/i.test(j.status || '') &&
-      new Date(j.updated_at) > new Date(Date.now() - 7 * 86400000)
-    ).length
-  )
-  const pct = Math.min(100, Math.round((appliedThisWeek / weeklyGoal) * 100))
+
+  const weekStats = {
+    applied: Math.max(
+      weekWins.filter(w => w.type === 'applied').length,
+      jobs.filter(j => isApplied(j.status) && new Date(j.updated_at) > weekAgo).length
+    ),
+    tailored: weekWins.filter(w => w.type === 'tailored').length,
+    added: jobs.filter(j => new Date(j.created_at) > weekAgo).length,
+  }
+
+  const goalBars = [
+    { key: 'applied',  label: 'Applications sent', count: weekStats.applied,  goal: goals.weekly_goal_applied,  color: METRIC_COLORS.applied  },
+    { key: 'tailored', label: 'Resumes tailored',  count: weekStats.tailored, goal: goals.weekly_goal_tailored, color: METRIC_COLORS.tailored },
+    { key: 'added',    label: 'Jobs added',        count: weekStats.added,    goal: goals.weekly_goal_added,    color: METRIC_COLORS.added    },
+  ]
 
   const todayMetrics = [
     { key: 'added',    label: 'added',    value: today.added },
@@ -455,14 +523,15 @@ function ProgressSection({ jobs }) {
             return (
               <div key={i} className={`focus-chart-col${day.isToday ? ' is-today' : ''}`}>
                 <div className="focus-chart-track" style={{ height: CHART_H }}>
-                  {barH > 0 && (
+                  {barH > 0 ? (
                     <div className="focus-chart-bar" style={{ height: barH }}>
                       {segs.map(s => (
                         <div key={s.key} style={{ height: s.h, background: METRIC_COLORS[s.key] }} />
                       ))}
                     </div>
+                  ) : (
+                    <div className="focus-chart-empty-bar" />
                   )}
-                  {barH === 0 && <div className="focus-chart-empty-bar" />}
                 </div>
                 <div className="focus-chart-day-label">{day.label}</div>
               </div>
@@ -493,23 +562,55 @@ function ProgressSection({ jobs }) {
         </div>
       </div>
 
-      {/* Weekly applications goal */}
-      <div className="focus-goal-block">
-        <div className="focus-goal-top">
-          <span className="focus-goal-label">Weekly Applications Goal</span>
-          <span className="focus-goal-count">{appliedThisWeek} / {weeklyGoal}</span>
+      {/* Weekly goals */}
+      <div className="focus-goals-section">
+        <div className="focus-goals-header">
+          <span className="focus-section-label">Weekly Goals</span>
+          <div className="focus-goals-pencil-wrap" ref={pencilRef}>
+            <button
+              className="focus-goals-pencil"
+              onClick={() => setPopoverOpen(o => !o)}
+              title="Set your weekly goals"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+              </svg>
+            </button>
+            {popoverOpen && (
+              <GoalsPopover
+                goals={goals}
+                onSave={onSaveGoals}
+                onClose={() => setPopoverOpen(false)}
+              />
+            )}
+          </div>
         </div>
-        <div className="focus-goal-track">
-          <div className="focus-goal-fill" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="focus-goal-bottom">
-          <span className="focus-goal-message">{getMotivation(pct, appliedThisWeek)}</span>
-          <span className="focus-goal-pct">{pct}%</span>
+        <div className="focus-goal-bars">
+          {goalBars.map(g => {
+            const pct = Math.min(100, Math.round((g.count / g.goal) * 100))
+            return (
+              <div key={g.key} className="focus-goal-row">
+                <div className="focus-goal-row-top">
+                  <span className="focus-goal-dot" style={{ background: g.color }} />
+                  <span className="focus-goal-name">{g.label}</span>
+                  <span className="focus-goal-count">{g.count} / {g.goal}</span>
+                </div>
+                <div className="focus-goal-track">
+                  <div className="focus-goal-fill" style={{ width: `${pct}%`, background: g.color }} />
+                </div>
+                {pct > 0 && (
+                  <div className="focus-goal-message">{getMotivation(pct)}</div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
   )
 }
+
+const DEFAULT_GOALS = { weekly_goal_applied: 10, weekly_goal_tailored: 5, weekly_goal_added: 15 }
 
 export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMoveJob, onRefresh }) {
   const [dismissed, setDismissed] = useState(() => {
@@ -517,6 +618,16 @@ export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMove
   })
   const [collapsed, setCollapsed] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [goals, setGoals] = useState(DEFAULT_GOALS)
+
+  useEffect(() => {
+    api.getSettings().then(s => setGoals(s)).catch(() => {})
+  }, [])
+
+  const handleSaveGoals = async (updated) => {
+    const saved = await api.updateSettings(updated)
+    setGoals(saved)
+  }
 
   const handleRefresh = async () => {
     console.log('[TodaysFocus] refresh clicked, onRefresh=', typeof onRefresh)
@@ -608,7 +719,7 @@ export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMove
           )}
 
           {/* 3. Progress & Wins */}
-          <ProgressSection jobs={jobs} />
+          <ProgressSection jobs={jobs} goals={goals} onSaveGoals={handleSaveGoals} />
         </>
       )}
     </div>

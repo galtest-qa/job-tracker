@@ -480,4 +480,20 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
 
   // Export not available in hosted mode (needs server-side docx generation)
   exportResume: () => null,
+
+  // Settings
+  getSettings: async () => {
+    const userId = await getUserId()
+    const { data } = await supabase.from('user_settings').select('*').eq('user_id', userId).single()
+    return data || { weekly_goal_applied: 10, weekly_goal_tailored: 5, weekly_goal_added: 15 }
+  },
+
+  updateSettings: async (patch) => {
+    const userId = await getUserId()
+    return throwIfError(
+      await supabase.from('user_settings')
+        .upsert({ user_id: userId, ...patch, updated_at: new Date().toISOString() })
+        .select().single()
+    )
+  },
 }
