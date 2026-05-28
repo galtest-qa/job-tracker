@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import CompanyLogo from './CompanyLogo.jsx'
 import { getWinsForDate, getWinsForPeriod } from '../lib/winTracker.js'
 
 const TERMINAL = /reject|close|declin|withdraw|pass|archive/i
@@ -263,7 +264,15 @@ function HeroCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
           {meta.label}
         </span>
         <h2 className="focus-hero-headline">{card.headline}</h2>
-        {job && <div className="focus-hero-company">{job.role} · {job.company}</div>}
+        {job && (
+          <div className="focus-hero-job-row">
+            <CompanyLogo company={job.company} size="sm" logoUrl={job.logo_url} />
+            <div className="focus-hero-job-info">
+              <div className="focus-hero-role">{job.role}</div>
+              <div className="focus-hero-company">{job.company}</div>
+            </div>
+          </div>
+        )}
         <p className="focus-hero-context">{card.context}</p>
         <div className="focus-hero-rec">
           <span className="focus-hero-rec-label">Recommendation</span>
@@ -341,7 +350,15 @@ function SuggestionCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
         )}
       </div>
       <div className="focus-suggestion-headline">{card.headline}</div>
-      {job && <div className="focus-suggestion-company">{job.role} · {job.company}</div>}
+      {job && (
+        <div className="focus-suggestion-job-row">
+          <CompanyLogo company={job.company} size="xs" logoUrl={job.logo_url} />
+          <div className="focus-suggestion-job-info">
+            <div className="focus-suggestion-role">{job.role}</div>
+            <div className="focus-suggestion-company">{job.company}</div>
+          </div>
+        </div>
+      )}
       <p className="focus-suggestion-desc">{card.context}</p>
       {primaryAction && (
         <div onClick={e => e.stopPropagation()}>

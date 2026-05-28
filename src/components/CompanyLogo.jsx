@@ -49,7 +49,7 @@ export default function CompanyLogo({ company, size = 'md', logoUrl, editable, o
   const colorIdx = hashCode(company) % COLORS.length
   const [c1, c2] = COLORS[colorIdx]
   const initial = company.charAt(0).toUpperCase()
-  const sizeClass = size === 'sm' ? 'company-logo-sm' : size === 'lg' ? 'company-logo-lg' : ''
+  const sizeClass = size === 'xs' ? 'company-logo-xs' : size === 'sm' ? 'company-logo-sm' : size === 'lg' ? 'company-logo-lg' : ''
 
   // Close menu on outside click
   useEffect(() => {

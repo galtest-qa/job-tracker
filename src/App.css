@@ -150,6 +150,7 @@ body {
   background: white; border-radius: 10px;
 }
 .company-logo-sm { width: 36px; height: 36px; border-radius: 8px; font-size: 0.85rem; }
+.company-logo-xs { width: 26px; height: 26px; border-radius: 6px; font-size: 0.7rem; }
 .company-logo-lg { width: 56px; height: 56px; border-radius: 14px; font-size: 1.3rem; }
 
 .company-logo-wrapper { position: relative; flex-shrink: 0; }
@@ -1150,9 +1151,12 @@ body {
   text-transform: uppercase; letter-spacing: 0.04em; align-self: flex-start;
 }
 .focus-hero-headline {
-  font-size: 1.05rem; font-weight: 800; color: var(--text); line-height: 1.25; margin: 0;
+  font-size: 1.1rem; font-weight: 800; color: var(--text); line-height: 1.25; margin: 0;
 }
-.focus-hero-company { font-size: 0.8rem; color: var(--text-secondary); }
+.focus-hero-job-row { display: flex; align-items: center; gap: 0.65rem; }
+.focus-hero-job-info { display: flex; flex-direction: column; gap: 0.05rem; min-width: 0; }
+.focus-hero-role { font-size: 0.95rem; font-weight: 700; color: var(--text); line-height: 1.2; }
+.focus-hero-company { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
 .focus-hero-context { font-size: 0.84rem; color: var(--text); line-height: 1.55; margin: 0; }
 .focus-hero-rec {
   display: flex; flex-direction: column; gap: 0.15rem;
@@ -1223,7 +1227,10 @@ body {
 .focus-suggestion-headline {
   font-size: 0.78rem; font-weight: 700; color: var(--text); line-height: 1.3;
 }
-.focus-suggestion-company { font-size: 0.7rem; color: var(--text-secondary); }
+.focus-suggestion-job-row { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.15rem; }
+.focus-suggestion-job-info { display: flex; flex-direction: column; gap: 0.02rem; min-width: 0; }
+.focus-suggestion-role { font-size: 0.75rem; font-weight: 700; color: var(--text); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.focus-suggestion-company { font-size: 0.68rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .focus-suggestion-desc {
   font-size: 0.72rem; color: var(--text-secondary); line-height: 1.45; margin: 0.1rem 0 0.35rem;
 }
