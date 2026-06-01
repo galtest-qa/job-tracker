@@ -185,6 +185,7 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       ...r,
       points_deducted: Number(r.points_deducted) || 0,
     }))
+    const computedScore = Math.max(0, 100 - breakdown.reduce((sum, r) => sum + r.points_deducted, 0))
     const requirements_met = breakdown.filter(r => r.status === 'met').map(r => `${r.requirement} — ${r.evidence}`)
     const requirements_partial = breakdown.filter(r => r.status === 'partial').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)
     const requirements_unmet = breakdown.filter(r => r.status === 'unmet').map(r => `${r.requirement} (-${r.points_deducted}pts) — ${r.evidence}`)
@@ -198,7 +199,7 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       requirements_unmet: requirements_unmet,
       score_breakdown: breakdown,
       score_breakdown_overrides: {},
-      match_score: typeof result.match_score === 'number' ? result.match_score : parseInt(result.match_score) || null,
+      match_score: computedScore,
       positioning_tips: (() => {
         const t = result.positioning_tips
         if (Array.isArray(t)) return JSON.stringify(t)
