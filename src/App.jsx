@@ -57,6 +57,10 @@ export default function App() {
     setLoading(false)
   }, [])
 
+  const updateJobScore = useCallback((jobId, score) => {
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, match_score: score } : j))
+  }, [])
+
   const moveJob = useCallback((jobId, status) => {
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status } : j))
     api.updateJob(jobId, { status }).catch(err => {
@@ -231,6 +235,7 @@ export default function App() {
                 initialTab={initialTab}
                 onBack={closePanel}
                 onRefresh={refresh}
+                onJobScoreUpdate={updateJobScore}
                 isPanel
               />
             </div>

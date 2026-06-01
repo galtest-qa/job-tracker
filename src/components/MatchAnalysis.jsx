@@ -49,6 +49,14 @@ export default function MatchAnalysis({ job, onScoreUpdate }) {
   const totalDeducted = 100 - effectiveScore
   const overrideCount = Object.keys(overrides).length
 
+  const saveOverrides = async (next) => {
+    const newScore = computeScore(breakdown, next)
+    setSaving(true)
+    await api.updateJob(job.id, { score_breakdown_overrides: next, match_score: newScore })
+    setSaving(false)
+    if (onScoreUpdate) onScoreUpdate(newScore)
+  }
+
   const handleOverride = async (idx, newStatus) => {
     const item = breakdown[idx]
     const current = overrides[idx] ?? item.status
@@ -61,24 +69,19 @@ export default function MatchAnalysis({ job, onScoreUpdate }) {
       next[idx] = newStatus
     }
     setOverrides(next)
-    setSaving(true)
-    await api.updateJob(job.id, { score_breakdown_overrides: next })
-    setSaving(false)
-    if (onScoreUpdate) onScoreUpdate(computeScore(breakdown, next))
+    await saveOverrides(next)
   }
 
   const handleReset = async (idx) => {
     const next = { ...overrides }
     delete next[idx]
     setOverrides(next)
-    await api.updateJob(job.id, { score_breakdown_overrides: next })
-    if (onScoreUpdate) onScoreUpdate(computeScore(breakdown, next))
+    await saveOverrides(next)
   }
 
   const handleResetAll = async () => {
     setOverrides({})
-    await api.updateJob(job.id, { score_breakdown_overrides: {} })
-    if (onScoreUpdate) onScoreUpdate(computeScore(breakdown, {}))
+    await saveOverrides({})
   }
 
   const met     = breakdown.filter((r, i) => (overrides[i] ?? r.status) === 'met')

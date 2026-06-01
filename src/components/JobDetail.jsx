@@ -10,7 +10,7 @@ import ResumeTab from './ResumeTab.jsx'
 
 const PALETTE = ['#6b7280', '#4f6ef7', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
 
-export default function JobDetail({ jobId, columns = [], initialTab, onBack, onRefresh, isPanel = false }) {
+export default function JobDetail({ jobId, columns = [], initialTab, onBack, onRefresh, onJobScoreUpdate, isPanel = false }) {
   const [job, setJob] = useState(null)
   const [editing, setEditing] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -299,7 +299,10 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
             </button>
             {job.summary && <div className="summary-block"><h4>Summary</h4><p>{job.summary}</p></div>}
             {(job.requirements_met?.length > 0 || job.requirements_partial?.length > 0 || job.requirements_unmet?.length > 0) && (
-              <MatchAnalysis job={job} onScoreUpdate={setLiveScore} />
+              <MatchAnalysis job={job} onScoreUpdate={(score) => {
+                setLiveScore(score)
+                if (onJobScoreUpdate) onJobScoreUpdate(job.id, score)
+              }} />
             )}
             {job.positioning_tips && (
               <div className="tips-block">
