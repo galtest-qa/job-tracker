@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { clearKeyCache, getAIMode } from '../lib/openai.js'
+import { api } from '../api.js'
 
 export default function Settings({ onClose }) {
   const [openaiKey, setOpenaiKey] = useState('')
@@ -138,6 +139,24 @@ export default function Settings({ onClose }) {
     setTgSaving(false)
     setTgStatus('Saved!')
     setTimeout(() => setTgStatus(''), 2000)
+  }
+
+  const [reanalyzing, setReanalyzing] = useState(false)
+  const [reanalyzeDone, setReanalyzeDone] = useState(null) // {success, failed}
+
+  const handleReanalyzeAll = async () => {
+    if (!confirm('This will re-analyze all jobs that have a description. It may take a few minutes and uses AI credits. Continue?')) return
+    setReanalyzing(true)
+    setReanalyzeDone(null)
+    const jobs = await api.getJobs()
+    const eligible = jobs.filter(j => j.description)
+    let success = 0, failed = 0
+    for (const job of eligible) {
+      try { await api.analyzeJob(job.id); success++ }
+      catch { failed++ }
+    }
+    setReanalyzing(false)
+    setReanalyzeDone({ success, failed })
   }
 
   const handleRemoveKey = async () => {
@@ -360,6 +379,24 @@ export default function Settings({ onClose }) {
                 <textarea className="connection-code" readOnly value={connectionCode} onClick={e => { e.target.select(); navigator.clipboard.writeText(connectionCode) }} />
               )}
               <p className="settings-hint">Click the button, then paste the code in the extension popup to connect.</p>
+            </div>
+
+            {/* Re-analyze all jobs */}
+            <div className="settings-section">
+              <h4 className="settings-section-title">Bulk Actions</h4>
+              <p className="settings-guide-text">
+                Re-analyze all jobs to fix match scores and refresh AI insights. Only jobs with a description will be processed.
+              </p>
+              <div className="settings-btn-row">
+                <button className="btn btn-secondary btn-sm" onClick={handleReanalyzeAll} disabled={reanalyzing}>
+                  {reanalyzing ? 'Analyzing…' : 'Re-analyze all jobs'}
+                </button>
+                {reanalyzeDone && (
+                  <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: reanalyzeDone.failed > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                    ✓ {reanalyzeDone.success} updated{reanalyzeDone.failed > 0 ? `, ${reanalyzeDone.failed} failed` : ''}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="modal-footer">
