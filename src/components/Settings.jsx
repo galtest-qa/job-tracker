@@ -250,85 +250,83 @@ export default function Settings({ onClose }) {
 
             {/* Profile Questions */}
             <div className="settings-section">
-              <h4 className="settings-section-title">About You</h4>
-              <p className="settings-guide-text">
-                Help the AI understand you better. These answers improve job analysis accuracy, resume tailoring, and interview prep.
-              </p>
-
-              <div className="profile-questions">
-                {PROFILE_QUESTIONS.map(q => (
-                  <div key={q.key} className="form-group">
-                    <label>{q.label}</label>
-                    <input
-                      type="text"
-                      value={profileContext[q.key] || ''}
-                      onChange={e => setProfileContext({ ...profileContext, [q.key]: e.target.value })}
-                      placeholder={q.placeholder}
-                    />
+              <details className="settings-details">
+                <summary>About You</summary>
+                <div className="settings-guide">
+                  <p className="settings-guide-text">
+                    Help the AI understand you better. These answers improve job analysis accuracy, resume tailoring, and interview prep.
+                  </p>
+                  <div className="profile-questions">
+                    {PROFILE_QUESTIONS.map(q => (
+                      <div key={q.key} className="form-group">
+                        <label>{q.label}</label>
+                        <input
+                          type="text"
+                          value={profileContext[q.key] || ''}
+                          onChange={e => setProfileContext({ ...profileContext, [q.key]: e.target.value })}
+                          placeholder={q.placeholder}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-
-              <button className="btn btn-primary btn-sm" onClick={handleProfileSave} disabled={profileSaving}>
-                {profileSaving ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Profile'}
-              </button>
+                  <button className="btn btn-primary btn-sm" onClick={handleProfileSave} disabled={profileSaving}>
+                    {profileSaving ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Profile'}
+                  </button>
+                </div>
+              </details>
             </div>
 
             {/* Telegram Notifications */}
             <div className="settings-section">
-              <h4 className="settings-section-title">Telegram Notifications (Optional)</h4>
-              <p className="settings-guide-text">
-                Get reminder notifications on Telegram — never miss a follow-up, interview, or deadline.
-              </p>
+              <details className="settings-details">
+                <summary>Telegram Notifications <span className="settings-optional">(Optional)</span></summary>
+                <div className="settings-guide">
+                  <p>Get reminder notifications on Telegram — never miss a follow-up, interview, or deadline.</p>
 
-              <div className="settings-toggle-row">
-                <label className="toggle-label">
-                  <input type="checkbox" checked={tgEnabled} onChange={e => setTgEnabled(e.target.checked)} />
-                  <span>Enable Telegram notifications</span>
-                </label>
-              </div>
-
-              {tgEnabled && (
-                <div className="settings-guide" style={{ marginTop: '0.5rem' }}>
-                  <p><strong>Step 1:</strong> Create a bot</p>
-                  <ol>
-                    <li>Open Telegram and search for <strong>@BotFather</strong></li>
-                    <li>Send <code>/newbot</code> and follow the prompts</li>
-                    <li>Copy the bot token and paste it below</li>
-                  </ol>
-
-                  <div className="form-group">
-                    <label>Bot Token</label>
-                    <input type="password" value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
+                  <div className="settings-toggle-row">
+                    <label className="toggle-label">
+                      <input type="checkbox" checked={tgEnabled} onChange={e => setTgEnabled(e.target.checked)} />
+                      <span>Enable Telegram notifications</span>
+                    </label>
                   </div>
 
-                  <p><strong>Step 2:</strong> Get your Chat ID</p>
-                  <p>Open Telegram, find your new bot, and send it <code>/start</code>. Then click the button below.</p>
-
-                  <div className="settings-btn-row">
-                    <button className="btn btn-secondary btn-sm" onClick={handleTgDetectChat} disabled={tgDetecting}>
-                      {tgDetecting ? 'Detecting...' : 'Detect Chat ID'}
-                    </button>
-                    {tgChatId && <span className="settings-hint" style={{ marginTop: 0 }}>Chat ID: {tgChatId}</span>}
-                  </div>
-
-                  <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                    <label>Chat ID</label>
-                    <input type="text" value={tgChatId} onChange={e => setTgChatId(e.target.value)} placeholder="Auto-detected or enter manually" />
-                  </div>
-
-                  <div className="settings-btn-row">
-                    <button className="btn btn-primary btn-sm" onClick={handleTgSave} disabled={tgSaving}>
-                      {tgSaving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button className="btn btn-secondary btn-sm" onClick={handleTgTest} disabled={tgTesting || !tgToken || !tgChatId}>
-                      {tgTesting ? 'Sending...' : 'Send Test'}
-                    </button>
-                  </div>
-
-                  {tgStatus && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{tgStatus}</p>}
+                  {tgEnabled && (
+                    <>
+                      <p style={{ marginTop: '0.75rem' }}><strong>Step 1:</strong> Create a bot</p>
+                      <ol>
+                        <li>Open Telegram and search for <strong>@BotFather</strong></li>
+                        <li>Send <code>/newbot</code> and follow the prompts</li>
+                        <li>Copy the bot token and paste it below</li>
+                      </ol>
+                      <div className="form-group">
+                        <label>Bot Token</label>
+                        <input type="password" value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
+                      </div>
+                      <p><strong>Step 2:</strong> Get your Chat ID</p>
+                      <p>Open Telegram, find your new bot, and send it <code>/start</code>. Then click the button below.</p>
+                      <div className="settings-btn-row">
+                        <button className="btn btn-secondary btn-sm" onClick={handleTgDetectChat} disabled={tgDetecting}>
+                          {tgDetecting ? 'Detecting...' : 'Detect Chat ID'}
+                        </button>
+                        {tgChatId && <span className="settings-hint" style={{ marginTop: 0 }}>Chat ID: {tgChatId}</span>}
+                      </div>
+                      <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                        <label>Chat ID</label>
+                        <input type="text" value={tgChatId} onChange={e => setTgChatId(e.target.value)} placeholder="Auto-detected or enter manually" />
+                      </div>
+                      <div className="settings-btn-row">
+                        <button className="btn btn-primary btn-sm" onClick={handleTgSave} disabled={tgSaving}>
+                          {tgSaving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={handleTgTest} disabled={tgTesting || !tgToken || !tgChatId}>
+                          {tgTesting ? 'Sending...' : 'Send Test'}
+                        </button>
+                      </div>
+                      {tgStatus && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{tgStatus}</p>}
+                    </>
+                  )}
                 </div>
-              )}
+              </details>
             </div>
 
             {/* Chrome Extension */}
