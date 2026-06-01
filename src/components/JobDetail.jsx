@@ -19,15 +19,27 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState(initialTab || 'analysis')
   const [jobReminders, setJobReminders] = useState([])
+  const [liveScore, setLiveScore] = useState(null)
   const touchStartX = useRef(null)
 
   const load = async () => {
     const data = await api.getJob(jobId)
-    // Parse interview_prep_ai if it's a string
     if (typeof data.interview_prep_ai === 'string' && data.interview_prep_ai) {
       try { data.interview_prep_ai = JSON.parse(data.interview_prep_ai) } catch {}
     }
     setJob(data)
+    // Compute score from breakdown so it always matches the requirements table
+    const breakdown = data.score_breakdown || []
+    const overrides = data.score_breakdown_overrides || {}
+    if (breakdown.length > 0) {
+      const deducted = breakdown.reduce((sum, item, i) => {
+        const status = overrides[i] ?? item.status
+        return status === 'met' ? sum : sum + (Number(item.points_deducted) || 0)
+      }, 0)
+      setLiveScore(Math.max(0, 100 - deducted))
+    } else {
+      setLiveScore(data.match_score)
+    }
   }
 
   const loadReminders = async () => {
@@ -133,9 +145,9 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
               {job.company_size && <span className="size"> &middot; {job.company_size}</span>}
             </div>
             <div className="detail-meta">
-              {job.match_score != null && (
-                <div className={`score-big ${job.match_score >= 70 ? 'high' : job.match_score >= 40 ? 'mid' : 'low'}`}>
-                  {job.match_score}%<small>match</small>
+              {liveScore != null && (
+                <div className={`score-big ${liveScore >= 70 ? 'high' : liveScore >= 40 ? 'mid' : 'low'}`}>
+                  {liveScore}%<small>match</small>
                 </div>
               )}
             </div>
@@ -287,7 +299,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
             </button>
             {job.summary && <div className="summary-block"><h4>Summary</h4><p>{job.summary}</p></div>}
             {(job.requirements_met?.length > 0 || job.requirements_partial?.length > 0 || job.requirements_unmet?.length > 0) && (
-              <MatchAnalysis job={job} />
+              <MatchAnalysis job={job} onScoreUpdate={setLiveScore} />
             )}
             {job.positioning_tips && (
               <div className="tips-block">
