@@ -26,6 +26,8 @@ export default function App() {
   const [resumeInfo, setResumeInfo] = useState(null)
   const [panelWide, setPanelWide] = useState(false)
   const [generatingJobIds, setGeneratingJobIds] = useState(new Set())
+  const [hasExtension, setHasExtension] = useState(false)
+  const [showSettingsSection, setShowSettingsSection] = useState(null)
   const resumeInfoRef = useRef(null)
 
   // Auth listener
@@ -81,6 +83,15 @@ export default function App() {
     try { const r = await api.getResume(); setResumeInfo(r); resumeInfoRef.current = r } catch {}
   }, [])
 
+  const loadSettings = useCallback(async () => {
+    try { const s = await api.getSettings(); setHasExtension(!!s.has_extension) } catch {}
+  }, [])
+
+  const handleExtensionConfirm = useCallback(async (val) => {
+    setHasExtension(val)
+    await api.updateSettings({ has_extension: val })
+  }, [])
+
   const autoGenerate = useCallback(async (jobId, hasDescription, hasResume) => {
     const calls = []
     if (hasDescription) calls.push(api.analyzeJob(jobId).then(() => trackWin('analyzed')))
@@ -101,11 +112,12 @@ export default function App() {
       initUserData().then(() => {
         refresh()
         loadResume()
+        loadSettings()
       })
     } else if (session === null) {
       setLoading(false)
     }
-  }, [session, refresh, loadResume])
+  }, [session, refresh, loadResume, loadSettings])
 
   const closePanel = () => { setSelectedJobId(null); setInitialTab(null); setPanelWide(false) }
   const openDetail = (id, tab = null) => { setSelectedJobId(id); setInitialTab(tab ?? null) }
@@ -172,7 +184,14 @@ export default function App() {
         </div>
       </header>
 
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <Settings
+          onClose={() => { setShowSettings(false); setShowSettingsSection(null) }}
+          initialSection={showSettingsSection}
+          hasExtension={hasExtension}
+          onExtensionConfirm={handleExtensionConfirm}
+        />
+      )}}
 
       {showResume && (
         <ResumeUpload
@@ -196,6 +215,11 @@ export default function App() {
             filterScore={filterScore}
             onFilterScoreChange={setFilterScore}
             generatingJobIds={generatingJobIds}
+            hasExtension={hasExtension}
+            hasResume={!!resumeInfo?.raw_text}
+            onOpenSettings={(section) => { setShowSettingsSection(section || null); setShowSettings(true) }}
+            onOpenResume={() => setShowResume(true)}
+            onAddJob={() => setView('add')}
           />
         )}
         {view === 'find' && <FindJobs />}

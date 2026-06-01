@@ -2137,3 +2137,209 @@ body {
   color: var(--text-tertiary);
   text-align: center;
 }
+
+/* ── Onboarding Hero ── */
+.onboarding-hero {
+  max-width: 680px;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+.onboarding-hero-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+.onboarding-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.onboarding-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition);
+}
+.onboarding-step.done {
+  border-color: #d1fae5;
+  background: #f0fdf4;
+  opacity: 0.85;
+}
+.onboarding-step-icon-wrap {
+  flex-shrink: 0;
+}
+.onboarding-step-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.onboarding-step-check {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #d1fae5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.onboarding-step-body {
+  flex: 1;
+  min-width: 0;
+}
+.onboarding-step-num {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.2rem;
+}
+.onboarding-step-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+.onboarding-step-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.onboarding-step-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.onboarding-step-done-label {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #059669;
+}
+.onboarding-all-set {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+}
+
+/* ── Onboarding Nudge Banner ── */
+.onboarding-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.onboarding-nudge-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+.onboarding-nudge-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.onboarding-nudge-item svg {
+  color: #d97706;
+  flex-shrink: 0;
+}
+.nudge-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.nudge-link:hover { color: var(--primary-hover); }
+.nudge-dismiss {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  padding: 0 0.25rem;
+}
+.nudge-dismiss:hover { color: var(--text-secondary); }
+
+/* ── Settings Extension Section ── */
+.settings-section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.settings-section-title-row .settings-section-title {
+  margin-bottom: 0;
+}
+.settings-badge-ok {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #059669;
+  background: #d1fae5;
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+}
+.settings-badge-todo {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #d97706;
+  background: #fef3c7;
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+}
+.settings-extension-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+.settings-extension-confirm input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}

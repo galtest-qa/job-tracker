@@ -486,7 +486,7 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   getSettings: async () => {
     const userId = await getUserId()
     const { data } = await supabase.from('user_settings').select('*').eq('user_id', userId).single()
-    return data || { weekly_goal_applied: 10, weekly_goal_tailored: 5, weekly_goal_added: 15 }
+    return data || { weekly_goal_applied: 10, weekly_goal_tailored: 5, weekly_goal_added: 15, has_extension: false }
   },
 
   updateSettings: async (patch) => {

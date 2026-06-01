@@ -3,9 +3,10 @@ import { api } from '../api.js'
 import KanbanCard from './KanbanCard.jsx'
 import ReminderSummary from './ReminderSummary.jsx'
 import TodaysFocus from './TodaysFocus.jsx'
+import OnboardingHero from './OnboardingHero.jsx'
 import { getReminderState } from './reminderUtils.js'
 
-export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set() }) {
+export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set(), hasExtension, hasResume, onOpenSettings, onOpenResume, onAddJob }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
   const [dragOverCol, setDragOverCol] = useState(null)
@@ -126,9 +127,54 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
 
   const dismissSuggestion = () => setSuggestion(null)
 
+  const nudgeMissing = jobs.length > 0 && (!hasResume || !hasExtension)
+  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
+    try { return localStorage.getItem('nudge_dismissed') === new Date().toDateString() } catch { return false }
+  })
+  const dismissNudge = () => {
+    try { localStorage.setItem('nudge_dismissed', new Date().toDateString()) } catch {}
+    setNudgeDismissed(true)
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <div className="kanban">
+        <OnboardingHero
+          hasExtension={hasExtension}
+          hasResume={hasResume}
+          onOpenSettings={onOpenSettings}
+          onOpenResume={onOpenResume}
+          onAddJob={onAddJob}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="kanban">
       <ReminderSummary reminders={reminders} onFilter={setReminderFilter} />
+
+      {nudgeMissing && !nudgeDismissed && (
+        <div className="onboarding-nudge">
+          <div className="onboarding-nudge-items">
+            {!hasExtension && (
+              <span className="onboarding-nudge-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Save jobs from LinkedIn in one click —
+                <button className="nudge-link" onClick={() => onOpenSettings('extension')}>Install the Chrome extension</button>
+              </span>
+            )}
+            {!hasResume && (
+              <span className="onboarding-nudge-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Get AI match scores —
+                <button className="nudge-link" onClick={onOpenResume}>Upload your resume</button>
+              </span>
+            )}
+          </div>
+          <button className="nudge-dismiss" onClick={dismissNudge} title="Dismiss">×</button>
+        </div>
+      )}
 
       <TodaysFocus
         jobs={jobs}

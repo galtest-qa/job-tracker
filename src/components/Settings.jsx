@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { clearKeyCache, getAIMode } from '../lib/openai.js'
 import { api } from '../api.js'
 
-export default function Settings({ onClose }) {
+export default function Settings({ onClose, initialSection, hasExtension, onExtensionConfirm }) {
   const [openaiKey, setOpenaiKey] = useState('')
   const [aiMode, setAiMode] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -71,6 +71,14 @@ export default function Settings({ onClose }) {
   }
 
   const [connectionCode, setConnectionCode] = useState('')
+  const extensionSectionRef = useRef(null)
+
+  useEffect(() => {
+    if (initialSection === 'extension' && extensionSectionRef.current) {
+      setTimeout(() => extensionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+      extensionSectionRef.current.querySelector('details')?.setAttribute('open', '')
+    }
+  }, [initialSection])
 
   const handleGetCode = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -179,6 +187,71 @@ export default function Settings({ onClose }) {
 
         {loading ? <p className="muted">Loading...</p> : (
           <>
+            {/* Chrome Extension — top priority for new users */}
+            <div className="settings-section" ref={extensionSectionRef}>
+              <div className="settings-section-title-row">
+                <h4 className="settings-section-title">Chrome Extension</h4>
+                {hasExtension
+                  ? <span className="settings-badge-ok">Installed</span>
+                  : <span className="settings-badge-todo">Recommended</span>
+                }
+              </div>
+              <p className="settings-guide-text">
+                Browse LinkedIn and save jobs to your board with one click — title, company, and description included. No copy-pasting.
+              </p>
+
+              <details className="settings-details">
+                <summary>How to install</summary>
+                <div className="settings-guide">
+                  <p><strong>Step 1: Download</strong></p>
+                  <p>
+                    <a href="https://github.com/galtest-qa/job-tracker/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer">
+                      Click here to download the ZIP
+                    </a>
+                    , then unzip it. You only need the <code>chrome-extension</code> folder inside.
+                  </p>
+
+                  <p><strong>Step 2: Install in Chrome</strong></p>
+                  <ol>
+                    <li>Open Chrome and go to <code>chrome://extensions</code></li>
+                    <li>Turn on <strong>Developer mode</strong> (toggle in the top-right corner)</li>
+                    <li>Click <strong>Load unpacked</strong></li>
+                    <li>Select the <code>chrome-extension</code> folder you just unzipped</li>
+                  </ol>
+
+                  <p><strong>Step 3: Connect to your account</strong></p>
+                  <ol>
+                    <li>Click <strong>"Get Connection Code"</strong> below — it copies a code to your clipboard</li>
+                    <li>Click the Job Tracker extension icon in Chrome's toolbar</li>
+                    <li>Paste the code and click <strong>Connect</strong></li>
+                  </ol>
+
+                  <p><strong>Step 4: Start saving jobs</strong></p>
+                  <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button. Click it and the job lands in your Backlog.</p>
+                </div>
+              </details>
+
+              <div className="settings-btn-row" style={{ marginTop: '0.75rem' }}>
+                <button className="btn btn-secondary btn-sm" onClick={handleGetCode}>
+                  Get Connection Code
+                </button>
+                {connectionCode && <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: 'var(--success)' }}>Copied!</span>}
+              </div>
+              {connectionCode && (
+                <textarea className="connection-code" readOnly value={connectionCode} onClick={e => { e.target.select(); navigator.clipboard.writeText(connectionCode) }} />
+              )}
+              <p className="settings-hint">Click the button, then paste the code in the extension popup to connect.</p>
+
+              <label className="settings-extension-confirm">
+                <input
+                  type="checkbox"
+                  checked={!!hasExtension}
+                  onChange={e => onExtensionConfirm && onExtensionConfirm(e.target.checked)}
+                />
+                I have the extension installed and connected
+              </label>
+            </div>
+
             {/* AI Mode Status */}
             <div className="settings-section">
               <h4 className="settings-section-title">AI Features</h4>
@@ -327,56 +400,6 @@ export default function Settings({ onClose }) {
                   )}
                 </div>
               </details>
-            </div>
-
-            {/* Chrome Extension */}
-            <div className="settings-section">
-              <h4 className="settings-section-title">LinkedIn Extension (Optional)</h4>
-              <p className="settings-guide-text">
-                Browse LinkedIn as usual and save interesting jobs to your board with one click — no copy-pasting needed. The extension automatically grabs the job title, company, and description.
-              </p>
-
-              <details className="settings-details">
-                <summary>Install the Chrome extension</summary>
-                <div className="settings-guide">
-                  <p><strong>Step 1: Download</strong></p>
-                  <p>
-                    <a href="https://github.com/galtest-qa/job-tracker/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer">
-                      Click here to download the ZIP
-                    </a>
-                    , then unzip it. You only need the <code>chrome-extension</code> folder inside.
-                  </p>
-
-                  <p><strong>Step 2: Install in Chrome</strong></p>
-                  <ol>
-                    <li>Open Chrome and go to <code>chrome://extensions</code></li>
-                    <li>Turn on <strong>Developer mode</strong> (toggle in the top-right corner)</li>
-                    <li>Click <strong>Load unpacked</strong></li>
-                    <li>Select the <code>chrome-extension</code> folder you just unzipped</li>
-                  </ol>
-
-                  <p><strong>Step 3: Connect to your account</strong></p>
-                  <ol>
-                    <li>Click <strong>"Get Connection Code"</strong> below — it copies a code to your clipboard</li>
-                    <li>Click the Job Tracker extension icon in Chrome's toolbar</li>
-                    <li>Paste the code and click <strong>Connect</strong></li>
-                  </ol>
-
-                  <p><strong>Step 4: Start saving jobs</strong></p>
-                  <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button. Click it and the job lands in your Backlog.</p>
-                </div>
-              </details>
-
-              <div className="settings-btn-row" style={{ marginTop: '0.5rem' }}>
-                <button className="btn btn-secondary btn-sm" onClick={handleGetCode}>
-                  Get Connection Code
-                </button>
-                {connectionCode && <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: 'var(--success)' }}>Copied!</span>}
-              </div>
-              {connectionCode && (
-                <textarea className="connection-code" readOnly value={connectionCode} onClick={e => { e.target.select(); navigator.clipboard.writeText(connectionCode) }} />
-              )}
-              <p className="settings-hint">Click the button, then paste the code in the extension popup to connect.</p>
             </div>
 
             {/* Re-analyze all jobs */}
