@@ -546,8 +546,10 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
       method: 'POST',
       headers: { 'Authorization': `Bearer ${session.access_token}` },
     })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to classify emails')
+    const text = await res.text()
+    let data
+    try { data = JSON.parse(text) } catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 300)}`) }
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
     return data
   },
 }

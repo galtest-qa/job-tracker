@@ -10,8 +10,8 @@ const PROMPT_VERSION = "1.0"
 const MODEL = "gpt-4o-mini"
 
 // ── Config ─────────────────────────────────────────────────────────────────
-const MAX_EMAILS = 50
-const BATCH_SIZE = 5
+const MAX_EMAILS = 20
+const BATCH_SIZE = 20   // single AI call for all new emails
 const SNIPPET_MAX = 500
 const TEXT_MAX = 300  // max chars for summary / reasoning stored in DB
 
@@ -521,7 +521,13 @@ serve(async (req) => {
     )
 
     return new Response(
-      JSON.stringify({ classifications, total: classifications.length }),
+      JSON.stringify({
+        classifications,
+        total: classifications.length,
+        jobRelated: classifications.filter((c: Record<string, unknown>) => c.is_job_related).length,
+        preFiltered: preFilteredRows.length,
+        cached: emails.length - newEmails.length,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (err) {
