@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { decrypt, encrypt } from "../_shared/crypto-utils.ts"
 import { refreshAccessToken, fetchRecentEmails, type GmailEmail } from "../_shared/gmail-api.ts"
-import { shouldPreFilter } from "../_shared/email-prefilter.ts"
+import { shouldPreFilter, getPreFilterReason } from "../_shared/email-prefilter.ts"
 
 // ── Versioning ─────────────────────────────────────────────────────────────
 const CLASSIFIER_VERSION = "1.0"
@@ -307,11 +307,18 @@ function safeDefaultRow(email: GmailEmail): Record<string, unknown> {
   }
 }
 
+interface BatchResult {
+  row: Record<string, unknown>
+  rawAI: Record<string, unknown> | null
+  reachedAI: boolean
+  overrideReason: string | null
+}
+
 async function classifyBatch(
   emails: GmailEmail[],
   openaiKey: string,
   connectedEmail: string | null,
-): Promise<Record<string, unknown>[]> {
+): Promise<BatchResult[]> {
   const prompt = buildUserPrompt(emails, connectedEmail)
 
   let parsed: { classifications?: unknown[] }
@@ -335,20 +342,20 @@ async function classifyBatch(
 
     if (!res.ok) {
       console.error("OpenAI error:", res.status)
-      return emails.map(safeDefaultRow)
+      return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: `openai_error:${res.status}` }))
     }
 
     const data = await res.json()
     parsed = JSON.parse(data.choices[0].message.content)
   } catch (err) {
     console.error("classifyBatch parse error:", err.message)
-    return emails.map(safeDefaultRow)
+    return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: `parse_error:${err.message}` }))
   }
 
   const rawList = parsed?.classifications
   if (!Array.isArray(rawList) || rawList.length === 0) {
     console.error("classifyBatch: no classifications returned, using safe defaults")
-    return emails.map(safeDefaultRow)
+    return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: "ai_returned_empty" }))
   }
 
   // Match by emailId — resilient to AI returning fewer items than requested
@@ -361,12 +368,20 @@ async function classifyBatch(
   }
 
   return emails.map((email) => {
-    const raw = byId.get(email.id)
-    if (!raw) return safeDefaultRow(email)
+    const raw = byId.get(email.id) as Record<string, unknown> | undefined
+    if (!raw) return { row: safeDefaultRow(email), rawAI: null, reachedAI: true, overrideReason: "ai_missing_email_id" }
     try {
-      return validateRow(raw as Record<string, unknown>, email)
+      const validated = validateRow(raw, email)
+      // Detect if validateRow changed category or isJobRelated
+      let overrideReason: string | null = null
+      if (raw.category !== validated.category) {
+        overrideReason = `invalid_category:${raw.category}→other`
+      } else if (raw.isJobRelated !== validated.is_job_related) {
+        overrideReason = `isJobRelated_coerced:${raw.isJobRelated}→${validated.is_job_related}`
+      }
+      return { row: validated, rawAI: raw, reachedAI: true, overrideReason }
     } catch {
-      return safeDefaultRow(email)
+      return { row: safeDefaultRow(email), rawAI: raw, reachedAI: true, overrideReason: "validate_threw" }
     }
   })
 }
@@ -477,12 +492,27 @@ serve(async (req) => {
     const existingMap = new Map((existing ?? []).map((r) => [r.email_id, r]))
     const newEmails = emails.filter((e) => !existingMap.has(e.id))
 
-    // 6. Pre-filter new emails
+    // 6. Pre-filter new emails — track debug info per email
     const toClassify: GmailEmail[] = []
     const preFilteredRows: Record<string, unknown>[] = []
 
+    // debugByEmailId accumulates per-email debug info for the response
+    const debugByEmailId = new Map<string, Record<string, unknown>>()
+
     for (const email of newEmails) {
-      if (shouldPreFilter(email)) {
+      const filterReason = getPreFilterReason(email)
+      if (filterReason !== null) {
+        debugByEmailId.set(email.id, {
+          preFiltered: true,
+          preFilterReason: filterReason,
+          reachedAI: false,
+          rawCategory: null,
+          rawIsJobRelated: null,
+          rawConfidence: null,
+          finalCategory: "other",
+          finalIsJobRelated: false,
+          overrideReason: null,
+        })
         preFilteredRows.push({
           user_id: user.id,
           email_id: email.id,
@@ -532,8 +562,22 @@ serve(async (req) => {
     const aiRows: Record<string, unknown>[] = []
     for (let i = 0; i < toClassify.length; i += BATCH_SIZE) {
       const batch = toClassify.slice(i, i + BATCH_SIZE)
-      const results = await classifyBatch(batch, openaiKey, integration.email)
-      aiRows.push(...results)
+      const batchResults = await classifyBatch(batch, openaiKey, integration.email)
+      for (const br of batchResults) {
+        const emailId = br.row.email_id as string
+        debugByEmailId.set(emailId, {
+          preFiltered: false,
+          preFilterReason: null,
+          reachedAI: br.reachedAI,
+          rawCategory: br.rawAI?.category ?? null,
+          rawIsJobRelated: br.rawAI?.isJobRelated ?? null,
+          rawConfidence: br.rawAI?.confidence ?? null,
+          finalCategory: br.row.category,
+          finalIsJobRelated: br.row.is_job_related,
+          overrideReason: br.overrideReason,
+        })
+        aiRows.push(br.row)
+      }
     }
 
     if (aiRows.length > 0) {
@@ -553,7 +597,27 @@ serve(async (req) => {
       .in("email_id", emailIds)
 
     const classMap = new Map((allClassified ?? []).map((r) => [r.email_id, r]))
-    const classifications = emails.map((e) => classMap.get(e.id)).filter(Boolean)
+    const classifications = emails.map((e) => {
+      const base = classMap.get(e.id)
+      if (!base) return null
+      const dbg = debugByEmailId.get(e.id)
+      // Cached emails (not in debugByEmailId) get inferred debug info from DB record
+      if (!dbg) {
+        return {
+          ...base,
+          preFiltered: base.pre_filtered ?? false,
+          preFilterReason: base.pre_filtered ? "cached_pre_filtered" : null,
+          reachedAI: !base.pre_filtered,
+          rawCategory: null,
+          rawIsJobRelated: null,
+          rawConfidence: null,
+          finalCategory: base.category,
+          finalIsJobRelated: base.is_job_related,
+          overrideReason: "cached",
+        }
+      }
+      return { ...base, ...dbg }
+    }).filter(Boolean)
 
     // Log summary only — never log email content
     console.log(

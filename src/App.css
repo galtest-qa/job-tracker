@@ -2526,6 +2526,20 @@ body {
   color: var(--text-secondary);
   margin-bottom: 0.15rem;
 }
+.classify-row-debug {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  margin-top: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  background: #f8fafc;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.classify-row-debug code {
+  font-size: 0.72rem;
+  background: transparent;
+  padding: 0;
+}
 .classify-row-action {
   font-size: 0.75rem;
   font-weight: 600;

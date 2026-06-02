@@ -73,57 +73,38 @@ function domainIsHardExcluded(domain: string): boolean {
 // ── Main export ────────────────────────────────────────────────────────────
 
 /**
- * Returns true if the email is obviously non-job-related noise and should
- * NOT be sent to AI. Returns false (pass to AI) when uncertain.
- *
- * Rules applied in order:
- *  1. ATS allowlist → never filtered
- *  2. Outbound emails → never filtered (application_sent, follow_up_sent, etc.)
- *  3. Hard-exclude dev/ops domains → filtered
- *  4. AWS billing/security alerts → filtered
- *  5. Unambiguous receipt/invoice subjects → filtered
- *  6. Newsletter + Promotions label combo → filtered
- *  7. Default → pass to AI
- *
- * noreply/no-reply addresses are NOT excluded — many ATS systems use them.
- * CATEGORY_UPDATES and CATEGORY_PROMOTIONS alone are NOT excluded.
+ * Returns the reason the email was pre-filtered, or null if it should pass to AI.
+ * Rules applied in order (same as shouldPreFilter).
  */
-export function shouldPreFilter(email: GmailEmail): boolean {
+export function getPreFilterReason(email: GmailEmail): string | null {
   const domain = extractDomain(email.from)
   const subject = (email.subject ?? "").toLowerCase()
   const labels = email.gmailLabels ?? []
 
-  // Rule 1: ATS allowlist — highest priority, overrides everything
-  if (domainIsAts(domain)) return false
+  if (domainIsAts(domain)) return null // ATS allowlist — pass through
+  if (email.direction === "outbound") return null // outbound — pass through
 
-  // Rule 2: Outbound emails are never filtered
-  // They may be application_sent, follow_up_sent, networking_outreach
-  if (email.direction === "outbound") return false
+  if (domainIsHardExcluded(domain)) return `hard_excluded_domain:${domain}`
 
-  // Rule 3: Hard-exclude dev/CI/ops platforms
-  if (domainIsHardExcluded(domain)) return true
-
-  // Rule 4: AWS billing and security alerts (not general AWS notifications)
   if (
     (domain.includes("amazonaws.com") || domain === "aws.amazon.com") &&
     /bill|invoice|usage report|security alert|budget alert|spending/.test(subject)
-  ) return true
+  ) return "aws_billing_alert"
 
-  // Rule 5: Unambiguous e-commerce receipts / invoices
-  // Match only clear patterns at the start of subject to avoid false positives
   if (
     /^(your receipt|your order|order confirmation|order #|payment confirmation|invoice from|invoice #|payment received|subscription renewal)/.test(
       subject,
     )
-  ) return true
+  ) return "ecommerce_receipt"
 
-  // Rule 6: Newsletter — only when subject strongly signals it AND Gmail labeled Promotions
-  // Do NOT exclude based on Promotions label alone (ATS emails often land there)
   if (
     labels.includes("CATEGORY_PROMOTIONS") &&
     /\bnewsletter\b|\bweekly digest\b|\bmonthly digest\b|\bweekly roundup\b/.test(subject)
-  ) return true
+  ) return "newsletter_promotion"
 
-  // Default: uncertain → send to AI
-  return false
+  return null
+}
+
+export function shouldPreFilter(email: GmailEmail): boolean {
+  return getPreFilterReason(email) !== null
 }

@@ -599,6 +599,8 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                             <span className="classify-category">{c.category?.replace(/_/g, ' ')}</span>
                             {c.confidence_level && <span className={`classify-confidence classify-confidence-${c.confidence_level}`}>{c.confidence_level}</span>}
                             {c.pre_filtered && <span className="classify-confidence" style={{ background: '#f1f5f9', color: '#64748b' }}>pre-filtered</span>}
+                            {c.overrideReason === 'cached' && <span className="classify-confidence" style={{ background: '#eff6ff', color: '#3b82f6' }}>cached</span>}
+                            {c.direction && <span className="classify-confidence" style={{ background: '#faf5ff', color: '#7c3aed' }}>{c.direction}</span>}
                             {c.action_required && <span className="classify-action-badge">Action needed</span>}
                           </div>
                           <div className="classify-row-subject">{c.subject || '(no subject)'}</div>
@@ -607,6 +609,19 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                             <div className="classify-row-meta">{c.detected_company}{c.detected_role ? ` — ${c.detected_role}` : ''}</div>
                           )}
                           {c.summary && <div className="classify-row-summary">{c.summary}</div>}
+                          {/* Debug trace */}
+                          <div className="classify-row-debug">
+                            {c.preFilterReason && <span>pre-filter: <code>{c.preFilterReason}</code></span>}
+                            {c.reachedAI === false && !c.preFilterReason && <span>did not reach AI</span>}
+                            {c.reachedAI && (
+                              <span>
+                                AI raw: <code>{String(c.rawIsJobRelated)} / {c.rawCategory} / conf={c.rawConfidence}</code>
+                                {c.overrideReason && c.overrideReason !== 'cached' && (
+                                  <> → override: <code style={{ color: 'var(--danger)' }}>{c.overrideReason}</code></>
+                                )}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )
                       return (
