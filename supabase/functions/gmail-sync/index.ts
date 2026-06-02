@@ -451,13 +451,24 @@ serve(async (req) => {
     }
 
     // 3. Throttle check (server-side)
-    if (integration.last_sync_at) {
-      const elapsed = Date.now() - new Date(integration.last_sync_at).getTime()
-      if (elapsed < THROTTLE_MS) {
-        return new Response(JSON.stringify({ skipped: true, reason: "recently_synced" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        })
-      }
+    const serverNow = new Date()
+    const lastSyncAt = integration.last_sync_at ? new Date(integration.last_sync_at) : null
+    const minutesSinceSync = lastSyncAt
+      ? Math.round((serverNow.getTime() - lastSyncAt.getTime()) / 60000 * 10) / 10
+      : null
+
+    const debugInfo = {
+      lastSyncAt: lastSyncAt?.toISOString() ?? null,
+      serverTime: serverNow.toISOString(),
+      minutesSinceSync,
+      throttleMinutes: THROTTLE_MS / 60000,
+    }
+
+    if (lastSyncAt && (serverNow.getTime() - lastSyncAt.getTime()) < THROTTLE_MS) {
+      return new Response(
+        JSON.stringify({ skipped: true, reason: "recently_synced", ...debugInfo }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
     }
 
     // 4. Decrypt + refresh token if needed
@@ -636,8 +647,15 @@ serve(async (req) => {
       `classified=${aiRows.length} events=${newEvents.length}`
     )
 
+    const syncedAt = new Date().toISOString()
     return new Response(
-      JSON.stringify({ skipped: false, newEvents, total: emails.length }),
+      JSON.stringify({
+        skipped: false,
+        newEvents,
+        total: emails.length,
+        ...debugInfo,
+        lastSyncAt: syncedAt,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (err) {

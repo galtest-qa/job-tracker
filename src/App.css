@@ -2532,6 +2532,26 @@ body {
   color: var(--primary);
 }
 
+/* ── Sync status button ───────────────────────────────────────────── */
+.sync-status-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-xs);
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.sync-status-btn:hover {
+  color: var(--text-secondary);
+  background: var(--bg);
+}
+
 /* ── Bell icon + unread badge ─────────────────────────────────────── */
 .bell-btn {
   position: relative;

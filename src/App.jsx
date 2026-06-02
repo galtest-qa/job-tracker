@@ -36,6 +36,7 @@ export default function App() {
   const [popupEvent, setPopupEvent] = useState(null)
   const [popupGroupCount, setPopupGroupCount] = useState(0)
   const [hiringEvents, setHiringEvents] = useState([])
+  const [lastSyncInfo, setLastSyncInfo] = useState(null) // {time, skipped, reason, minutesSince}
   const resumeInfoRef = useRef(null)
   const lastSyncRef = useRef(0)
   const tabHiddenAtRef = useRef(0)
@@ -113,13 +114,24 @@ export default function App() {
     try { const n = await api.getUnreadEventCount(); setUnreadEventCount(n) } catch {}
   }, [])
 
-  const syncHiringEvents = useCallback(async () => {
+  const syncHiringEvents = useCallback(async (force = false) => {
     const now = Date.now()
-    if (now - lastSyncRef.current < 2 * 60 * 1000) return
+    if (!force && now - lastSyncRef.current < 2 * 60 * 1000) return
     lastSyncRef.current = now
     try {
       const result = await api.gmailSync()
-      if (result.skipped) return
+      // Always store debug info so UI can show last sync time + reason
+      setLastSyncInfo({
+        time: result.lastSyncAt ? new Date(result.lastSyncAt) : new Date(),
+        skipped: result.skipped ?? false,
+        reason: result.reason ?? null,
+        minutesSince: result.minutesSinceSync ?? null,
+      })
+      if (result.skipped) {
+        console.log('[gmail-sync] skipped —', result.reason, `(${result.minutesSinceSync}m since last sync)`)
+        return
+      }
+      console.log(`[gmail-sync] ran — ${result.total} emails, ${result.newEvents?.length ?? 0} new events`)
       const newEvents = result.newEvents || []
       if (newEvents.length > 0) {
         setHiringEvents(prev => [...newEvents, ...prev])
@@ -134,7 +146,9 @@ export default function App() {
           highPriority.forEach(e => api.markEventPopupShown(e.id).catch(() => {}))
         }
       }
-    } catch { /* silent — sync failures should not surface to user */ }
+    } catch (err) {
+      console.error('[gmail-sync] error:', err.message)
+    }
   }, [refresh, loadUnreadCount])
 
   const handleExtensionConfirm = useCallback(async (val) => {
@@ -237,6 +251,20 @@ export default function App() {
             Find Jobs
           </button>
           <button className="btn btn-primary" onClick={() => setView('add')}>+ Add Job</button>
+          {lastSyncInfo && (
+            <button
+              className="sync-status-btn"
+              onClick={() => syncHiringEvents(true)}
+              title={lastSyncInfo.skipped
+                ? `Skipped — synced ${lastSyncInfo.minutesSince}m ago. Click to force check.`
+                : 'Click to check for updates'}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/>
+              </svg>
+              {lastSyncInfo.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </button>
+          )}
           <button className="btn btn-ghost bell-btn" onClick={() => setShowNotifications(true)} title="Hiring activity">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             {unreadEventCount > 0 && (
