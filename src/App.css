@@ -2620,7 +2620,7 @@ body {
 .notifications-list {
   overflow-y: auto;
   flex: 1;
-  padding: 0 1.25rem 1rem;
+  padding: 0 0 1rem;
 }
 .notifications-empty {
   display: flex;
@@ -2632,7 +2632,7 @@ body {
   text-align: center;
 }
 .notifications-group {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 .notifications-group-label {
   font-size: 0.7rem;
@@ -2640,23 +2640,44 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-tertiary);
-  padding: 0.75rem 0 0.35rem;
+  padding: 0.75rem 1.25rem 0.35rem;
 }
+
+/* row */
 .notification-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.6rem 0;
+  align-items: stretch;
   border-bottom: 1px solid var(--border-light);
+  position: relative;
+  transition: background 0.15s;
 }
 .notification-row:last-child { border-bottom: none; }
-.notification-row-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
+.notification-row:hover { background: var(--surface-hover, #f8fafc); }
+.notification-row.notification-low-priority { opacity: 0.65; }
+
+/* left accent bar for unread */
+.notification-unread-bar {
+  width: 3px;
+  background: #4f6ef7;
+  border-radius: 0 2px 2px 0;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.notification-row-inner {
   flex: 1;
   min-width: 0;
+  padding: 0.65rem 1rem 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* top row: badge + dot + actions */
+.notification-row-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .notification-type-badge {
   font-size: 0.65rem;
@@ -2665,40 +2686,84 @@ body {
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
-  margin-top: 1px;
 }
-.notification-row-body { flex: 1; min-width: 0; }
+.notification-unread-dot {
+  width: 6px;
+  height: 6px;
+  background: #4f6ef7;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.notification-row-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.notification-row:hover .notification-row-actions { opacity: 1; }
+.notification-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+.notification-action-btn:hover { background: var(--border-light); color: var(--text); }
+.notification-dismiss-btn:hover { color: var(--danger); }
+
+/* body */
+.notification-row-body { min-width: 0; }
 .notification-title {
   font-size: 0.83rem;
   font-weight: 500;
   color: var(--text);
   line-height: 1.35;
 }
-.notification-job-hint {
-  font-size: 0.72rem;
+.notification-unread .notification-title { font-weight: 600; }
+.notification-subtitle {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  margin-top: 0.1rem;
+}
+.notification-description {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+.notification-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+}
+.notification-source {
+  font-size: 0.7rem;
   color: var(--text-tertiary);
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  margin-top: 0.15rem;
-}
-.notification-row-right {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-}
-.notification-unread-dot {
-  width: 7px;
-  height: 7px;
-  background: #4f6ef7;
-  border-radius: 50%;
-  flex-shrink: 0;
+  gap: 0.25rem;
 }
 .notification-time {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--text-tertiary);
   white-space: nowrap;
+}
+.notification-job-hint {
+  font-size: 0.7rem;
+  color: #4f6ef7;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
 }
 
 /* ── Hiring Event Popup ───────────────────────────────────────────── */
