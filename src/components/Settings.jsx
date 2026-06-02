@@ -513,26 +513,43 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
               {gmailEmails !== null && (
                 <div className="gmail-email-list">
                   {gmailEmails.length === 0 ? (
-                    <p className="muted" style={{ padding: '0.75rem 0' }}>No emails found in inbox.</p>
-                  ) : (
-                    <>
-                      <p className="settings-hint" style={{ marginBottom: '0.5rem' }}>
-                        {gmailEmails.length} recent emails fetched — connection is working.
-                      </p>
-                      {gmailEmails.map(email => (
-                        <div key={email.id} className="gmail-email-row">
-                          <div className="gmail-email-meta">
-                            <span className="gmail-email-from">{email.from}</span>
-                            <span className="gmail-email-date">
-                              {new Date(email.receivedAt).toLocaleDateString()}
-                            </span>
+                    <p className="muted" style={{ padding: '0.75rem 0' }}>No emails found.</p>
+                  ) : (() => {
+                    const inbound = gmailEmails.filter(e => e.direction === 'inbound')
+                    const outbound = gmailEmails.filter(e => e.direction === 'outbound')
+                    return (
+                      <>
+                        <p className="settings-hint" style={{ marginBottom: '0.75rem' }}>
+                          {gmailEmails.length} emails fetched — {inbound.length} incoming, {outbound.length} sent.
+                        </p>
+                        {[
+                          { label: 'Incoming', emails: inbound },
+                          { label: 'Sent', emails: outbound },
+                        ].map(({ label, emails }) => emails.length > 0 && (
+                          <div key={label} className="gmail-email-group">
+                            <div className="gmail-email-group-label">{label}</div>
+                            {emails.map(email => (
+                              <div key={email.id} className="gmail-email-row">
+                                <div className="gmail-email-meta">
+                                  <span className="gmail-email-from">{email.from}</span>
+                                  <div className="gmail-email-meta-right">
+                                    <span className={`gmail-direction-badge gmail-direction-${email.direction}`}>
+                                      {email.direction === 'inbound' ? '↓ In' : '↑ Out'}
+                                    </span>
+                                    <span className="gmail-email-date">
+                                      {new Date(email.receivedAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="gmail-email-subject">{email.subject || '(no subject)'}</div>
+                                <div className="gmail-email-snippet">{email.snippet}</div>
+                              </div>
+                            ))}
                           </div>
-                          <div className="gmail-email-subject">{email.subject || '(no subject)'}</div>
-                          <div className="gmail-email-snippet">{email.snippet}</div>
-                        </div>
-                      ))}
-                    </>
-                  )}
+                        ))}
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>

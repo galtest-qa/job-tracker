@@ -1,5 +1,7 @@
 // Gmail API helpers — metadata-only, no full body fetching
 
+export type EmailDirection = "inbound" | "outbound"
+
 export interface GmailEmail {
   id: string
   threadId: string
@@ -8,6 +10,8 @@ export interface GmailEmail {
   snippet: string
   receivedAt: string
   hasAttachments: boolean
+  direction: EmailDirection
+  gmailLabels: string[]
 }
 
 export interface RefreshedToken {
@@ -52,13 +56,14 @@ export async function refreshAccessToken(
 /**
  * Fetch the last N emails as metadata (From, Subject, Date headers + snippet).
  * Does NOT fetch full body.
- * hasAttachments is inferred from payload parts when available (best-effort).
+ * connectedEmail is used as fallback for direction classification when labelIds are ambiguous.
  */
 export async function fetchRecentEmails(
   accessToken: string,
   maxResults = 10,
+  connectedEmail?: string,
 ): Promise<GmailEmail[]> {
-  // Step 1: list message IDs
+  // Step 1: list message IDs (default view includes all mail — inbox + sent)
   const listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -75,10 +80,10 @@ export async function fetchRecentEmails(
   const messages: Array<{ id: string; threadId: string }> = listData.messages || []
   if (messages.length === 0) return []
 
-  // Step 2: fetch each message with format=metadata, requesting only needed headers
+  // Step 2: fetch each message with format=metadata
   const results = await Promise.allSettled(
     messages.map(({ id, threadId }) =>
-      fetchMessageMetadata(accessToken, id, threadId)
+      fetchMessageMetadata(accessToken, id, threadId, connectedEmail)
     ),
   )
 
@@ -87,15 +92,38 @@ export async function fetchRecentEmails(
     .map((r) => r.value)
 }
 
+/**
+ * Classify direction using labelIds (primary) then From header (fallback).
+ *
+ * Priority:
+ *   1. labelIds includes "SENT"  → outbound
+ *   2. labelIds includes "INBOX" → inbound
+ *   3. From address matches connectedEmail → outbound
+ *   4. Default → inbound
+ */
+function classifyDirection(
+  labelIds: string[],
+  fromHeader: string,
+  connectedEmail?: string,
+): EmailDirection {
+  if (labelIds.includes("SENT")) return "outbound"
+  if (labelIds.includes("INBOX")) return "inbound"
+  // Fallback: extract bare address from "Name <addr>" and compare
+  if (connectedEmail) {
+    const match = fromHeader.match(/<([^>]+)>/)
+    const fromAddress = (match ? match[1] : fromHeader).trim().toLowerCase()
+    if (fromAddress === connectedEmail.trim().toLowerCase()) return "outbound"
+  }
+  return "inbound"
+}
+
 async function fetchMessageMetadata(
   accessToken: string,
   id: string,
   threadId: string,
+  connectedEmail?: string,
 ): Promise<GmailEmail> {
-  const params = new URLSearchParams({
-    format: "metadata",
-  })
-  // Request only the headers we need
+  const params = new URLSearchParams({ format: "metadata" })
   ;["From", "Subject", "Date"].forEach((h) => params.append("metadataHeaders", h))
 
   const res = await fetch(
@@ -109,18 +137,19 @@ async function fetchMessageMetadata(
 
   const msg = await res.json()
   const headers: Array<{ name: string; value: string }> = msg.payload?.headers || []
+  const labelIds: string[] = msg.labelIds || []
 
   const getHeader = (name: string) =>
     headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? ""
 
-  // Best-effort: detect attachments from parts list (available in metadata format)
+  // Best-effort attachment detection from parts (metadata format)
   const parts: Array<{ filename?: string; body?: { attachmentId?: string } }> =
     msg.payload?.parts || []
   const hasAttachments = parts.some(
     (p) => p.filename && p.filename.length > 0 && !!p.body?.attachmentId,
   )
 
-  // Prefer internalDate for a reliable timestamp; fall back to Date header
+  // Timestamp: prefer internalDate (ms epoch), fall back to Date header
   const dateHeader = getHeader("Date")
   let receivedAt: string
   if (msg.internalDate) {
@@ -131,13 +160,17 @@ async function fetchMessageMetadata(
     receivedAt = new Date().toISOString()
   }
 
+  const fromHeader = getHeader("From")
+
   return {
     id: msg.id,
     threadId: msg.threadId ?? threadId,
-    from: getHeader("From"),
+    from: fromHeader,
     subject: getHeader("Subject"),
     snippet: msg.snippet ?? "",
     receivedAt,
     hasAttachments,
+    direction: classifyDirection(labelIds, fromHeader, connectedEmail),
+    gmailLabels: labelIds,
   }
 }

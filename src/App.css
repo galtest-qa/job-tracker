@@ -2417,3 +2417,37 @@ body {
   align-items: center;
   gap: 0.5rem;
 }
+
+.gmail-email-group {
+  margin-bottom: 0.25rem;
+}
+.gmail-email-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  padding: 0.4rem 0.9rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-light);
+}
+.gmail-email-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.gmail-direction-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+.gmail-direction-inbound {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.gmail-direction-outbound {
+  background: #dcfce7;
+  color: #15803d;
+}

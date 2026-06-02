@@ -47,7 +47,7 @@ serve(async (req) => {
 
     const { data: integration, error: intErr } = await adminClient
       .from("user_integrations")
-      .select("encrypted_access_token, encrypted_refresh_token, expires_at")
+      .select("encrypted_access_token, encrypted_refresh_token, expires_at, email")
       .eq("user_id", user.id)   // explicit user scope — never reads another user's row
       .eq("provider", "gmail")
       .single()
@@ -111,7 +111,8 @@ serve(async (req) => {
     }
 
     // Fetch emails — metadata only, no full body
-    const emails = await fetchRecentEmails(accessToken, 10)
+    // Pass connected email for direction fallback classification
+    const emails = await fetchRecentEmails(accessToken, 10, integration.email ?? undefined)
 
     // Update last_sync_at
     await adminClient
