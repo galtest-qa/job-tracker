@@ -6,7 +6,7 @@ import { shouldPreFilter } from "../_shared/email-prefilter.ts"
 
 // ── Versioning ─────────────────────────────────────────────────────────────
 const CLASSIFIER_VERSION = "1.0"
-const PROMPT_VERSION = "1.0"
+const PROMPT_VERSION = "2.0"
 const MODEL = "gpt-4o-mini"
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -23,6 +23,7 @@ const ALLOWED_CATEGORIES = new Set([
   "technical_assignment", "take_home_assignment",
   "reference_request", "salary_discussion",
   "offer", "offer_discussion", "rejection",
+  "position_closed", "process_cancelled",
   "follow_up_sent", "follow_up_received",
   "networking_outreach", "other",
 ])
@@ -43,66 +44,98 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `You are a Hiring Process Event Detection Engine for a job search tracking platform.
 
-Your job is to detect meaningful hiring events from email metadata (subject, snippet, sender, direction, labels).
-You receive only subject lines, snippets, and headers — never full email bodies.
+━━━ CENTRAL QUESTION ━━━
+For every email, ask exactly one question:
+"Did this email CREATE, UPDATE, ADVANCE, PAUSE, REJECT, CANCEL, CLOSE, or COMPLETE a hiring process?"
 
-Supported languages: English, Hebrew, mixed Hebrew+English. Understand intent regardless of language.
+If YES → isJobRelated = true
+If NO  → isJobRelated = false, category = "other"
 
-Hebrew examples to correctly detect:
-- "נשמח לקבוע איתך ראיון" = interview_invite
-- "עברת לשלב הבא" = recruiter_response
-- "לצערנו החלטנו להמשיך עם מועמדים אחרים" = rejection
+CRITICAL: isJobRelated means a hiring-process event occurred — NOT that the email requires action.
+A rejection, position closure, or hiring freeze are all isJobRelated=true even though no action is needed.
 
-TAXONOMY:
-- application_confirmation: employer confirms receipt of application
-- application_sent: user sent a job application (outbound)
-- recruiter_response: recruiter replied, showed interest, or reached out
-- interview_invite: explicit invitation to interview
-- interview_scheduled: interview time confirmed
-- interview_rescheduled: existing interview moved to new time
-- technical_assignment: coding challenge or technical test assigned
-- take_home_assignment: take-home project or case study
-- reference_request: request for professional references
-- salary_discussion: compensation or salary conversation
-- offer: job offer received
-- offer_discussion: negotiating terms of an offer
-- rejection: employer is not moving forward
-- follow_up_sent: user sent a follow-up (outbound)
-- follow_up_received: recruiter or employer followed up (inbound)
-- networking_outreach: professional networking related to job search
-- other: not job-related or genuinely unclear
+━━━ LANGUAGES ━━━
+English, Hebrew, mixed Hebrew+English. Detect intent regardless of language.
+Hebrew signals:
+- "נשמח לקבוע איתך ראיון" → interview_invite
+- "עברת לשלב הבא" → recruiter_response
+- "לצערנו החלטנו להמשיך עם מועמדים אחרים" → rejection
+- "המשרה נסגרה" / "המשרה בוטלה" → position_closed
 
-ACTION TYPES:
-none, review_email, schedule_interview, submit_assignment, reply_to_recruiter,
-prepare_for_interview, follow_up, review_offer, provide_references, salary_discussion
+━━━ TAXONOMY ━━━
+application_confirmation — employer confirms receipt of application (isJobRelated=true)
+application_sent — user sent a job application, outbound (isJobRelated=true)
+recruiter_response — recruiter replied about a SPECIFIC role or moved candidate forward (isJobRelated=true)
+interview_invite — explicit invitation to interview (isJobRelated=true)
+interview_scheduled — interview time confirmed (isJobRelated=true)
+interview_rescheduled — existing interview moved to new time (isJobRelated=true)
+technical_assignment — coding challenge or technical test assigned (isJobRelated=true)
+take_home_assignment — take-home project or case study (isJobRelated=true)
+reference_request — request for professional references (isJobRelated=true)
+salary_discussion — compensation or salary conversation (isJobRelated=true)
+offer — job offer received (isJobRelated=true)
+offer_discussion — negotiating terms of an offer (isJobRelated=true)
+rejection — employer is not moving forward with this candidate (isJobRelated=true)
+position_closed — role was closed, cancelled, or frozen before or during process (isJobRelated=true)
+  Examples: "position has been closed", "role no longer available", "hiring freeze",
+  "organizational restructuring", "requisition cancelled", "we are pausing hiring"
+process_cancelled — company stopped the hiring process entirely (isJobRelated=true)
+  Examples: "we are discontinuing our recruitment process", "hiring has been put on hold",
+  "we are no longer moving forward with any candidates at this time"
+follow_up_sent — user sent a follow-up, outbound (isJobRelated=true)
+follow_up_received — recruiter or employer followed up inbound (isJobRelated=true)
+networking_outreach — specific job opportunity discussed, NOT generic connection (isJobRelated=true only if specific role discussed)
+other — not a hiring-process event (isJobRelated=false)
 
-PRIORITY SCORE guidance (0-100):
-- offer: 100
-- interview_invite / interview_scheduled: 95-100
-- technical_assignment / take_home_assignment: 90-95
-- salary_discussion / offer_discussion: 85-95
-- recruiter_response: 80
-- reference_request: 80
-- interview_rescheduled: 75
-- follow_up_received: 70
-- rejection: 50
-- networking_outreach: 30
-- application_confirmation: 20
-- application_sent: 15
-- follow_up_sent: 15
-- other: 0-10
+━━━ LINKEDIN RULES ━━━
+Emails from linkedin.com require strict evaluation. Most LinkedIn emails are NOT hiring events.
 
-CONFIDENCE LEVELS:
-- 0.85+ = "high"
-- 0.65-0.85 = "medium"
-- <0.65 = "low"
+NOT hiring events (isJobRelated=false, category="other"):
+- New connection / connection accepted
+- Someone viewed your profile
+- Someone followed you
+- Endorsements, reactions, comments
+- "X people viewed your profile this week"
+- Generic recruiter follow / recruiter viewed your profile
+- Content notifications, post engagement
+- "You appeared in X searches"
+- Generic outreach with no specific role mentioned
 
-RULES:
-- Precision over recall: when genuinely uncertain, use category "other" with isJobRelated=false
-- Keep summary to 1 sentence, reasoning to 1-2 sentences
-- Do not expose sensitive personal details in reasoning
-- For links: only include if the link type is clearly detectable from context; use empty string for url if not visible
-- Return valid JSON object only — no prose, no markdown, no explanation outside JSON`
+Hiring events (isJobRelated=true):
+- Interview invitation via LinkedIn
+- Recruiter message discussing a SPECIFIC named role or company opportunity
+- Application status update from LinkedIn Jobs
+- Assignment or next-step request from a recruiter
+- Offer or salary discussion in messages
+
+━━━ PRIORITY SCORE (0-100) ━━━
+offer: 100
+interview_invite / interview_scheduled: 95
+technical_assignment / take_home_assignment: 90
+salary_discussion / offer_discussion: 88
+reference_request: 80
+recruiter_response: 75
+interview_rescheduled: 72
+follow_up_received: 65
+rejection: 55
+position_closed / process_cancelled: 50
+application_confirmation: 20
+application_sent / follow_up_sent: 15
+networking_outreach (job-related): 30
+other: 0
+
+━━━ CONFIDENCE LEVELS ━━━
+0.85+ → "high"
+0.65–0.84 → "medium"
+<0.65 → "low"
+
+━━━ RULES ━━━
+- Only classify as isJobRelated=true if a hiring-process event clearly occurred
+- A hiring-related sender (recruiter, ATS, LinkedIn) does not automatically make an email job-related
+- Keep summary to 1 sentence; reasoning to 1–2 sentences
+- Do not expose personal details in reasoning
+- For links: include only if type is clearly detectable; use empty string for url if not visible
+- Return valid JSON only — no prose, no markdown outside the JSON object`
 
 function buildUserPrompt(
   emails: GmailEmail[],
