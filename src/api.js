@@ -538,11 +538,12 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     return data.emails
   },
 
-  gmailSync: async () => {
+  gmailSync: async (force = false) => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return { skipped: true, reason: 'not_authenticated' }
     const base = import.meta.env.VITE_SUPABASE_URL
-    const res = await fetch(`${base}/functions/v1/gmail-sync`, {
+    const url = force ? `${base}/functions/v1/gmail-sync?force=true` : `${base}/functions/v1/gmail-sync`
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${session.access_token}` },
     })

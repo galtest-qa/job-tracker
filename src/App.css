@@ -2766,6 +2766,53 @@ body {
   font-weight: 500;
 }
 
+/* ── Notifications sync footer ───────────────────────────────────── */
+.notifications-sync-footer {
+  border-top: 1px solid var(--border-light);
+  padding: 0.85rem 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--surface-hover, #f8fafc);
+}
+.notifications-sync-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem 1.5rem;
+}
+.sync-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.sync-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.sync-stat-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sync-status-success { color: #10b981; }
+.sync-status-skipped { color: #f59e0b; }
+.sync-status-failed  { color: var(--danger); }
+.sync-throttle-note {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+.sync-error-note {
+  font-size: 0.72rem;
+  color: var(--danger);
+  margin: 0;
+}
+.sync-check-btn {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
 /* ── Hiring Event Popup ───────────────────────────────────────────── */
 .hiring-popup-overlay {
   z-index: 1100;

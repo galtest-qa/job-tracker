@@ -450,7 +450,10 @@ serve(async (req) => {
       })
     }
 
-    // 3. Throttle check (server-side)
+    // 3. Throttle check (server-side) — bypass with ?force=true
+    const url = new URL(req.url)
+    const forceSync = url.searchParams.get("force") === "true"
+
     const serverNow = new Date()
     const lastSyncAt = integration.last_sync_at ? new Date(integration.last_sync_at) : null
     const minutesSinceSync = lastSyncAt
@@ -464,7 +467,7 @@ serve(async (req) => {
       throttleMinutes: THROTTLE_MS / 60000,
     }
 
-    if (lastSyncAt && (serverNow.getTime() - lastSyncAt.getTime()) < THROTTLE_MS) {
+    if (!forceSync && lastSyncAt && (serverNow.getTime() - lastSyncAt.getTime()) < THROTTLE_MS) {
       return new Response(
         JSON.stringify({ skipped: true, reason: "recently_synced", ...debugInfo }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },

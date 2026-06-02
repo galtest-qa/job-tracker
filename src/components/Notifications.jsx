@@ -57,7 +57,76 @@ function groupByDate(events) {
   ].filter(g => g.items.length > 0)
 }
 
-export default function Notifications({ onClose, onSelectJob, onCountChange }) {
+const TRIGGER_LABELS = {
+  app_load: 'App load',
+  tab_visible: 'Tab visible',
+  manual: 'Manual',
+  auto: 'Auto',
+}
+
+function SyncStatusFooter({ syncInfo, onCheckUpdates }) {
+  const [syncing, setSyncing] = useState(false)
+
+  const handleCheck = async () => {
+    setSyncing(true)
+    try { await onCheckUpdates() } finally { setSyncing(false) }
+  }
+
+  return (
+    <div className="notifications-sync-footer">
+      <div className="notifications-sync-grid">
+        <div className="sync-stat">
+          <span className="sync-stat-label">Last sync</span>
+          <span className="sync-stat-value">
+            {syncInfo?.time
+              ? syncInfo.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '—'}
+          </span>
+        </div>
+        <div className="sync-stat">
+          <span className="sync-stat-label">Status</span>
+          <span className={`sync-stat-value sync-status-${syncInfo?.status ?? 'unknown'}`}>
+            {syncInfo?.status === 'success' && 'Success'}
+            {syncInfo?.status === 'skipped' && `Skipped (throttled)`}
+            {syncInfo?.status === 'failed' && 'Failed'}
+            {!syncInfo?.status && '—'}
+          </span>
+        </div>
+        <div className="sync-stat">
+          <span className="sync-stat-label">Trigger</span>
+          <span className="sync-stat-value">
+            {syncInfo?.trigger ? TRIGGER_LABELS[syncInfo.trigger] ?? syncInfo.trigger : '—'}
+          </span>
+        </div>
+        <div className="sync-stat">
+          <span className="sync-stat-label">Emails scanned</span>
+          <span className="sync-stat-value">
+            {syncInfo?.status === 'success' ? (syncInfo.emailsScanned ?? 0) : '—'}
+          </span>
+        </div>
+        <div className="sync-stat">
+          <span className="sync-stat-label">Events created</span>
+          <span className="sync-stat-value">
+            {syncInfo?.status === 'success' ? (syncInfo.eventsCreated ?? 0) : '—'}
+          </span>
+        </div>
+      </div>
+      {syncInfo?.status === 'skipped' && syncInfo?.minutesSince != null && (
+        <p className="sync-throttle-note">
+          Last sync was {syncInfo.minutesSince}m ago. Server checks every 15 minutes.
+        </p>
+      )}
+      {syncInfo?.error && (
+        <p className="sync-error-note">{syncInfo.error}</p>
+      )}
+      <button className="btn btn-secondary btn-sm sync-check-btn" onClick={handleCheck} disabled={syncing}>
+        {syncing ? 'Checking…' : 'Check for updates'}
+      </button>
+    </div>
+  )
+}
+
+export default function Notifications({ onClose, onSelectJob, onCountChange, syncInfo, onCheckUpdates }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -142,6 +211,7 @@ export default function Notifications({ onClose, onSelectJob, onCountChange }) {
             ))}
           </div>
         )}
+        <SyncStatusFooter syncInfo={syncInfo} onCheckUpdates={onCheckUpdates} />
       </div>
     </div>
   )

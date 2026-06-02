@@ -36,7 +36,7 @@ export default function App() {
   const [popupEvent, setPopupEvent] = useState(null)
   const [popupGroupCount, setPopupGroupCount] = useState(0)
   const [hiringEvents, setHiringEvents] = useState([])
-  const [lastSyncInfo, setLastSyncInfo] = useState(null) // {time, skipped, reason, minutesSince}
+  const [lastSyncInfo, setLastSyncInfo] = useState(null) // {trigger, status, time, skipped, reason, minutesSince, emailsScanned, eventsCreated, error}
   const resumeInfoRef = useRef(null)
   const lastSyncRef = useRef(0)
   const tabHiddenAtRef = useRef(0)
@@ -114,25 +114,41 @@ export default function App() {
     try { const n = await api.getUnreadEventCount(); setUnreadEventCount(n) } catch {}
   }, [])
 
-  const syncHiringEvents = useCallback(async (force = false) => {
+  const syncHiringEvents = useCallback(async (trigger = 'auto', force = false) => {
     const now = Date.now()
-    if (!force && now - lastSyncRef.current < 2 * 60 * 1000) return
+    // Frontend 2-min debounce — bypassed for manual trigger or force
+    if (trigger !== 'manual' && !force && now - lastSyncRef.current < 2 * 60 * 1000) return
     lastSyncRef.current = now
     try {
-      const result = await api.gmailSync()
-      // Always store debug info so UI can show last sync time + reason
-      setLastSyncInfo({
-        time: result.lastSyncAt ? new Date(result.lastSyncAt) : new Date(),
-        skipped: result.skipped ?? false,
-        reason: result.reason ?? null,
-        minutesSince: result.minutesSinceSync ?? null,
-      })
+      const result = await api.gmailSync(trigger === 'manual' || force)
+      const syncTime = result.lastSyncAt ? new Date(result.lastSyncAt) : new Date()
       if (result.skipped) {
-        console.log('[gmail-sync] skipped —', result.reason, `(${result.minutesSinceSync}m since last sync)`)
+        console.log(`[gmail-sync] skipped — ${result.reason} (${result.minutesSinceSync}m since last sync)`)
+        setLastSyncInfo(prev => ({
+          ...prev,
+          trigger,
+          status: 'skipped',
+          skipped: true,
+          reason: result.reason ?? null,
+          minutesSince: result.minutesSinceSync ?? null,
+          time: prev?.time ?? syncTime,
+          error: null,
+        }))
         return
       }
-      console.log(`[gmail-sync] ran — ${result.total} emails, ${result.newEvents?.length ?? 0} new events`)
       const newEvents = result.newEvents || []
+      console.log(`[gmail-sync] ran — ${result.total} emails, ${newEvents.length} new events`)
+      setLastSyncInfo({
+        trigger,
+        status: 'success',
+        skipped: false,
+        reason: null,
+        minutesSince: null,
+        time: syncTime,
+        emailsScanned: result.total ?? 0,
+        eventsCreated: newEvents.length,
+        error: null,
+      })
       if (newEvents.length > 0) {
         setHiringEvents(prev => [...newEvents, ...prev])
         loadUnreadCount()
@@ -148,6 +164,12 @@ export default function App() {
       }
     } catch (err) {
       console.error('[gmail-sync] error:', err.message)
+      setLastSyncInfo(prev => ({
+        ...prev,
+        trigger,
+        status: 'failed',
+        error: err.message,
+      }))
     }
   }, [refresh, loadUnreadCount])
 
@@ -178,7 +200,7 @@ export default function App() {
         loadResume()
         loadSettings()
         loadUnreadCount()
-        syncHiringEvents()
+        syncHiringEvents('app_load')
       })
     } else if (session === null) {
       setLoading(false)
@@ -192,7 +214,7 @@ export default function App() {
         tabHiddenAtRef.current = Date.now()
       } else if (session) {
         const hiddenFor = Date.now() - tabHiddenAtRef.current
-        if (hiddenFor > 2 * 60 * 1000) syncHiringEvents()
+        if (hiddenFor > 2 * 60 * 1000) syncHiringEvents('tab_visible')
       }
     }
     document.addEventListener('visibilitychange', handler)
@@ -254,7 +276,7 @@ export default function App() {
           {lastSyncInfo && (
             <button
               className="sync-status-btn"
-              onClick={() => syncHiringEvents(true)}
+              onClick={() => syncHiringEvents('manual', true)}
               title={lastSyncInfo.skipped
                 ? `Skipped — synced ${lastSyncInfo.minutesSince}m ago. Click to force check.`
                 : 'Click to check for updates'}
@@ -299,6 +321,8 @@ export default function App() {
           onClose={() => setShowNotifications(false)}
           onSelectJob={(jobId) => { setShowNotifications(false); openDetail(jobId) }}
           onCountChange={setUnreadEventCount}
+          syncInfo={lastSyncInfo}
+          onCheckUpdates={() => syncHiringEvents('manual', true)}
         />
       )}
 
