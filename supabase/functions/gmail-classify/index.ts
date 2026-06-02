@@ -10,8 +10,8 @@ const PROMPT_VERSION = "1.0"
 const MODEL = "gpt-4o-mini"
 
 // ── Config ─────────────────────────────────────────────────────────────────
-const MAX_EMAILS = 20
-const BATCH_SIZE = 20   // single AI call for all new emails
+const MAX_EMAILS = 30
+const BATCH_SIZE = 30   // single AI call for all new emails
 const SNIPPET_MAX = 500
 const TEXT_MAX = 300  // max chars for summary / reasoning stored in DB
 

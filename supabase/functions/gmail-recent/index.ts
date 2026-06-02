@@ -112,7 +112,7 @@ serve(async (req) => {
 
     // Fetch emails — metadata only, no full body
     // Pass connected email for direction fallback classification
-    const emails = await fetchRecentEmails(accessToken, 10, integration.email ?? undefined)
+    const emails = await fetchRecentEmails(accessToken, 30, integration.email ?? undefined)
 
     // Update last_sync_at
     await adminClient
