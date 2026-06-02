@@ -28,7 +28,20 @@ export default function App() {
   const [generatingJobIds, setGeneratingJobIds] = useState(new Set())
   const [hasExtension, setHasExtension] = useState(false)
   const [showSettingsSection, setShowSettingsSection] = useState(null)
+  const [gmailCallbackResult, setGmailCallbackResult] = useState(null)
   const resumeInfoRef = useRef(null)
+
+  // Handle OAuth callback redirect (e.g. ?gmail=connected)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const gmailResult = params.get('gmail')
+    if (gmailResult) {
+      window.history.replaceState({}, '', window.location.pathname)
+      setGmailCallbackResult(gmailResult)
+      setShowSettingsSection('gmail')
+      setShowSettings(true)
+    }
+  }, [])
 
   // Auth listener
   useEffect(() => {
@@ -186,10 +199,11 @@ export default function App() {
 
       {showSettings && (
         <Settings
-          onClose={() => { setShowSettings(false); setShowSettingsSection(null) }}
+          onClose={() => { setShowSettings(false); setShowSettingsSection(null); setGmailCallbackResult(null) }}
           initialSection={showSettingsSection}
           hasExtension={hasExtension}
           onExtensionConfirm={handleExtensionConfirm}
+          gmailCallbackResult={gmailCallbackResult}
         />
       )}}
 

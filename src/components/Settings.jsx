@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { clearKeyCache, getAIMode } from '../lib/openai.js'
 import { api } from '../api.js'
 
-export default function Settings({ onClose, initialSection, hasExtension, onExtensionConfirm }) {
+export default function Settings({ onClose, initialSection, hasExtension, onExtensionConfirm, gmailCallbackResult }) {
   const [openaiKey, setOpenaiKey] = useState('')
   const [aiMode, setAiMode] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -72,13 +72,55 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
 
   const [connectionCode, setConnectionCode] = useState('')
   const extensionSectionRef = useRef(null)
+  const gmailSectionRef = useRef(null)
+
+  // Gmail state
+  const [gmailStatus, setGmailStatus] = useState(null)   // null = loading
+  const [gmailEmails, setGmailEmails] = useState(null)   // null = not fetched yet
+  const [gmailFetching, setGmailFetching] = useState(false)
+  const [gmailConnecting, setGmailConnecting] = useState(false)
+  const [gmailError, setGmailError] = useState(null)
 
   useEffect(() => {
     if (initialSection === 'extension' && extensionSectionRef.current) {
       setTimeout(() => extensionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
       extensionSectionRef.current.querySelector('details')?.setAttribute('open', '')
     }
+    if (initialSection === 'gmail' && gmailSectionRef.current) {
+      setTimeout(() => gmailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+    }
   }, [initialSection])
+
+  // Load Gmail status on mount
+  useEffect(() => {
+    api.gmailStatus().then(setGmailStatus).catch(() => setGmailStatus({ connected: false }))
+  }, [])
+
+  const handleGmailConnect = async () => {
+    setGmailConnecting(true)
+    setGmailError(null)
+    try {
+      const url = await api.gmailAuthUrl()
+      window.location.href = url  // redirect to Google consent screen
+    } catch (err) {
+      setGmailError('Could not start Gmail connection. Please try again.')
+      setGmailConnecting(false)
+    }
+  }
+
+  const handleGmailFetch = async () => {
+    setGmailFetching(true)
+    setGmailError(null)
+    setGmailEmails(null)
+    try {
+      const emails = await api.gmailRecentEmails()
+      setGmailEmails(emails)
+      setGmailStatus(prev => ({ ...prev, lastSyncAt: new Date().toISOString() }))
+    } catch (err) {
+      setGmailError(err.message || 'Failed to fetch emails.')
+    }
+    setGmailFetching(false)
+  }
 
   const handleGetCode = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -400,6 +442,99 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                   )}
                 </div>
               </details>
+            </div>
+
+            {/* Gmail Integration */}
+            <div className="settings-section" ref={gmailSectionRef}>
+              <div className="settings-section-title-row">
+                <h4 className="settings-section-title">Email Integration</h4>
+                {gmailStatus === null
+                  ? null
+                  : gmailStatus.connected
+                    ? <span className="settings-badge-ok">Connected</span>
+                    : <span className="settings-badge-todo">Not connected</span>
+                }
+              </div>
+              <p className="settings-guide-text">
+                Connect your Gmail inbox so the platform can detect job application replies, interview invites, and status updates automatically.
+              </p>
+
+              {/* OAuth callback result banner */}
+              {gmailCallbackResult === 'connected' && (
+                <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
+                  Gmail connected successfully.
+                </div>
+              )}
+              {gmailCallbackResult?.startsWith('error') && (
+                <div className="settings-status settings-status-error" style={{ marginBottom: '0.75rem' }}>
+                  Gmail connection failed. Please try again.
+                </div>
+              )}
+
+              {gmailStatus === null ? (
+                <p className="muted">Checking connection…</p>
+              ) : gmailStatus.connected ? (
+                <>
+                  <div className="gmail-status-row">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>{gmailStatus.email}</span>
+                    {gmailStatus.lastSyncAt && (
+                      <span className="gmail-last-sync">
+                        Last sync: {new Date(gmailStatus.lastSyncAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  {gmailStatus.tokenExpired && (
+                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
+                      Session expired — reconnect to continue.
+                    </div>
+                  )}
+                  <div className="settings-btn-row">
+                    <button className="btn btn-primary btn-sm" onClick={handleGmailFetch} disabled={gmailFetching}>
+                      {gmailFetching ? 'Fetching…' : 'Test: Fetch Recent Emails'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={handleGmailConnect} disabled={gmailConnecting}>
+                      Reconnect
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={handleGmailConnect} disabled={gmailConnecting}>
+                  {gmailConnecting ? 'Redirecting…' : 'Connect Gmail'}
+                </button>
+              )}
+
+              {gmailError && (
+                <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>
+                  {gmailError}
+                </p>
+              )}
+
+              {gmailEmails !== null && (
+                <div className="gmail-email-list">
+                  {gmailEmails.length === 0 ? (
+                    <p className="muted" style={{ padding: '0.75rem 0' }}>No emails found in inbox.</p>
+                  ) : (
+                    <>
+                      <p className="settings-hint" style={{ marginBottom: '0.5rem' }}>
+                        {gmailEmails.length} recent emails fetched — connection is working.
+                      </p>
+                      {gmailEmails.map(email => (
+                        <div key={email.id} className="gmail-email-row">
+                          <div className="gmail-email-meta">
+                            <span className="gmail-email-from">{email.from}</span>
+                            <span className="gmail-email-date">
+                              {new Date(email.receivedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="gmail-email-subject">{email.subject || '(no subject)'}</div>
+                          <div className="gmail-email-snippet">{email.snippet}</div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Re-analyze all jobs */}

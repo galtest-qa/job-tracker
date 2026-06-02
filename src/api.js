@@ -497,4 +497,44 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
         .select().single()
     )
   },
+
+  // ── Gmail Integration ──
+
+  gmailAuthUrl: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Not authenticated')
+    const base = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${base}/functions/v1/gmail-auth-init`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to start Gmail auth')
+    return data.url
+  },
+
+  gmailStatus: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return { connected: false }
+    const base = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${base}/functions/v1/gmail-status`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    return res.json()
+  },
+
+  gmailRecentEmails: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Not authenticated')
+    const base = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${base}/functions/v1/gmail-recent`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch emails')
+    return data.emails
+  },
 }
