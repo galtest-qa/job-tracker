@@ -330,6 +330,7 @@ export default function App() {
         <HiringEventPopup
           event={popupEvent}
           groupCount={popupGroupCount}
+          columns={columns}
           onMove={() => {
             if (popupEvent?.matched_job_id && popupEvent?.suggested_stage) {
               moveJob(popupEvent.matched_job_id, popupEvent.suggested_stage)

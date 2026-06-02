@@ -566,6 +566,32 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     return data || []
   },
 
+  getHiringEventsForJob: async (jobId) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+    const { data } = await supabase
+      .from('hiring_events')
+      .select('*, email_classifications(summary, snippet, from_address, subject, direction, received_at)')
+      .eq('user_id', user.id)
+      .eq('matched_job_id', jobId)
+      .neq('status', 'dismissed')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    return data || []
+  },
+
+  fetchEmailBody: async (emailId) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Not authenticated')
+    const base = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${base}/functions/v1/gmail-fetch-email?emailId=${encodeURIComponent(emailId)}`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch email content')
+    return data.body
+  },
+
   getUnreadEventCount: async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return 0

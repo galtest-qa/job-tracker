@@ -7,6 +7,7 @@ import CompanyLogo from './CompanyLogo.jsx'
 import ReminderPanel from './ReminderPanel.jsx'
 import { getNextAction, getFollowUp, getTimeline } from './nextAction.js'
 import ResumeTab from './ResumeTab.jsx'
+import EmailBodyModal from './EmailBodyModal.jsx'
 
 const PALETTE = ['#6b7280', '#4f6ef7', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
 
@@ -20,6 +21,8 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const [activeTab, setActiveTab] = useState(initialTab || 'analysis')
   const [jobReminders, setJobReminders] = useState([])
   const [liveScore, setLiveScore] = useState(null)
+  const [hiringEvents, setHiringEvents] = useState([])
+  const [emailModal, setEmailModal] = useState(null) // { emailId, event, classification }
   const touchStartX = useRef(null)
 
   const load = async () => {
@@ -45,7 +48,12 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const loadReminders = async () => {
     try { const r = await api.getReminders(jobId); setJobReminders(r) } catch {}
   }
-  useEffect(() => { load(); loadReminders() }, [jobId])
+
+  const loadHiringEvents = async () => {
+    try { const e = await api.getHiringEventsForJob(jobId); setHiringEvents(e) } catch {}
+  }
+
+  useEffect(() => { load(); loadReminders(); loadHiringEvents() }, [jobId])
 
   const analyze = async () => {
     setAnalyzing(true); setError(null)
@@ -83,6 +91,32 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
     const updated = await api.updateJob(jobId, { status })
     setJob(updated); onRefresh()
     if (/applied/i.test(status)) trackWin('applied')
+  }
+
+  const handleEventMove = async (event) => {
+    await api.updateJob(jobId, { status: event.suggested_stage })
+    await api.markEventStatus(event.id, 'acted', 'moved_to_stage')
+    const remaining = hiringEvents.filter(e => e.id !== event.id && e.status === 'pending')
+    if (remaining.length === 0) await api.clearJobUnreadEvent(jobId)
+    await load(); await loadHiringEvents(); onRefresh()
+  }
+
+  const handleEventReview = async (eventId) => {
+    await api.markEventStatus(eventId, 'reviewed')
+    const updated = hiringEvents.map(e => e.id === eventId ? { ...e, status: 'reviewed' } : e)
+    setHiringEvents(updated)
+    if (!updated.some(e => e.status === 'pending')) {
+      await api.clearJobUnreadEvent(jobId); onRefresh()
+    }
+  }
+
+  const handleEventDismiss = async (eventId) => {
+    await api.markEventStatus(eventId, 'dismissed')
+    const updated = hiringEvents.filter(e => e.id !== eventId)
+    setHiringEvents(updated)
+    if (!updated.some(e => e.status === 'pending')) {
+      await api.clearJobUnreadEvent(jobId); onRefresh()
+    }
   }
 
   const updateNotes = async (field, value) => {
@@ -240,6 +274,56 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
         {/* ── Analysis Tab ── */}
         {activeTab === 'analysis' && (
           <div className="analysis-tab">
+            {/* Hiring event banners — pending events for this job */}
+            {hiringEvents.filter(e => e.status === 'pending').map(event => {
+              const cls = event.email_classifications
+              const stageExists = event.suggested_stage && columns.some(c => c.name === event.suggested_stage)
+              return (
+                <div key={event.id} className="job-event-banner">
+                  <div className="job-event-banner-header">
+                    <span className="job-event-banner-dot" />
+                    <span className="job-event-banner-label">New Gmail update detected</span>
+                    <span className="job-event-banner-time">
+                      {event.created_at
+                        ? new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="job-event-banner-title">{event.title}</div>
+                  {cls?.summary && (
+                    <div className="job-event-banner-summary">{cls.summary}</div>
+                  )}
+                  <div className="job-event-banner-source">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                      <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    via Gmail
+                    {cls?.from_address && <span className="job-event-banner-from"> · {cls.from_address}</span>}
+                  </div>
+                  <div className="job-event-banner-actions">
+                    {stageExists && (
+                      <button className="btn btn-primary btn-sm" onClick={() => handleEventMove(event)}>
+                        Move to {event.suggested_stage}
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setEmailModal({ emailId: event.email_id, event, classification: cls })}
+                    >
+                      View Email
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => handleEventReview(event.id)}>
+                      Keep here
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => handleEventDismiss(event.id)}>
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+
             {(() => {
               const fu = getFollowUp(job)
               return fu.shouldFollowUp ? (
@@ -435,6 +519,15 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
           </div>
         )}
       </div>
+
+      {emailModal && (
+        <EmailBodyModal
+          emailId={emailModal.emailId}
+          event={emailModal.event}
+          classification={emailModal.classification}
+          onClose={() => setEmailModal(null)}
+        />
+      )}
     </div>
   )
 }

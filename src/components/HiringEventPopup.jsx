@@ -1,83 +1,108 @@
 import React from 'react'
 
-const EVENT_MESSAGES = {
-  interview_invite: (title) => ({
-    headline: 'Interview invitation detected',
-    message: title,
-    icon: '🎉',
-  }),
-  interview_scheduled: (title) => ({
-    headline: 'Interview scheduled',
-    message: title,
-    icon: '📅',
-  }),
-  offer: (title) => ({
-    headline: 'Offer received!',
-    message: title,
-    icon: '🎊',
-  }),
-  offer_discussion: (title) => ({
-    headline: 'Offer discussion',
-    message: title,
-    icon: '💼',
-  }),
-  rejection: (title) => ({
-    headline: 'Application update',
-    message: title,
-    icon: '📋',
-  }),
-  position_closed: (title) => ({
-    headline: 'Position closed',
-    message: title,
-    icon: '🔒',
-  }),
-  process_cancelled: (title) => ({
-    headline: 'Hiring process cancelled',
-    message: title,
-    icon: '🔒',
-  }),
-  technical_assignment: (title) => ({
-    headline: 'Assignment received',
-    message: title,
-    icon: '💻',
-  }),
-  take_home_assignment: (title) => ({
-    headline: 'Take-home assignment',
-    message: title,
-    icon: '📝',
-  }),
-  recruiter_response: (title) => ({
-    headline: 'Recruiter replied',
-    message: title,
-    icon: '💬',
-  }),
-}
+// Human-readable message copy per event type
+function buildMessage(event) {
+  const company = event.detected_company || 'A company'
+  const role = event.detected_role || 'this role'
 
-function getActions(event, onMove, onKeepHere, onDismiss, onOpenNotifications) {
-  const { event_type, suggested_stage, matched_job_id } = event
-  const canMove = matched_job_id && suggested_stage
-
-  const moveBtn = canMove
-    ? { label: `Move to ${suggested_stage}`, onClick: onMove, variant: 'primary' }
-    : null
-
-  const prepBtn = (event_type === 'interview_invite' || event_type === 'interview_scheduled')
-    ? { label: 'Prepare for Interview', onClick: onKeepHere, variant: 'secondary' }
-    : null
-
-  const keepBtn = { label: 'Keep Here', onClick: onKeepHere, variant: 'ghost' }
-  const dismissBtn = { label: 'Dismiss', onClick: onDismiss, variant: 'ghost' }
-  const viewBtn = { label: 'View Updates', onClick: onOpenNotifications, variant: 'secondary' }
-
-  if (event_type === 'rejection' || event_type === 'position_closed' || event_type === 'process_cancelled') {
-    return [moveBtn, keepBtn, dismissBtn].filter(Boolean)
+  switch (event.event_type) {
+    case 'application_sent':
+      return {
+        icon: '✉️',
+        headline: 'Application sent',
+        body: `It looks like you applied to ${role} at ${company}. Move this job to Applied?`,
+      }
+    case 'application_confirmation':
+      return {
+        icon: '✅',
+        headline: 'Application confirmed',
+        body: `${company} confirmed they received your application for ${role}. Move this job to Applied?`,
+      }
+    case 'recruiter_response':
+      return {
+        icon: '💬',
+        headline: 'Recruiter replied',
+        body: `You heard back from ${company} about ${role}. Want to move this job forward?`,
+      }
+    case 'interview_invite':
+      return {
+        icon: '🎉',
+        headline: "You're invited to interview!",
+        body: `${company} invited you to interview for ${role}. Move this job to Interview?`,
+      }
+    case 'interview_scheduled':
+      return {
+        icon: '📅',
+        headline: 'Interview scheduled',
+        body: `Your interview with ${company} for ${role} is confirmed. Move this job to Interview?`,
+      }
+    case 'interview_rescheduled':
+      return {
+        icon: '🔄',
+        headline: 'Interview rescheduled',
+        body: `Your interview with ${company} has been moved to a new time.`,
+      }
+    case 'technical_assignment':
+    case 'take_home_assignment':
+      return {
+        icon: '💻',
+        headline: 'Assignment received',
+        body: `${company} sent you an assignment for ${role}. Move this job to Assignment?`,
+      }
+    case 'offer':
+      return {
+        icon: '🎊',
+        headline: 'Offer received!',
+        body: `${company} sent you an offer for ${role}. Move this job to Offer?`,
+      }
+    case 'offer_discussion':
+    case 'salary_discussion':
+      return {
+        icon: '💼',
+        headline: 'Offer discussion',
+        body: `You're in an offer or salary discussion with ${company}. Move this job to Offer?`,
+      }
+    case 'rejection':
+      return {
+        icon: '📋',
+        headline: 'Application update',
+        body: `It looks like ${company} is not moving forward with your application. Move this job to Rejected?`,
+      }
+    case 'position_closed':
+      return {
+        icon: '🔒',
+        headline: 'Position closed',
+        body: `${company} closed the position for ${role}. Archive this opportunity?`,
+      }
+    case 'process_cancelled':
+      return {
+        icon: '🔒',
+        headline: 'Hiring process cancelled',
+        body: `${company} cancelled their hiring process. Archive this opportunity?`,
+      }
+    case 'follow_up_sent':
+      return {
+        icon: '📤',
+        headline: 'Follow-up sent',
+        body: `You followed up with ${company} about ${role}.`,
+      }
+    case 'follow_up_received':
+      return {
+        icon: '📥',
+        headline: 'Follow-up received',
+        body: `${company} followed up with you about ${role}.`,
+      }
+    default:
+      return {
+        icon: '📬',
+        headline: 'New hiring update',
+        body: event.title || `Update from ${company}`,
+      }
   }
-
-  return [moveBtn, prepBtn, keepBtn, dismissBtn].filter(Boolean)
 }
 
-export default function HiringEventPopup({ event, groupCount, onMove, onKeepHere, onDismiss, onOpenNotifications }) {
-  // Grouped popup (multiple high-priority events)
+export default function HiringEventPopup({ event, groupCount, columns = [], onMove, onKeepHere, onDismiss, onOpenNotifications }) {
+  // Grouped popup — multiple high-priority events
   if (groupCount > 0) {
     return (
       <div className="modal-overlay hiring-popup-overlay" onClick={onDismiss}>
@@ -87,15 +112,11 @@ export default function HiringEventPopup({ event, groupCount, onMove, onKeepHere
             {groupCount} new hiring update{groupCount > 1 ? 's' : ''}
           </h3>
           <p className="hiring-popup-message">
-            You have new activity in your hiring pipeline. Review your updates.
+            You have new activity in your hiring pipeline.
           </p>
           <div className="hiring-popup-actions">
-            <button className="btn btn-primary btn-sm" onClick={onOpenNotifications}>
-              View Updates
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={onDismiss}>
-              Later
-            </button>
+            <button className="btn btn-primary btn-sm" onClick={onOpenNotifications}>View Updates</button>
+            <button className="btn btn-ghost btn-sm" onClick={onDismiss}>Later</button>
           </div>
         </div>
       </div>
@@ -104,39 +125,37 @@ export default function HiringEventPopup({ event, groupCount, onMove, onKeepHere
 
   if (!event) return null
 
-  const meta = EVENT_MESSAGES[event.event_type]
-    ? EVENT_MESSAGES[event.event_type](event.title)
-    : { headline: 'New hiring update', message: event.title, icon: '📬' }
+  const { icon, headline, body } = buildMessage(event)
 
-  const actions = getActions(event, onMove, onKeepHere, onDismiss, onOpenNotifications)
+  // Only show move CTA if suggested_stage exists in this user's actual board columns
+  const stageExists = event.suggested_stage && columns.some(c => c.name === event.suggested_stage)
+  const canMove = !!(event.matched_job_id && stageExists)
 
   return (
     <div className="modal-overlay hiring-popup-overlay" onClick={onDismiss}>
       <div className="hiring-popup" onClick={e => e.stopPropagation()}>
-        <div className="hiring-popup-icon">{meta.icon}</div>
-        <h3 className="hiring-popup-headline">{meta.headline}</h3>
-        <p className="hiring-popup-message">{meta.message}</p>
+        <div className="hiring-popup-icon">{icon}</div>
+        <h3 className="hiring-popup-headline">{headline}</h3>
+        <p className="hiring-popup-message">{body}</p>
 
-        {event.suggested_stage && event.matched_job_id && (
+        {canMove && (
           <div className="hiring-popup-suggestion">
-            Suggested: move to <strong>{event.suggested_stage}</strong>
+            → Move to <strong>{event.suggested_stage}</strong>
           </div>
         )}
 
         <div className="hiring-popup-actions">
-          {actions.map((action, i) => (
-            <button
-              key={i}
-              className={`btn btn-sm ${
-                action.variant === 'primary' ? 'btn-primary' :
-                action.variant === 'secondary' ? 'btn-secondary' :
-                'btn-ghost'
-              }`}
-              onClick={action.onClick}
-            >
-              {action.label}
+          {canMove && (
+            <button className="btn btn-primary btn-sm" onClick={onMove}>
+              Move to {event.suggested_stage}
             </button>
-          ))}
+          )}
+          <button className="btn btn-secondary btn-sm" onClick={onKeepHere}>
+            {canMove ? 'Keep here' : 'View updates'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onDismiss}>
+            Dismiss
+          </button>
         </div>
       </div>
     </div>
