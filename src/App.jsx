@@ -205,7 +205,7 @@ export default function App() {
           onExtensionConfirm={handleExtensionConfirm}
           gmailCallbackResult={gmailCallbackResult}
         />
-      )}}
+      )}
 
       {showResume && (
         <ResumeUpload
