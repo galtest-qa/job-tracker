@@ -332,6 +332,189 @@ function buildEventTitle(category: string, company: string | null, role: string 
   return titles[category] || `Hiring update from ${c}`
 }
 
+// ── Company/role extraction ────────────────────────────────────────────────
+
+// ATS platforms: domain alone should never be used as company signal
+const ATS_PLATFORM_DOMAINS = new Set([
+  "greenhouse.io", "greenhouse-mail.io",
+  "lever.co", "hire.lever.co",
+  "ashbyhq.com", "workday.com", "myworkdayjobs.com",
+  "comeet.com", "smartrecruiters.com", "teamtailor.com",
+  "bamboohr.com", "recruitee.com", "icims.com", "workable.com",
+  "jobvite.com", "successfactors.com", "taleo.net", "jobscore.com",
+  "breezy.hr", "pinpoint.com", "rippling.com", "dover.com", "gem.com",
+  "linkedin.com", "recruitment.wix.com",
+])
+
+// Generic mailbox providers — no company signal
+const GENERIC_DOMAINS = new Set([
+  "gmail.com", "yahoo.com", "outlook.com", "hotmail.com",
+  "icloud.com", "me.com", "mac.com", "proton.me", "protonmail.com",
+  "zoho.com", "aol.com",
+])
+
+// Words that indicate the display name is a department/function, not a company
+const FROM_NAME_STOP_WORDS = [
+  "careers", "career", "recruiting", "recruitment", "recruiter", "talent",
+  "hr", "human", "resources", "hiring", "team", "group", "jobs", "noreply",
+  "no-reply", "notifications", "hello", "apply", "applications", "support",
+  "info", "contact", "updates", "alerts", "donotreply", "do not reply",
+  "notification", "mailer", "email", "mail",
+]
+
+function extractDomain(from: string): string {
+  const m = from.match(/@([\w.-]+)/)
+  return m ? m[1].toLowerCase() : ""
+}
+
+function isAtsDomain(domain: string): boolean {
+  return ATS_PLATFORM_DOMAINS.has(domain) ||
+    [...ATS_PLATFORM_DOMAINS].some(d => domain.endsWith("." + d))
+}
+
+// Parse display name from "Name <email>" → clean company candidate
+function extractFromDisplayName(from: string): string | null {
+  const nameMatch = from.match(/^([^<@]+?)\s*</)
+  if (!nameMatch) return null
+
+  let name = nameMatch[1].trim().replace(/"/g, "")
+
+  // "Recruiting at Wix" / "HR from Company" → extract the company part
+  name = name.replace(/^(?:recruiting|talent|hr|careers?)\s+(?:at|from|@)\s+/i, "")
+  // "Company | Careers" → "Company"
+  name = name.replace(/\s*[|/]\s*.+$/, "")
+
+  // Remove trailing stop words
+  for (const word of FROM_NAME_STOP_WORDS) {
+    name = name.replace(new RegExp(`\\b${word}s?\\b`, "gi"), "").trim()
+  }
+
+  name = name.replace(/[,.-]+$/, "").replace(/\s{2,}/g, " ").trim()
+  if (name.length < 2 || name.length > 60) return null
+  return name
+}
+
+// Extract company name from a non-ATS, non-generic company domain
+// e.g. recruiter@workiz.com → "Workiz", hr@monday.com → "Monday"
+function extractFromDomain(from: string): string | null {
+  const domain = extractDomain(from)
+  if (!domain) return null
+  if (isAtsDomain(domain)) return null
+  if (GENERIC_DOMAINS.has(domain)) return null
+
+  const parts = domain.split(".")
+  // subdomain.company.tld → use "company" part
+  const companyPart = parts.length >= 3 ? parts[parts.length - 2] : parts[0]
+
+  // Skip obvious non-company subdomain parts
+  const skipWords = new Set(["mail", "email", "noreply", "careers", "jobs", "hr", "info", "notifications", "alerts", "smtp"])
+  if (skipWords.has(companyPart)) return null
+  if (companyPart.length < 2) return null
+
+  return companyPart.charAt(0).toUpperCase() + companyPart.slice(1)
+}
+
+// Extract company name from subject line using common recruiting patterns
+function extractCompanyFromSubject(subject: string): string | null {
+  const patterns = [
+    // "at <Company>" — most common
+    /\bat\s+([A-Z][A-Za-z0-9\s&.',-]{1,50}?)(?:\s*[-—:,!.]|\s+(?:for|has|is|was|will|–)|$)/,
+    // "from <Company>"
+    /\bfrom\s+([A-Z][A-Za-z0-9\s&.',-]{1,50}?)(?:\s*[-—:,!.]|\s+(?:for|regarding)|$)/,
+    // "<Company> -" or "<Company>:" at start (e.g. "Wix - Interview Invitation")
+    /^([A-Z][A-Za-z0-9\s&.',-]{1,50}?)\s*[-—:|]\s+/,
+    // "with <Company>"
+    /\bwith\s+([A-Z][A-Za-z0-9\s&.',-]{1,50}?)(?:\s*[-—:,!.]|\s+(?:for|regarding)|$)/,
+  ]
+
+  for (const p of patterns) {
+    const m = subject.match(p)
+    if (m) {
+      const candidate = m[1].trim()
+      // Sanity: reject if it looks like a verb phrase or is too short
+      if (candidate.length >= 2 && !/^(your|the|a |an |our|we |us|i |my )/i.test(candidate)) {
+        return candidate
+      }
+    }
+  }
+  return null
+}
+
+// Extract role from subject line
+function extractRoleFromSubject(subject: string): string | null {
+  const patterns = [
+    // "for the <Role> position/role/opportunity"
+    /for\s+(?:the\s+)?([A-Za-z][A-Za-z0-9\s/(),-]{3,60}?)\s+(?:position|role|opportunity|job)\b/i,
+    // "application for <Role>"
+    /application\s+(?:for\s+)?(?:the\s+)?([A-Za-z][A-Za-z0-9\s/(),-]{3,60}?)(?:\s+at\b|\s+role\b|\s+position\b|$)/i,
+  ]
+  for (const p of patterns) {
+    const m = subject.match(p)
+    if (m) {
+      const candidate = m[1].trim()
+      if (candidate.length >= 3 && candidate.length <= 60) return candidate
+    }
+  }
+  return null
+}
+
+interface Extraction {
+  company: string | null
+  role: string | null
+  sources: string[]
+}
+
+// Build best company/role extraction from all available signals
+// AI extraction is highest priority; other sources supplement or provide fallback
+function buildExtraction(
+  aiCompany: string | null,
+  aiRole: string | null,
+  emailFrom: string,
+  emailSubject: string,
+  emailSnippet: string,
+): Extraction {
+  const sources: string[] = []
+
+  // AI extraction — always first priority
+  let company = aiCompany
+  let role = aiRole
+  if (company) sources.push("ai")
+  if (role && !sources.includes("ai")) sources.push("ai")
+
+  // Subject extraction — supplement if AI missed
+  const subjectCompany = extractCompanyFromSubject(emailSubject)
+  const subjectRole = extractRoleFromSubject(emailSubject)
+
+  if (!company && subjectCompany) {
+    company = subjectCompany
+    sources.push("subject")
+  }
+  if (!role && subjectRole) {
+    role = subjectRole
+    if (!sources.includes("subject")) sources.push("subject")
+  }
+
+  // From display name — fallback for company
+  if (!company) {
+    const nameCompany = extractFromDisplayName(emailFrom)
+    if (nameCompany) {
+      company = nameCompany
+      sources.push("from_name")
+    }
+  }
+
+  // From domain — lowest priority, never for ATS
+  if (!company) {
+    const domainCompany = extractFromDomain(emailFrom)
+    if (domainCompany) {
+      company = domainCompany
+      sources.push("from_domain")
+    }
+  }
+
+  return { company, role, sources }
+}
+
 // ── Job matching ───────────────────────────────────────────────────────────
 
 function normalizeCompany(s: string): string {
@@ -342,66 +525,120 @@ function normalizeCompany(s: string): string {
     .trim()
 }
 
+function scoreCompanyMatch(normJob: string, normTarget: string): number {
+  if (!normJob || !normTarget) return 0
+  if (normJob === normTarget) return 4
+
+  const longer = normJob.length > normTarget.length ? normJob : normTarget
+  const shorter = normJob.length <= normTarget.length ? normJob : normTarget
+  if (longer.includes(shorter)) {
+    // Reject very short tokens matching inside long company names (e.g. "Al" in "Walmart")
+    const ratio = shorter.length / longer.length
+    return ratio >= 0.4 ? 3 : 1
+  }
+  return 0
+}
+
 interface MatchResult {
   jobId: string | null
   confidence: "high" | "medium" | "low" | "none"
   signals: string[]
+  extractedCompany: string | null
+  extractedRole: string | null
+  extractionSources: string[]
+  matchScore: number
 }
 
 async function matchToJob(
   adminClient: ReturnType<typeof createClient>,
   userId: string,
-  detectedCompany: string | null,
-  detectedRole: string | null,
+  aiCompany: string | null,
+  aiRole: string | null,
+  emailFrom: string,
+  emailSubject: string,
+  emailSnippet: string,
 ): Promise<MatchResult> {
-  if (!detectedCompany) return { jobId: null, confidence: "none", signals: [] }
+  const noMatch = (ext: Extraction): MatchResult => ({
+    jobId: null, confidence: "none", signals: [],
+    extractedCompany: ext.company,
+    extractedRole: ext.role,
+    extractionSources: ext.sources,
+    matchScore: 0,
+  })
+
+  const ext = buildExtraction(aiCompany, aiRole, emailFrom, emailSubject, emailSnippet)
+
+  if (!ext.company) return noMatch(ext)
 
   const { data: jobs } = await adminClient
     .from("jobs")
     .select("id, company, role, status")
     .eq("user_id", userId)
 
-  if (!jobs?.length) return { jobId: null, confidence: "none", signals: [] }
+  if (!jobs?.length) return noMatch(ext)
 
-  const normTarget = normalizeCompany(detectedCompany)
-  if (!normTarget) return { jobId: null, confidence: "none", signals: [] }
+  const normTarget = normalizeCompany(ext.company)
+  if (!normTarget) return noMatch(ext)
 
-  let bestMatch: MatchResult = { jobId: null, confidence: "none", signals: [] }
+  interface ScoredJob {
+    jobId: string
+    score: number
+    signals: string[]
+    isTerminal: boolean
+  }
+
+  const scored: ScoredJob[] = []
 
   for (const job of jobs) {
     const normJob = normalizeCompany(job.company || "")
     if (!normJob) continue
 
-    const companyMatches =
-      normJob === normTarget ||
-      normJob.includes(normTarget) ||
-      normTarget.includes(normJob)
+    const companyScore = scoreCompanyMatch(normJob, normTarget)
+    if (companyScore === 0) continue
 
-    if (!companyMatches) continue
+    const signals: string[] = [`company_match:${companyScore}`]
+    let score = companyScore
 
-    const signals = ["company_name"]
-    let confidence: "high" | "medium" = "high"
-
-    if (detectedRole) {
-      const normRole = (detectedRole || "").toLowerCase().trim()
+    // Role match bonus
+    if (ext.role) {
+      const normRole = ext.role.toLowerCase().trim()
       const normJobRole = (job.role || "").toLowerCase().trim()
       if (normRole && normJobRole && (normJobRole.includes(normRole) || normRole.includes(normJobRole))) {
-        signals.push("role_title")
+        score += 2
+        signals.push("role_match")
       }
     }
 
-    // Prefer non-terminal jobs
+    // Extraction source signal
+    signals.push(`sources:${ext.sources.join(",")}`)
+
     const isTerminal = ["Rejected", "Archived", "Closed"].includes(job.status)
-    if (!isTerminal) {
-      return { jobId: job.id, confidence, signals }
-    }
-    // Keep as fallback
-    if (bestMatch.jobId === null) {
-      bestMatch = { jobId: job.id, confidence: "medium", signals }
-    }
+    scored.push({ jobId: job.id, score, signals, isTerminal })
   }
 
-  return bestMatch
+  if (scored.length === 0) return noMatch(ext)
+
+  // Sort: highest score first, non-terminal preferred
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return Number(a.isTerminal) - Number(b.isTerminal)
+  })
+
+  const best = scored[0]
+
+  const confidence: "high" | "medium" | "low" =
+    best.score >= 5 ? "high" :
+    best.score >= 3 ? "medium" : "low"
+
+  return {
+    jobId: best.jobId,
+    confidence,
+    signals: best.signals,
+    extractedCompany: ext.company,
+    extractedRole: ext.role,
+    extractionSources: ext.sources,
+    matchScore: best.score,
+  }
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────
@@ -597,7 +834,13 @@ serve(async (req) => {
         .single()
 
       // Match to job
-      const match = await matchToJob(adminClient, user.id, company, role)
+      const match = await matchToJob(
+        adminClient, user.id,
+        company, role,
+        row.from_address as string,
+        row.subject as string,
+        row.snippet as string,
+      )
 
       const eventRow = {
         user_id: user.id,
@@ -612,6 +855,10 @@ serve(async (req) => {
         suggested_stage: SUGGESTED_STAGES[category] ?? null,
         status: "pending",
         popup_shown: false,
+        extracted_company: match.extractedCompany ?? null,
+        extracted_role: match.extractedRole ?? null,
+        extraction_sources: match.extractionSources ?? [],
+        match_score: match.matchScore ?? 0,
       }
 
       const { data: inserted, error: eventErr } = await adminClient
