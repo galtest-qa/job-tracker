@@ -589,40 +589,56 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                     {classifyError && (
                       <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{classifyError}</p>
                     )}
-                    {classifyResult && (
-                      <div className="classify-results">
-                        <p className="classify-summary">
-                          {classifyResult.total} emails processed — {classifyResult.jobRelated} job-related,{' '}
-                          {classifyResult.preFiltered} pre-filtered, {classifyResult.cached} from cache.
-                        </p>
-                        <div className="classify-list">
-                          {classifyResult.classifications
-                            .filter(c => c.is_job_related)
-                            .map(c => (
-                              <div key={c.email_id} className={`classify-row classify-priority-${c.priority_score >= 70 ? 'high' : c.priority_score >= 40 ? 'med' : 'low'}`}>
-                                <div className="classify-row-header">
-                                  <span className="classify-category">{c.category?.replace(/_/g, ' ')}</span>
-                                  <span className={`classify-confidence classify-confidence-${c.confidence_level}`}>{c.confidence_level}</span>
-                                  {c.action_required && <span className="classify-action-badge">Action needed</span>}
-                                </div>
-                                <div className="classify-row-subject">{c.subject || '(no subject)'}</div>
-                                {c.detected_company && (
-                                  <div className="classify-row-meta">
-                                    {c.detected_company}{c.detected_role ? ` — ${c.detected_role}` : ''}
-                                  </div>
-                                )}
-                                {c.summary && <div className="classify-row-summary">{c.summary}</div>}
-                                {c.suggested_next_action && (
-                                  <div className="classify-row-action">Next: {c.suggested_next_action}</div>
-                                )}
+                    {classifyResult && (() => {
+                      const all = classifyResult.classifications || []
+                      const jobRelated = all.filter(c => c.is_job_related)
+                      const notRelated = all.filter(c => !c.is_job_related)
+                      const renderRow = (c) => (
+                        <div key={c.email_id} className={`classify-row classify-priority-${c.priority_score >= 70 ? 'high' : c.priority_score >= 40 ? 'med' : 'low'}`}>
+                          <div className="classify-row-header">
+                            <span className="classify-category">{c.category?.replace(/_/g, ' ')}</span>
+                            {c.confidence_level && <span className={`classify-confidence classify-confidence-${c.confidence_level}`}>{c.confidence_level}</span>}
+                            {c.pre_filtered && <span className="classify-confidence" style={{ background: '#f1f5f9', color: '#64748b' }}>pre-filtered</span>}
+                            {c.action_required && <span className="classify-action-badge">Action needed</span>}
+                          </div>
+                          <div className="classify-row-subject">{c.subject || '(no subject)'}</div>
+                          <div className="classify-row-meta" style={{ color: 'var(--text-tertiary)' }}>{c.from_address}</div>
+                          {c.detected_company && (
+                            <div className="classify-row-meta">{c.detected_company}{c.detected_role ? ` — ${c.detected_role}` : ''}</div>
+                          )}
+                          {c.summary && <div className="classify-row-summary">{c.summary}</div>}
+                        </div>
+                      )
+                      return (
+                        <div className="classify-results">
+                          <p className="classify-summary">
+                            {all.length} emails processed — {jobRelated.length} job-related,{' '}
+                            {notRelated.filter(c => c.pre_filtered).length} pre-filtered,{' '}
+                            {notRelated.filter(c => !c.pre_filtered).length} classified as other
+                            {classifyResult.cached > 0 ? `, ${classifyResult.cached} from cache` : ''}
+                          </p>
+                          {jobRelated.length > 0 && (
+                            <>
+                              <div className="classify-group-label">Job-Related ({jobRelated.length})</div>
+                              <div className="classify-list">{jobRelated.map(renderRow)}</div>
+                            </>
+                          )}
+                          {notRelated.length > 0 && (
+                            <details style={{ marginTop: '0.75rem' }}>
+                              <summary className="classify-group-label" style={{ cursor: 'pointer' }}>
+                                Not Job-Related ({notRelated.length}) — click to expand
+                              </summary>
+                              <div className="classify-list" style={{ marginTop: '0.5rem', opacity: 0.7 }}>
+                                {notRelated.map(renderRow)}
                               </div>
-                            ))}
-                          {classifyResult.classifications.filter(c => c.is_job_related).length === 0 && (
-                            <p className="muted" style={{ padding: '0.5rem 0' }}>No job-related emails detected in this window.</p>
+                            </details>
+                          )}
+                          {all.length === 0 && (
+                            <p className="muted" style={{ padding: '0.5rem 0' }}>No emails in this window.</p>
                           )}
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
                   </div>
                 </details>
               </div>
