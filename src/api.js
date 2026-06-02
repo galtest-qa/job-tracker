@@ -537,4 +537,17 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     if (!res.ok) throw new Error(data.error || 'Failed to fetch emails')
     return data.emails
   },
+
+  gmailClassifyRecent: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Not authenticated')
+    const base = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${base}/functions/v1/gmail-classify`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to classify emails')
+    return data
+  },
 }

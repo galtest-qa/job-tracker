@@ -191,6 +191,24 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
     setTimeout(() => setTgStatus(''), 2000)
   }
 
+  // Classify state
+  const [classifying, setClassifying] = useState(false)
+  const [classifyResult, setClassifyResult] = useState(null)
+  const [classifyError, setClassifyError] = useState(null)
+
+  const handleClassify = async () => {
+    setClassifying(true)
+    setClassifyError(null)
+    setClassifyResult(null)
+    try {
+      const result = await api.gmailClassifyRecent()
+      setClassifyResult(result)
+    } catch (err) {
+      setClassifyError(err.message || 'Classification failed.')
+    }
+    setClassifying(false)
+  }
+
   const [reanalyzing, setReanalyzing] = useState(false)
   const [reanalyzeDone, setReanalyzeDone] = useState(null) // {success, failed}
 
@@ -553,6 +571,62 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                 </div>
               )}
             </div>
+
+            {/* Debug: Hiring Event Detection */}
+            {gmailStatus?.connected && (
+              <div className="settings-section">
+                <details className="settings-details">
+                  <summary>Debug: Hiring Event Detection</summary>
+                  <div className="settings-guide">
+                    <p className="settings-guide-text">
+                      Classify your 50 most recent emails to detect hiring events — interview invites, rejections, offers, and more.
+                    </p>
+                    <div className="settings-btn-row">
+                      <button className="btn btn-secondary btn-sm" onClick={handleClassify} disabled={classifying}>
+                        {classifying ? 'Classifying…' : 'Run Classification'}
+                      </button>
+                    </div>
+                    {classifyError && (
+                      <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{classifyError}</p>
+                    )}
+                    {classifyResult && (
+                      <div className="classify-results">
+                        <p className="classify-summary">
+                          {classifyResult.total} emails processed — {classifyResult.jobRelated} job-related,{' '}
+                          {classifyResult.preFiltered} pre-filtered, {classifyResult.cached} from cache.
+                        </p>
+                        <div className="classify-list">
+                          {classifyResult.classifications
+                            .filter(c => c.is_job_related)
+                            .map(c => (
+                              <div key={c.email_id} className={`classify-row classify-priority-${c.priority_score >= 70 ? 'high' : c.priority_score >= 40 ? 'med' : 'low'}`}>
+                                <div className="classify-row-header">
+                                  <span className="classify-category">{c.category?.replace(/_/g, ' ')}</span>
+                                  <span className={`classify-confidence classify-confidence-${c.confidence_level}`}>{c.confidence_level}</span>
+                                  {c.action_required && <span className="classify-action-badge">Action needed</span>}
+                                </div>
+                                <div className="classify-row-subject">{c.subject || '(no subject)'}</div>
+                                {c.detected_company && (
+                                  <div className="classify-row-meta">
+                                    {c.detected_company}{c.detected_role ? ` — ${c.detected_role}` : ''}
+                                  </div>
+                                )}
+                                {c.summary && <div className="classify-row-summary">{c.summary}</div>}
+                                {c.suggested_next_action && (
+                                  <div className="classify-row-action">Next: {c.suggested_next_action}</div>
+                                )}
+                              </div>
+                            ))}
+                          {classifyResult.classifications.filter(c => c.is_job_related).length === 0 && (
+                            <p className="muted" style={{ padding: '0.5rem 0' }}>No job-related emails detected in this window.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </div>
+            )}
 
             {/* Re-analyze all jobs */}
             <div className="settings-section">
