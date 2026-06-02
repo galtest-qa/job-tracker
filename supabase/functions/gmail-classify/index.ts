@@ -11,7 +11,7 @@ const MODEL = "gpt-4o-mini"
 
 // ── Config ─────────────────────────────────────────────────────────────────
 const MAX_EMAILS = 30
-const BATCH_SIZE = 30   // single AI call for all new emails
+const BATCH_SIZE = 10   // smaller batches = reliable count matching
 const SNIPPET_MAX = 500
 const TEXT_MAX = 300  // max chars for summary / reasoning stored in DB
 
@@ -346,16 +346,25 @@ async function classifyBatch(
   }
 
   const rawList = parsed?.classifications
-  if (!Array.isArray(rawList) || rawList.length !== emails.length) {
-    console.error(
-      `classifyBatch: expected ${emails.length} results, got ${Array.isArray(rawList) ? rawList.length : "non-array"}`,
-    )
+  if (!Array.isArray(rawList) || rawList.length === 0) {
+    console.error("classifyBatch: no classifications returned, using safe defaults")
     return emails.map(safeDefaultRow)
   }
 
-  return emails.map((email, idx) => {
+  // Match by emailId — resilient to AI returning fewer items than requested
+  const byId = new Map(
+    rawList.map((r: Record<string, unknown>) => [r.emailId as string, r])
+  )
+
+  if (rawList.length !== emails.length) {
+    console.error(`classifyBatch: expected ${emails.length}, got ${rawList.length} — matching by id`)
+  }
+
+  return emails.map((email) => {
+    const raw = byId.get(email.id)
+    if (!raw) return safeDefaultRow(email)
     try {
-      return validateRow(rawList[idx] as Record<string, unknown>, email)
+      return validateRow(raw as Record<string, unknown>, email)
     } catch {
       return safeDefaultRow(email)
     }

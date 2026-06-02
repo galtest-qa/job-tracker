@@ -29,6 +29,7 @@ const ATS_DOMAINS = [
   "dover.com",
   "gem.com",
   "linkedin.com",  // recruiter messages and job alerts
+  "recruitment.wix.com",
 ]
 
 // ── Hard-exclude domains ───────────────────────────────────────────────────
