@@ -5,6 +5,7 @@ import { getWinsForDate, getWinsForPeriod } from '../lib/winTracker.js'
 import { getStage, isPreApply, isApplied, isInterview, isTerminal } from '../lib/columns.js'
 
 const TYPE_META = {
+  HIRING_EVENT:    { color: '#4f6ef7', bg: '#eff6ff', label: 'New Update' },
   INTERVIEW_ALERT: { color: '#ef4444', bg: '#fef2f2', label: 'Urgent' },
   READY_TO_APPLY:  { color: '#10b981', bg: '#f0fdf4', label: 'Ready to Apply' },
   HOT_MATCH:       { color: '#4f6ef7', bg: '#eff6ff', label: 'Hot Match' },
@@ -24,10 +25,37 @@ function daysSince(dateStr) {
   return (Date.now() - new Date(dateStr).getTime()) / 86400000
 }
 
-function deriveFocusCards(jobs, reminders, dismissed) {
+function deriveFocusCards(jobs, reminders, dismissed, hiringEvents = []) {
   const now = new Date()
   const active = jobs.filter(j => !isTerminal(j.status) && !dismissed.has(j.id))
   const cards = []
+
+  // Inject high-priority hiring events at the top
+  const recentEvents = hiringEvents.filter(e =>
+    e.priority_score >= 70 &&
+    e.status !== 'dismissed' &&
+    !dismissed.has(`event_${e.id}`)
+  )
+  for (const event of recentEvents.slice(0, 2)) {
+    const matchedJob = event.matched_job_id ? jobs.find(j => j.id === event.matched_job_id) : null
+    cards.push({
+      type: 'HIRING_EVENT',
+      priority: 0,
+      job: matchedJob || null,
+      eventId: event.id,
+      headline: event.title,
+      context: matchedJob
+        ? `Matched to ${matchedJob.role} at ${matchedJob.company}`
+        : 'Open notifications to review this update.',
+      recommendation: event.suggested_stage
+        ? `Consider moving this opportunity to "${event.suggested_stage}".`
+        : 'Review this update and take action if needed.',
+      actions: [
+        { label: 'View Update', action: 'open_notifications', variant: 'primary' },
+        { label: 'Dismiss', action: `dismiss_event_${event.id}` },
+      ],
+    })
+  }
 
   for (const job of active) {
     const status = job.status || ''
@@ -239,7 +267,7 @@ function ScoreCircle({ score }) {
   )
 }
 
-function HeroCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
+function HeroCard({ card, columns, onSelect, onMoveJob, onDismiss, onOpenNotifications }) {
   const meta = TYPE_META[card.type] || TYPE_META.STALE
   const { job } = card
   const days = job ? Math.floor(daysSince(job.updated_at || job.created_at)) : 0
@@ -253,6 +281,8 @@ function HeroCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
     }
     else if (action.action === 'dismiss_backlog') onDismiss('_backlog')
     else if (action.action === 'open_backlog') { onDismiss('_backlog') }
+    else if (action.action === 'open_notifications') { onOpenNotifications && onOpenNotifications(); if (card.eventId) onDismiss(`event_${card.eventId}`) }
+    else if (action.action?.startsWith('dismiss_event_')) { const id = action.action.replace('dismiss_event_', ''); onDismiss(`event_${id}`) }
     else if (action.link) window.open(action.link, '_blank')
     else if (action.tab && job) onSelect(job.id, action.tab)
   }
@@ -316,7 +346,7 @@ function HeroCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
   )
 }
 
-function SuggestionCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
+function SuggestionCard({ card, columns, onSelect, onMoveJob, onDismiss, onOpenNotifications }) {
   const meta = TYPE_META[card.type] || TYPE_META.STALE
   const { job } = card
 
@@ -329,6 +359,8 @@ function SuggestionCard({ card, columns, onSelect, onMoveJob, onDismiss }) {
     }
     else if (action.action === 'dismiss_backlog') onDismiss('_backlog')
     else if (action.action === 'open_backlog') { onDismiss('_backlog') }
+    else if (action.action === 'open_notifications') { onOpenNotifications && onOpenNotifications(); if (card.eventId) onDismiss(`event_${card.eventId}`) }
+    else if (action.action?.startsWith('dismiss_event_')) { const id = action.action.replace('dismiss_event_', ''); onDismiss(`event_${id}`) }
     else if (action.link) window.open(action.link, '_blank')
     else if (action.tab && job) onSelect(job.id, action.tab)
   }
@@ -612,7 +644,7 @@ function ProgressSection({ jobs, goals, onSaveGoals }) {
 
 const DEFAULT_GOALS = { weekly_goal_applied: 10, weekly_goal_tailored: 5, weekly_goal_added: 15 }
 
-export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMoveJob, onRefresh }) {
+export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMoveJob, onRefresh, hiringEvents = [], onCheckUpdates }) {
   const [dismissed, setDismissed] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('focusDismissed') || '[]')) } catch { return new Set() }
   })
@@ -662,7 +694,7 @@ export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMove
     })
   }, [jobs])
 
-  const { primary, suggestions } = deriveFocusCards(jobs, reminders, dismissed)
+  const { primary, suggestions } = deriveFocusCards(jobs, reminders, dismissed, hiringEvents)
 
   return (
     <div className="todays-focus-v2">
@@ -698,7 +730,7 @@ export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMove
         <>
           {/* 1. Hero card */}
           {primary ? (
-            <HeroCard card={primary} columns={columns} onSelect={onSelect} onMoveJob={onMoveJob} onDismiss={dismiss} />
+            <HeroCard card={primary} columns={columns} onSelect={onSelect} onMoveJob={onMoveJob} onDismiss={dismiss} onOpenNotifications={onCheckUpdates} />
           ) : (
             <div className="focus-empty">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -712,7 +744,7 @@ export default function TodaysFocus({ jobs, reminders, columns, onSelect, onMove
               <div className="focus-section-label">AI Suggestions</div>
               <div className="focus-suggestions-grid">
                 {suggestions.map((card, i) => (
-                  <SuggestionCard key={i} card={card} columns={columns} onSelect={onSelect} onMoveJob={onMoveJob} onDismiss={dismiss} />
+                  <SuggestionCard key={i} card={card} columns={columns} onSelect={onSelect} onMoveJob={onMoveJob} onDismiss={dismiss} onOpenNotifications={onCheckUpdates} />
                 ))}
               </div>
             </div>

@@ -538,6 +538,62 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     return data.emails
   },
 
+  gmailSync: async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return { skipped: true, reason: 'not_authenticated' }
+    const base = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${base}/functions/v1/gmail-sync`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    const text = await res.text()
+    let data
+    try { data = JSON.parse(text) } catch { throw new Error(`Sync error ${res.status}: ${text.slice(0, 200)}`) }
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
+    return data
+  },
+
+  getHiringEvents: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+    const { data } = await supabase
+      .from('hiring_events')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    return data || []
+  },
+
+  getUnreadEventCount: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return 0
+    const { count } = await supabase
+      .from('hiring_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+    return count || 0
+  },
+
+  markEventStatus: async (id, status, userAction = null) => {
+    const updates = { status }
+    if (userAction) updates.user_action = userAction
+    if (status === 'acted') updates.acted_at = new Date().toISOString()
+    const { error } = await supabase.from('hiring_events').update(updates).eq('id', id)
+    if (error) throw new Error(error.message)
+  },
+
+  markEventPopupShown: async (id) => {
+    await supabase.from('hiring_events')
+      .update({ popup_shown: true, popup_shown_at: new Date().toISOString() })
+      .eq('id', id)
+  },
+
+  clearJobUnreadEvent: async (jobId) => {
+    await supabase.from('jobs').update({ has_unread_event: false }).eq('id', jobId)
+  },
+
   gmailClassifyRecent: async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw new Error('Not authenticated')

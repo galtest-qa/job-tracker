@@ -9,6 +9,8 @@ import ResumeUpload from './components/ResumeUpload.jsx'
 import Auth from './components/Auth.jsx'
 import Settings from './components/Settings.jsx'
 import FindJobs from './components/FindJobs.jsx'
+import Notifications from './components/Notifications.jsx'
+import HiringEventPopup from './components/HiringEventPopup.jsx'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = loading, null = not auth'd
@@ -29,7 +31,14 @@ export default function App() {
   const [hasExtension, setHasExtension] = useState(false)
   const [showSettingsSection, setShowSettingsSection] = useState(null)
   const [gmailCallbackResult, setGmailCallbackResult] = useState(null)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [unreadEventCount, setUnreadEventCount] = useState(0)
+  const [popupEvent, setPopupEvent] = useState(null)
+  const [popupGroupCount, setPopupGroupCount] = useState(0)
+  const [hiringEvents, setHiringEvents] = useState([])
   const resumeInfoRef = useRef(null)
+  const lastSyncRef = useRef(0)
+  const tabHiddenAtRef = useRef(0)
 
   // Handle OAuth callback redirect (e.g. ?gmail=connected)
   useEffect(() => {
@@ -100,6 +109,34 @@ export default function App() {
     try { const s = await api.getSettings(); setHasExtension(!!s.has_extension) } catch {}
   }, [])
 
+  const loadUnreadCount = useCallback(async () => {
+    try { const n = await api.getUnreadEventCount(); setUnreadEventCount(n) } catch {}
+  }, [])
+
+  const syncHiringEvents = useCallback(async () => {
+    const now = Date.now()
+    if (now - lastSyncRef.current < 2 * 60 * 1000) return
+    lastSyncRef.current = now
+    try {
+      const result = await api.gmailSync()
+      if (result.skipped) return
+      const newEvents = result.newEvents || []
+      if (newEvents.length > 0) {
+        setHiringEvents(prev => [...newEvents, ...prev])
+        loadUnreadCount()
+        refresh()
+        const highPriority = newEvents.filter(e => e.priority_score >= 70 && !e.popup_shown)
+        if (highPriority.length === 1) {
+          setPopupEvent(highPriority[0])
+          api.markEventPopupShown(highPriority[0].id).catch(() => {})
+        } else if (highPriority.length > 1) {
+          setPopupGroupCount(highPriority.length)
+          highPriority.forEach(e => api.markEventPopupShown(e.id).catch(() => {}))
+        }
+      }
+    } catch { /* silent — sync failures should not surface to user */ }
+  }, [refresh, loadUnreadCount])
+
   const handleExtensionConfirm = useCallback(async (val) => {
     setHasExtension(val)
     await api.updateSettings({ has_extension: val })
@@ -126,11 +163,27 @@ export default function App() {
         refresh()
         loadResume()
         loadSettings()
+        loadUnreadCount()
+        syncHiringEvents()
       })
     } else if (session === null) {
       setLoading(false)
     }
-  }, [session, refresh, loadResume, loadSettings])
+  }, [session, refresh, loadResume, loadSettings]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync on tab reactivation (hidden > 2 min)
+  useEffect(() => {
+    const handler = () => {
+      if (document.hidden) {
+        tabHiddenAtRef.current = Date.now()
+      } else if (session) {
+        const hiddenFor = Date.now() - tabHiddenAtRef.current
+        if (hiddenFor > 2 * 60 * 1000) syncHiringEvents()
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [session, syncHiringEvents])
 
   const closePanel = () => { setSelectedJobId(null); setInitialTab(null); setPanelWide(false) }
   const openDetail = (id, tab = null) => { setSelectedJobId(id); setInitialTab(tab ?? null) }
@@ -184,6 +237,12 @@ export default function App() {
             Find Jobs
           </button>
           <button className="btn btn-primary" onClick={() => setView('add')}>+ Add Job</button>
+          <button className="btn btn-ghost bell-btn" onClick={() => setShowNotifications(true)} title="Hiring activity">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            {unreadEventCount > 0 && (
+              <span className="bell-badge">{unreadEventCount > 9 ? '9+' : unreadEventCount}</span>
+            )}
+          </button>
           <button className="btn btn-ghost" onClick={() => setShowSettings(true)} title="Settings">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -204,6 +263,40 @@ export default function App() {
           hasExtension={hasExtension}
           onExtensionConfirm={handleExtensionConfirm}
           gmailCallbackResult={gmailCallbackResult}
+        />
+      )}
+
+      {showNotifications && (
+        <Notifications
+          onClose={() => setShowNotifications(false)}
+          onSelectJob={(jobId) => { setShowNotifications(false); openDetail(jobId) }}
+          onCountChange={setUnreadEventCount}
+        />
+      )}
+
+      {(popupEvent || popupGroupCount > 0) && (
+        <HiringEventPopup
+          event={popupEvent}
+          groupCount={popupGroupCount}
+          onMove={() => {
+            if (popupEvent?.matched_job_id && popupEvent?.suggested_stage) {
+              moveJob(popupEvent.matched_job_id, popupEvent.suggested_stage)
+              api.markEventStatus(popupEvent.id, 'acted', 'moved_to_stage').catch(() => {})
+            }
+            setPopupEvent(null); setPopupGroupCount(0)
+          }}
+          onKeepHere={() => {
+            if (popupEvent) api.markEventStatus(popupEvent.id, 'reviewed').catch(() => {})
+            setPopupEvent(null); setPopupGroupCount(0)
+          }}
+          onDismiss={() => {
+            if (popupEvent) api.markEventStatus(popupEvent.id, 'dismissed').catch(() => {})
+            setPopupEvent(null); setPopupGroupCount(0)
+          }}
+          onOpenNotifications={() => {
+            setPopupEvent(null); setPopupGroupCount(0)
+            setShowNotifications(true)
+          }}
         />
       )}
 
@@ -234,6 +327,8 @@ export default function App() {
             onOpenSettings={(section) => { setShowSettingsSection(section || null); setShowSettings(true) }}
             onOpenResume={() => setShowResume(true)}
             onAddJob={() => setView('add')}
+            hiringEvents={hiringEvents}
+            onCheckUpdates={syncHiringEvents}
           />
         )}
         {view === 'find' && <FindJobs />}

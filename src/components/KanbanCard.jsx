@@ -89,7 +89,7 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
   return (
     <div
       ref={cardRef}
-      className="kanban-card"
+      className={`kanban-card${job.has_unread_event ? ' kanban-card-has-event' : ''}`}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('job-id', String(job.id))
@@ -104,7 +104,10 @@ export default function KanbanCard({ job, columns, reminders = [], onSelect, onA
       onMouseLeave={handleMouseLeave}
     >
       <div className="kanban-card-top">
-        <CompanyLogo company={job.company} size="sm" logoUrl={job.logo_url} />
+        <div className="kanban-card-logo-wrap">
+          <CompanyLogo company={job.company} size="sm" logoUrl={job.logo_url} />
+          {job.has_unread_event && <span className="kanban-event-dot" title="New hiring update" />}
+        </div>
         <div className="kanban-card-title">
           <span className="kanban-card-role">{job.role}</span>
           <span className="kanban-card-company">{job.company}</span>

@@ -6,7 +6,7 @@ import TodaysFocus from './TodaysFocus.jsx'
 import OnboardingHero from './OnboardingHero.jsx'
 import { getReminderState } from './reminderUtils.js'
 
-export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set(), hasExtension, hasResume, onOpenSettings, onOpenResume, onAddJob }) {
+export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set(), hasExtension, hasResume, onOpenSettings, onOpenResume, onAddJob, hiringEvents = [], onCheckUpdates }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
   const [dragOverCol, setDragOverCol] = useState(null)
@@ -183,6 +183,8 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
         onSelect={onSelect}
         onMoveJob={onMoveJob}
         onRefresh={onRefresh}
+        hiringEvents={hiringEvents}
+        onCheckUpdates={onCheckUpdates}
       />
 
       {suggestion && (
