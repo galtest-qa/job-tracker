@@ -21,19 +21,17 @@ export async function getAIMode() {
   return key ? 'personal' : 'shared'
 }
 
-export async function callOpenAI(prompt, { temperature = 0.3 } = {}) {
+export async function callOpenAI(prompt, { temperature = 0.3, raw = false } = {}) {
   const personalKey = await getOpenAIKey()
 
   if (personalKey) {
-    // Direct browser → OpenAI with user's own key
-    return callOpenAIDirect(prompt, personalKey, temperature)
+    return callOpenAIDirect(prompt, personalKey, temperature, raw)
   } else {
-    // Use shared key via Edge Function proxy
     return callOpenAIProxy(prompt, temperature)
   }
 }
 
-async function callOpenAIDirect(prompt, key, temperature) {
+async function callOpenAIDirect(prompt, key, temperature, raw = false) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -55,6 +53,8 @@ async function callOpenAIDirect(prompt, key, temperature) {
 
   const data = await res.json()
   const text = data.choices[0].message.content.trim()
+
+  if (raw) return text
 
   try {
     return JSON.parse(text)

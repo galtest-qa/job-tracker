@@ -93,7 +93,6 @@ const PLATFORMS = [
 ]
 
 export default function FindJobs() {
-  const [query, setQuery] = useState('')
   const [activeQuery, setActiveQuery] = useState('')
 
   const handleSearch = (platform) => {
@@ -101,23 +100,9 @@ export default function FindJobs() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  const handleSubmit = () => {
-    if (query.trim()) setActiveQuery(query.trim())
-  }
+  const handleClear = () => setActiveQuery('')
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSubmit()
-  }
-
-  const handleClear = () => {
-    setQuery('')
-    setActiveQuery('')
-  }
-
-  const handleAISuggestion = (suggestion) => {
-    setQuery(suggestion)
-    setActiveQuery(suggestion)
-  }
+  const handleAISuggestion = (suggestion) => setActiveQuery(suggestion)
 
   const international = PLATFORMS.filter(p => !p.isLocal)
   const local = PLATFORMS.filter(p => p.isLocal)
@@ -126,42 +111,25 @@ export default function FindJobs() {
     <div className="find-jobs">
       <div className="find-jobs-header">
         <h2>Find Jobs</h2>
-        <p className="muted">Type a role or keyword, press Search, then click a platform to open it.</p>
+        <p className="muted">Ask the AI to suggest roles and search terms, then click a platform to open it.</p>
       </div>
 
-      <div className="find-jobs-search">
-        <div className="find-jobs-input-wrap">
-          <svg className="find-jobs-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            className="find-jobs-input"
-            type="text"
-            placeholder="e.g. QA Engineer, DevOps, Product Manager..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            autoFocus
-          />
-          {query && (
-            <button className="find-jobs-clear" onClick={handleClear} title="Clear">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          )}
-        </div>
-        <button className="btn btn-primary find-jobs-btn" onClick={handleSubmit} disabled={!query.trim()}>
-          Search
-        </button>
-      </div>
+      <JobSearchChat
+        currentQuery={activeQuery}
+        onSearchSuggestion={handleAISuggestion}
+      />
 
       {activeQuery ? (
-        <div className="find-jobs-active-banner">
+        <div className="find-jobs-active-banner" style={{ marginTop: '1rem' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          Searching for <strong>"{activeQuery}"</strong> — click any platform below to open the results
+          Searching for <strong>"{activeQuery}"</strong> — click any platform below
+          <button className="find-jobs-clear-query" onClick={handleClear} title="Clear search">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       ) : (
-        <div className="find-jobs-idle-banner">
-          Enter a keyword above and press <strong>Search</strong>, then choose a platform
+        <div className="find-jobs-idle-banner" style={{ marginTop: '1rem' }}>
+          Ask the AI above, or click a platform to browse jobs
         </div>
       )}
 
