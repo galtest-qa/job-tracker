@@ -1,84 +1,54 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  SearchIcon,
-  TargetIcon,
-  TrendingUpIcon,
-  BriefcaseIcon,
-  SendIcon,
-  XIcon,
-  LoaderIcon,
-  SparklesIcon,
-  Command,
-} from 'lucide-react'
-import { AnimatedAIChat } from './ui/animated-ai-chat.jsx'
+import { SendIcon, LoaderIcon, SparklesIcon, XIcon } from 'lucide-react'
 import { callOpenAI } from '../lib/openai.js'
 import { getCandidateContext } from '../lib/candidateContext.js'
 
 const COMMANDS = [
-  {
-    icon: <SearchIcon className="w-4 h-4" />,
-    label: 'Refine Search',
-    description: 'Improve your current search keywords',
-    prefix: '/refine',
-  },
-  {
-    icon: <BriefcaseIcon className="w-4 h-4" />,
-    label: 'Job Titles',
-    description: 'Find all titles that match your background',
-    prefix: '/titles',
-  },
-  {
-    icon: <TargetIcon className="w-4 h-4" />,
-    label: 'Best Platforms',
-    description: 'Which job boards to prioritize for your role',
-    prefix: '/platforms',
-  },
-  {
-    icon: <TrendingUpIcon className="w-4 h-4" />,
-    label: 'Salary Insights',
-    description: 'Typical compensation for your target role',
-    prefix: '/salary',
-  },
+  { label: 'Suggest job titles', text: '/titles What job titles match my background?' },
+  { label: 'Refine my search', text: '/refine Improve my current search query' },
+  { label: 'Best platforms', text: '/platforms Which job boards should I use?' },
+  { label: 'Salary range', text: '/salary What salary should I target?' },
 ]
 
 function buildPrompt(userMessage, candidateContext, currentQuery) {
   const searchContext = currentQuery ? `The user is currently searching for: "${currentQuery}"\n\n` : ''
-  return `You are a job search assistant embedded in a job tracking app. Help the user find the right job opportunities.
+  return `You are a job search assistant embedded in a job tracking app. Help the user find the right opportunities.
 
 ${searchContext}${candidateContext}
 
-User message: ${userMessage}
+User: ${userMessage}
 
 Rules:
 - Be concise and practical (2-4 sentences max unless listing items)
-- When suggesting search terms or job titles, put each on its own line starting with "•"
-- If you suggest clickable search queries, end with exactly this line: SEARCH_SUGGESTIONS: term1 | term2 | term3
-- For /refine: suggest 3-5 improved search queries based on their profile
-- For /titles: list 5-8 job titles they should be searching for
-- For /platforms: explain which 2-3 platforms are best for their specific role
-- For /salary: give a realistic salary range for their target role and experience level
-- Always tailor advice to the candidate's actual profile and experience`
+- When suggesting search terms or job titles, list each on its own line starting with "•"
+- If you have clickable search term suggestions, end with exactly: SEARCH_SUGGESTIONS: term1 | term2 | term3
+- /refine: suggest 3-5 improved search queries based on their profile
+- /titles: list 5-8 job titles they should be searching for
+- /platforms: explain which 2-3 platforms are best for their specific role
+- /salary: give a realistic salary range for their target role and experience level
+- Always tailor advice to the candidate's actual profile`
 }
 
-function parseAIResponse(rawText, onSuggestionClick) {
-  const text = typeof rawText === 'string' ? rawText : JSON.stringify(rawText)
-  const suggestionMatch = text.match(/SEARCH_SUGGESTIONS:\s*(.+)$/m)
-  let suggestions = null
-  let content = text
-
-  if (suggestionMatch) {
-    suggestions = suggestionMatch[1].split('|').map(s => s.trim()).filter(Boolean)
-    content = text.replace(/SEARCH_SUGGESTIONS:.+$/m, '').trim()
-  }
-
+function parseResponse(rawText, onSuggestionClick) {
+  const text = typeof rawText === 'string' ? rawText : String(rawText)
+  const match = text.match(/SEARCH_SUGGESTIONS:\s*(.+)$/m)
+  const suggestions = match ? match[1].split('|').map(s => s.trim()).filter(Boolean) : null
+  const content = match ? text.replace(/SEARCH_SUGGESTIONS:.+$/m, '').trim() : text
   return { content, suggestions, onSuggestionClick }
 }
 
 export default function JobSearchChat({ currentQuery, onSearchSuggestion }) {
   const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const candidateContextRef = useRef(null)
+  const messagesEndRef = useRef(null)
+  const textareaRef = useRef(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isTyping])
 
   const loadContext = useCallback(async () => {
     if (!candidateContextRef.current) {
@@ -87,79 +57,133 @@ export default function JobSearchChat({ currentQuery, onSearchSuggestion }) {
     return candidateContextRef.current
   }, [])
 
-  const handleSend = useCallback(async (text) => {
-    setMessages(prev => [...prev, { role: 'user', content: text }])
+  const send = useCallback(async (text) => {
+    const trimmed = text.trim()
+    if (!trimmed || isTyping) return
+    setInput('')
+    setMessages(prev => [...prev, { role: 'user', content: trimmed }])
     setIsTyping(true)
-
     try {
       const context = await loadContext()
-      const prompt = buildPrompt(text, context, currentQuery)
+      const prompt = buildPrompt(trimmed, context, currentQuery)
       const rawText = await callOpenAI(prompt, { temperature: 0.5, raw: true })
-
-      const onSuggestionClick = (suggestion) => {
-        onSearchSuggestion?.(suggestion)
-      }
-
-      const parsed = parseAIResponse(rawText, onSuggestionClick)
-      setMessages(prev => [...prev, { role: 'assistant', ...parsed }])
+      const onSuggestionClick = (s) => onSearchSuggestion?.(s)
+      setMessages(prev => [...prev, { role: 'assistant', ...parseResponse(rawText, onSuggestionClick) }])
     } catch (err) {
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: `Sorry, couldn't get a response: ${err.message}` },
-      ])
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }])
     } finally {
       setIsTyping(false)
     }
-  }, [currentQuery, loadContext, onSearchSuggestion])
+  }, [isTyping, currentQuery, loadContext, onSearchSuggestion])
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      send(input)
+    }
+  }
+
+  const isEmpty = messages.length === 0
 
   return (
-    <div
-      className="w-full rounded-2xl overflow-hidden"
-      style={{
-        background: 'linear-gradient(160deg, #0a0a1a 0%, #111128 60%, #0d0d20 100%)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.2), 0 0 0 1px rgba(139,92,246,0.08)',
-        height: '360px',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* Header bar */}
-      <div
-        className="flex items-center gap-2.5 px-4 py-2.5"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-      >
-        <div
-          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-        >
-          <SparklesIcon className="w-3 h-3 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium text-white/90">AI Job Search</span>
+    <div className="job-search-chat">
+      {/* Header */}
+      <div className="job-search-chat-header">
+        <div className="job-search-chat-title">
+          <SparklesIcon size={14} style={{ color: 'var(--primary)' }} />
+          <span>AI Job Search</span>
           {currentQuery && (
-            <span className="ml-2 text-xs text-white/40">· searching "{currentQuery}"</span>
+            <span className="job-search-chat-query-pill">"{currentQuery}"</span>
           )}
         </div>
         {messages.length > 0 && (
-          <button
-            onClick={() => setMessages([])}
-            className="text-xs text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
-          >
-            <XIcon className="w-3 h-3" />
-            Clear
+          <button className="job-search-chat-clear" onClick={() => setMessages([])}>
+            <XIcon size={13} /> Clear
           </button>
         )}
       </div>
 
-      {/* Chat body */}
-      <div className="flex-1 min-h-0">
-        <AnimatedAIChat
-          messages={messages}
-          onSend={handleSend}
-          isTyping={isTyping}
-          commandSuggestions={COMMANDS}
+      {/* Messages */}
+      <div className="job-search-chat-messages">
+        {isEmpty ? (
+          <div className="job-search-chat-empty">
+            <p>Ask me about job titles, search strategies, or which platforms to use.</p>
+            <div className="job-search-chat-chips">
+              {COMMANDS.map(cmd => (
+                <button
+                  key={cmd.label}
+                  className="job-search-chat-chip"
+                  onClick={() => send(cmd.text)}
+                >
+                  {cmd.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg, i) => (
+              <motion.div
+                key={i}
+                className={`job-search-chat-msg job-search-chat-msg-${msg.role}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="job-search-chat-bubble">
+                  {msg.content}
+                </div>
+                {msg.suggestions?.length > 0 && (
+                  <div className="job-search-chat-suggestions">
+                    {msg.suggestions.map((s, si) => (
+                      <button
+                        key={si}
+                        className="job-search-chat-suggestion"
+                        onClick={() => msg.onSuggestionClick?.(s)}
+                      >
+                        🔍 {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+            {isTyping && (
+              <motion.div
+                className="job-search-chat-msg job-search-chat-msg-assistant"
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="job-search-chat-bubble job-search-chat-typing">
+                  <span /><span /><span />
+                </div>
+              </motion.div>
+            )}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="job-search-chat-input-row">
+        <textarea
+          ref={textareaRef}
+          className="job-search-chat-input"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask about roles, search tips, platforms… (Enter to send)"
+          rows={1}
         />
+        <button
+          className="job-search-chat-send"
+          onClick={() => send(input)}
+          disabled={!input.trim() || isTyping}
+        >
+          {isTyping
+            ? <LoaderIcon size={15} className="spin" />
+            : <SendIcon size={15} />
+          }
+        </button>
       </div>
     </div>
   )

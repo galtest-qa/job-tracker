@@ -1847,6 +1847,230 @@ body {
   opacity: 1;
 }
 
+/* ═══════════ Job Search Chat ═══════════ */
+.job-search-chat {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.job-search-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface-hover);
+}
+.job-search-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.job-search-chat-query-pill {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 0.1rem 0.5rem;
+  border-radius: 20px;
+}
+.job-search-chat-clear {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-xs);
+  transition: color var(--transition), background var(--transition);
+}
+.job-search-chat-clear:hover {
+  color: var(--text);
+  background: var(--border-light);
+}
+.job-search-chat-messages {
+  padding: 1rem;
+  min-height: 80px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.job-search-chat-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.job-search-chat-empty p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.job-search-chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.job-search-chat-chip {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.job-search-chat-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.job-search-chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 90%;
+}
+.job-search-chat-msg-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.job-search-chat-msg-assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.job-search-chat-bubble {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  padding: 0.6rem 0.875rem;
+  border-radius: 12px;
+  white-space: pre-wrap;
+}
+.job-search-chat-msg-user .job-search-chat-bubble {
+  background: var(--primary);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.job-search-chat-msg-assistant .job-search-chat-bubble {
+  background: var(--surface-hover);
+  color: var(--text);
+  border: 1px solid var(--border-light);
+  border-bottom-left-radius: 3px;
+}
+.job-search-chat-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0.7rem 1rem;
+}
+.job-search-chat-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  animation: chat-dot 1.2s ease-in-out infinite;
+}
+.job-search-chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+.job-search-chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes chat-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.85); }
+  30% { opacity: 1; transform: scale(1.1); }
+}
+.job-search-chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.1rem;
+}
+.job-search-chat-suggestion {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--primary-light);
+  border: 1.5px solid rgba(79, 110, 247, 0.25);
+  border-radius: 20px;
+  color: var(--primary);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.job-search-chat-suggestion:hover {
+  background: rgba(79, 110, 247, 0.15);
+  border-color: var(--primary);
+}
+.job-search-chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-light);
+  background: var(--surface);
+}
+.job-search-chat-input {
+  flex: 1;
+  resize: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  line-height: 1.5;
+  max-height: 100px;
+  overflow-y: auto;
+  transition: border-color 0.15s;
+}
+.job-search-chat-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+.job-search-chat-input::placeholder {
+  color: var(--text-tertiary);
+}
+.job-search-chat-send {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), opacity var(--transition);
+}
+.job-search-chat-send:hover { background: var(--primary-hover); }
+.job-search-chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.job-search-chat-send .spin { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.find-jobs-clear-query {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 2px;
+  vertical-align: middle;
+}
+.find-jobs-clear-query:hover { opacity: 1; }
+
 .focus-collapsed-count {
   font-size: 0.75rem;
   font-weight: 400;

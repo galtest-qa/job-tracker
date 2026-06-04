@@ -73,7 +73,7 @@ serve(async (req) => {
     }
 
     // Parse request
-    const { prompt, temperature = 0.3 } = await req.json()
+    const { prompt, temperature = 0.3, raw = false } = await req.json()
     if (!prompt) {
       return new Response(JSON.stringify({ error: "prompt is required" }), {
         status: 400,
@@ -105,6 +105,12 @@ serve(async (req) => {
 
     const data = await openaiRes.json()
     const text = data.choices[0].message.content.trim()
+
+    if (raw) {
+      return new Response(JSON.stringify({ result: text }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
 
     let result
     try {

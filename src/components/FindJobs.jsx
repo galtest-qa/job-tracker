@@ -151,10 +151,6 @@ export default function FindJobs() {
         </div>
       </div>
 
-      <JobSearchChat
-        currentQuery={activeQuery}
-        onSearchSuggestion={handleAISuggestion}
-      />
     </div>
   )
 }

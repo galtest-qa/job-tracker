@@ -27,7 +27,7 @@ export async function callOpenAI(prompt, { temperature = 0.3, raw = false } = {}
   if (personalKey) {
     return callOpenAIDirect(prompt, personalKey, temperature, raw)
   } else {
-    return callOpenAIProxy(prompt, temperature)
+    return callOpenAIProxy(prompt, temperature, raw)
   }
 }
 
@@ -65,7 +65,7 @@ async function callOpenAIDirect(prompt, key, temperature, raw = false) {
   }
 }
 
-async function callOpenAIProxy(prompt, temperature) {
+async function callOpenAIProxy(prompt, temperature, raw = false) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
 
@@ -78,7 +78,7 @@ async function callOpenAIProxy(prompt, temperature) {
       'apikey': supabaseAnonKey,
       'Authorization': `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ prompt, temperature }),
+    body: JSON.stringify({ prompt, temperature, raw }),
   })
 
   if (!res.ok) {
