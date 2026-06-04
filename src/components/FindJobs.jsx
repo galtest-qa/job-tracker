@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
+import JobSearchChat from './JobSearchChat.jsx'
 
 const PLATFORMS = [
   {
@@ -113,6 +114,11 @@ export default function FindJobs() {
     setActiveQuery('')
   }
 
+  const handleAISuggestion = (suggestion) => {
+    setQuery(suggestion)
+    setActiveQuery(suggestion)
+  }
+
   const international = PLATFORMS.filter(p => !p.isLocal)
   const local = PLATFORMS.filter(p => p.isLocal)
 
@@ -176,6 +182,11 @@ export default function FindJobs() {
           ))}
         </div>
       </div>
+
+      <JobSearchChat
+        currentQuery={activeQuery}
+        onSearchSuggestion={handleAISuggestion}
+      />
     </div>
   )
 }
