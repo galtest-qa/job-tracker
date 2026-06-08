@@ -441,6 +441,183 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     return await api.getJob(id)
   },
 
+  analyzeResume: async (id) => {
+    const job = await api.getJob(id)
+    const resume = await api.getResume()
+    const rawResume = resume?.raw_text || ''
+    const candidateContext = await getCandidateContext()
+
+    if (!rawResume.trim()) {
+      throw new Error('Upload your resume first (button in the header)')
+    }
+    if (!job.description?.trim()) {
+      throw new Error('No job description found — paste the job posting first')
+    }
+
+    const result = await callOpenAI(`You are a Resume Coach specializing in helping professionals strengthen their resumes for specific job opportunities.
+
+Your job is to score this resume against the job posting, identify the top coaching opportunities, and extract ATS keywords.
+
+━━━ SCORING (0–100) ━━━
+Score the resume on these 6 dimensions and return a single composite score:
+- ATS keyword coverage: how many of the role's key terms appear in the resume
+- Role relevance: how closely the candidate's experience matches the target role
+- Leadership evidence: concrete examples of leading teams, projects, or initiatives
+- Business impact: evidence of measurable business outcomes (revenue, efficiency, growth)
+- Achievement quantification: how many bullets include specific numbers, percentages, or scale
+- Requirement match: how many specific job requirements are directly addressed
+
+current_score: the realistic score as the resume stands today (be honest, not optimistic)
+potential_score: what the score could realistically reach after coaching — never more than 20 points higher, usually 6–15
+
+━━━ COACHING OPPORTUNITIES ━━━
+Identify 2–4 high-impact opportunities. Each must have:
+- target_statement: COPY VERBATIM text from the resume — exact characters, no paraphrasing, no ellipsis, no summarizing
+- title: concise action phrase, specific not generic (e.g. "Quantify team building outcome" not "Add impact")
+- explanation: 1–2 sentences referencing the specific gap and why it matters for this role
+- impact_score: 1–10 reflecting how much this one change would improve the resume
+- questions: 1–3 concrete questions to collect the specific facts needed to write a stronger bullet
+  GOOD question: "How many engineers did you manage directly?"
+  GOOD question: "What percentage did onboarding time decrease by?"
+  BAD question: "What was the impact of this work?"
+  BAD question: "Can you tell me more about your achievements?"
+
+━━━ ABSOLUTE PROHIBITIONS ━━━
+NEVER treat the following as professional achievements or improvement opportunities:
+- Job applications submitted
+- Recruiter conversations or responses
+- Interview invitations, interview rounds, final rounds
+- Offers received or rejected
+
+ONLY coach on real professional work:
+- Work performed and delivered
+- Products owned, built, or launched
+- Teams led, grown, or built
+- Business outcomes: revenue, cost savings, efficiency, customer impact
+- Operational improvements and KPI changes
+- Measurable team growth or organizational change
+
+NEVER suggest changing or ask questions about:
+- Job titles (e.g. "Senior Product Manager", "Team Lead")
+- Company names
+- Employment start or end dates
+- Contact information (name, email, phone, LinkedIn URL)
+- Education institution names, degrees, or graduation years
+
+━━━ ATS KEYWORDS ━━━
+Extract 8–15 important keywords and phrases from the job description.
+Check which appear in the resume text and which are absent.
+
+━━━ OUTPUT ━━━
+Return valid JSON only — no markdown, no code blocks, no extra text:
+
+{
+  "current_score": 74,
+  "potential_score": 88,
+  "strengths": ["strength 1", "strength 2"],
+  "gaps": ["gap 1", "gap 2"],
+  "coaching_opportunities": [
+    {
+      "id": "opp_1",
+      "title": "Quantify team building outcome",
+      "impact_score": 8,
+      "explanation": "Your statement about building the Product Operations team lacks scale and outcome. Recruiters evaluating leadership need specific numbers.",
+      "target_statement": "Built a Product Operations team",
+      "questions": [
+        "How many people were on the team when you finished building it?",
+        "What specific process or metric improved because of this team?",
+        "Can you give a number — percentage improvement, time saved, or volume handled?"
+      ]
+    }
+  ],
+  "ats_keywords": {
+    "found_in_resume": ["product strategy", "roadmap"],
+    "missing_from_resume": ["stakeholder management", "OKRs", "go-to-market"]
+  }
+}
+
+JOB POSTING:
+Company: ${job.company}
+Role: ${job.role}
+Description:
+${(job.description || '').slice(0, 3000)}
+
+RESUME:
+${rawResume}
+${candidateContext ? `\nCANDIDATE CONTEXT:\n${candidateContext}` : ''}`, { temperature: 0.3 })
+
+    const score = {
+      current_score: typeof result.current_score === 'number' ? result.current_score : 0,
+      potential_score: typeof result.potential_score === 'number' ? result.potential_score : 0,
+      strengths: Array.isArray(result.strengths) ? result.strengths.slice(0, 4) : [],
+      gaps: Array.isArray(result.gaps) ? result.gaps.slice(0, 4) : [],
+      coaching_opportunities: Array.isArray(result.coaching_opportunities)
+        ? result.coaching_opportunities.slice(0, 4)
+        : [],
+      analyzed_at: new Date().toISOString(),
+    }
+
+    const atsKeywords = {
+      found_in_resume: Array.isArray(result.ats_keywords?.found_in_resume)
+        ? result.ats_keywords.found_in_resume : [],
+      missing_from_resume: Array.isArray(result.ats_keywords?.missing_from_resume)
+        ? result.ats_keywords.missing_from_resume : [],
+      injected_by_edits: [],
+    }
+
+    await api.updateJob(id, { resume_score: score, ats_keywords: atsKeywords })
+    return await api.getJob(id)
+  },
+
+  coachGenerate: async (id, opportunity, targetStatement, answers) => {
+    const job = await api.getJob(id)
+
+    const qaBlock = (opportunity.questions || [])
+      .map((q, i) => `Q: ${q}\nA: ${answers[i]?.trim() || '(no answer provided)'}`)
+      .join('\n\n')
+
+    const result = await callOpenAI(`You are a Resume Coach helping a professional strengthen a specific resume bullet.
+
+You have collected answers from the candidate about a statement on their resume.
+Your task is to rewrite it into a stronger bullet using ONLY the facts the candidate provided.
+
+━━━ RULES ━━━
+- Use ONLY facts the candidate explicitly stated — do not invent numbers, percentages, team sizes, or outcomes
+- If an answer is empty or vague, make the bullet as strong as possible without fabricating anything
+- The improved statement should be 1–2 sentences that can directly replace the original in the resume
+- Write in the same tense and style as the original (past tense for past roles)
+- NEVER change job titles, company names, dates, or any identifying information
+- score_improvement: realistic integer between 1 and 10 (how much this one improvement adds to the resume score)
+
+OPPORTUNITY:
+"${opportunity.title}"
+${opportunity.explanation || ''}
+
+ORIGINAL STATEMENT (verbatim from resume):
+"${targetStatement}"
+
+CANDIDATE'S ANSWERS:
+${qaBlock}
+
+ROLE CONTEXT:
+${job.role} at ${job.company}
+
+Return valid JSON only:
+{
+  "original": "${targetStatement.replace(/"/g, '\\"')}",
+  "improved": "the improved bullet using only the facts provided",
+  "reason": "1–2 sentences explaining what makes it stronger and why it matters for this role",
+  "score_improvement": 5
+}`, { temperature: 0.3 })
+
+    return {
+      original: result.original || targetStatement,
+      improved: typeof result.improved === 'string' ? result.improved : '',
+      reason: typeof result.reason === 'string' ? result.reason : '',
+      score_improvement: typeof result.score_improvement === 'number' ? result.score_improvement : 3,
+    }
+  },
+
   interviewPrep: async (id) => {
     const job = await api.getJob(id)
     const candidateContext = await getCandidateContext()

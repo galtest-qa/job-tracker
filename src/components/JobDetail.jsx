@@ -28,7 +28,6 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const [job, setJob] = useState(null)
   const [editing, setEditing] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
-  const [tailoring, setTailoring] = useState(false)
   const [prepping, setPrepping] = useState(false)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState(initialTab || 'analysis')
@@ -73,15 +72,6 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
     try { const updated = await api.analyzeJob(jobId); setJob(updated); trackWin('analyzed') }
     catch (err) { setError(err.message) }
     setAnalyzing(false)
-  }
-
-  const tailorResume = async () => {
-    setTailoring(true); setError(null)
-    try {
-      const updated = await api.tailorResume(jobId)
-      setJob(updated); trackWin('tailored')
-    } catch (err) { setError(err.message) }
-    setTailoring(false)
   }
 
   const generateInterviewPrep = async () => {
@@ -524,7 +514,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
 
         {/* ── Resume Tab ── */}
         {activeTab === 'resume' && (
-          <ResumeTab job={job} setJob={setJob} jobId={jobId} tailoring={tailoring} onTailor={tailorResume} />
+          <ResumeTab job={job} setJob={setJob} jobId={jobId} />
         )}
 
         {/* ── Interview Prep Tab ── */}
