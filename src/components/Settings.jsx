@@ -180,15 +180,44 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
 
   const handleTgSave = async () => {
     setTgSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('profiles').update({
-      telegram_bot_token: tgToken.trim(),
-      telegram_chat_id: tgChatId.trim(),
-      telegram_enabled: tgEnabled,
-    }).eq('id', user.id)
+    setTgStatus('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      await supabase.from('profiles').update({
+        telegram_bot_token: tgToken.trim(),
+        telegram_chat_id: tgChatId.trim(),
+        telegram_enabled: tgEnabled,
+      }).eq('id', user.id)
+
+      // Register the Telegram webhook so inline action buttons work.
+      // Non-fatal: if this fails, notifications still send but buttons won't fire.
+      if (tgEnabled && tgToken.trim() && tgChatId.trim()) {
+        try {
+          const session = (await supabase.auth.getSession()).data.session
+          const res = await fetch(`${supabaseUrl}/functions/v1/telegram-setup-webhook`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session?.access_token}`,
+            },
+          })
+          const data = await res.json()
+          if (data.ok) {
+            setTgStatus('Saved! Action buttons enabled ✅')
+          } else {
+            setTgStatus(`Saved, but webhook setup failed: ${data.error || 'unknown error'}`)
+          }
+        } catch {
+          setTgStatus('Saved, but webhook setup failed — buttons may not work')
+        }
+      } else {
+        setTgStatus('Saved!')
+      }
+    } catch (err) {
+      setTgStatus(`Save failed: ${err.message}`)
+    }
     setTgSaving(false)
-    setTgStatus('Saved!')
-    setTimeout(() => setTgStatus(''), 2000)
+    setTimeout(() => setTgStatus(''), 4000)
   }
 
   // Classify state

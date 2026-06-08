@@ -54,6 +54,30 @@ export default function App() {
     }
   }, [])
 
+  // Handle Telegram deep links: ?job=<id> and ?job=<id>&tab=reminders
+  // Read params immediately on mount (before jobs load), then open once loading is done
+  const pendingDeepLink = useRef(null)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const jobId = params.get('job')
+    if (jobId) {
+      const tab = params.get('tab') || null
+      pendingDeepLink.current = { jobId, tab }
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loading || !pendingDeepLink.current) return
+    const { jobId, tab } = pendingDeepLink.current
+    pendingDeepLink.current = null
+    // Only open if the job actually exists — silently ignore stale/invalid IDs
+    if (jobs.some(j => j.id === jobId)) {
+      setSelectedJobId(jobId)
+      setInitialTab(tab)
+    }
+  }, [loading, jobs])
+
   // Auth listener
   useEffect(() => {
     if (!isConfigured || !supabase) {
