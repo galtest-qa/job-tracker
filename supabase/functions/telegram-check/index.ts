@@ -30,17 +30,19 @@ serve(async (req) => {
       })
     }
 
+    const appUrl = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "")
     const now = new Date().toISOString()
     const thirtyMinLater = new Date(Date.now() + 30 * 60 * 1000).toISOString()
     let totalNotified = 0
 
     for (const user of users) {
-      // Get due reminders for this user (overdue or due within 30 min, not yet notified)
+      // Get due reminders — exclude completed AND soft-cancelled
       const { data: reminders } = await supabase
         .from("reminders")
         .select("id, title, due_at, note, job_id, jobs(company, role)")
         .eq("user_id", user.id)
         .eq("completed", false)
+        .is("cancelled_at", null)
         .lte("due_at", thirtyMinLater)
         .or(`last_notified_at.is.null,last_notified_at.lt.${new Date(Date.now() - 3600000).toISOString()}`)
         .order("due_at")
@@ -68,9 +70,31 @@ serve(async (req) => {
         const job = (r as any).jobs
         const jobInfo = job ? `${job.company} — ${job.role}` : ""
 
+        // Build message text with deep link
         let msg = `${emoji} <b>${r.title}</b> — ${timeStr}`
         if (jobInfo) msg += `\n📋 ${jobInfo}`
         if (r.note) msg += `\n📝 ${r.note}`
+        if (appUrl && r.job_id) {
+          msg += `\n\n<a href="${appUrl}/?job=${r.job_id}">Open Job →</a>`
+        } else if (appUrl) {
+          msg += `\n\n<a href="${appUrl}">Open App →</a>`
+        }
+
+        // Build inline keyboard
+        // Row 1: action buttons (callback_data)
+        const actionRow = [
+          { text: "✅ Done", callback_data: `done:${r.id}` },
+          { text: "⏭ Snooze 1d", callback_data: `snooze:${r.id}` },
+          { text: "🗑 Cancel", callback_data: `cancel:${r.id}` },
+        ]
+
+        // Row 2: navigation buttons (url) — only when job_id is available
+        const navRow = r.job_id && appUrl ? [
+          { text: "✏️ Edit Reminder", url: `${appUrl}/?job=${r.job_id}&tab=reminders` },
+          { text: "📂 Open Job", url: `${appUrl}/?job=${r.job_id}` },
+        ] : []
+
+        const inlineKeyboard = navRow.length > 0 ? [actionRow, navRow] : [actionRow]
 
         try {
           await fetch(`https://api.telegram.org/bot${user.telegram_bot_token}/sendMessage`, {
@@ -80,6 +104,8 @@ serve(async (req) => {
               chat_id: user.telegram_chat_id,
               text: msg,
               parse_mode: "HTML",
+              link_preview_options: { is_disabled: true },
+              reply_markup: { inline_keyboard: inlineKeyboard },
             }),
           })
 

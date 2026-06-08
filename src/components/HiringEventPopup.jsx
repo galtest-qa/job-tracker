@@ -1,4 +1,5 @@
 import React from 'react'
+import CompanyLogo from './CompanyLogo.jsx'
 
 // Human-readable message copy per event type
 function buildMessage(event, matchedJob) {
@@ -125,6 +126,7 @@ export default function HiringEventPopup({ event, groupCount, columns = [], matc
 
   if (!event) return null
 
+  const company = event.detected_company || matchedJob?.company || ''
   const { icon, headline, body } = buildMessage(event, matchedJob)
 
   // Only show move CTA if suggested_stage exists in this user's actual board columns
@@ -134,7 +136,14 @@ export default function HiringEventPopup({ event, groupCount, columns = [], matc
   return (
     <div className="modal-overlay hiring-popup-overlay" onClick={onDismiss}>
       <div className="hiring-popup" onClick={e => e.stopPropagation()}>
-        <div className="hiring-popup-icon">{icon}</div>
+        {company ? (
+          <div style={{ position: 'relative', width: 'fit-content', margin: '0 auto 1rem' }}>
+            <CompanyLogo company={company} size="lg" logoUrl={matchedJob?.logo_url} />
+            <span className="hiring-popup-event-badge">{icon}</span>
+          </div>
+        ) : (
+          <div className="hiring-popup-icon">{icon}</div>
+        )}
         <h3 className="hiring-popup-headline">{headline}</h3>
         <p className="hiring-popup-message">{body}</p>
 
