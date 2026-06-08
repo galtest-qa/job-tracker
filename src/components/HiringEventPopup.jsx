@@ -1,9 +1,9 @@
 import React from 'react'
 
 // Human-readable message copy per event type
-function buildMessage(event) {
-  const company = event.detected_company || 'A company'
-  const role = event.detected_role || 'this role'
+function buildMessage(event, matchedJob) {
+  const company = event.detected_company || matchedJob?.company || 'the company'
+  const role = event.detected_role || matchedJob?.role || 'this position'
 
   switch (event.event_type) {
     case 'application_sent':
@@ -101,7 +101,7 @@ function buildMessage(event) {
   }
 }
 
-export default function HiringEventPopup({ event, groupCount, columns = [], onMove, onKeepHere, onDismiss, onOpenNotifications }) {
+export default function HiringEventPopup({ event, groupCount, columns = [], matchedJob, onMove, onKeepHere, onDismiss, onOpenNotifications }) {
   // Grouped popup — multiple high-priority events
   if (groupCount > 0) {
     return (
@@ -125,7 +125,7 @@ export default function HiringEventPopup({ event, groupCount, columns = [], onMo
 
   if (!event) return null
 
-  const { icon, headline, body } = buildMessage(event)
+  const { icon, headline, body } = buildMessage(event, matchedJob)
 
   // Only show move CTA if suggested_stage exists in this user's actual board columns
   const stageExists = event.suggested_stage && columns.some(c => c.name === event.suggested_stage)

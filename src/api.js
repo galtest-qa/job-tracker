@@ -550,7 +550,11 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     const text = await res.text()
     let data
     try { data = JSON.parse(text) } catch { throw new Error(`Sync error ${res.status}: ${text.slice(0, 200)}`) }
-    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
+    // Surface reconnect signal to caller instead of throwing, so App can set the reconnect banner
+    if (!res.ok) {
+      if (data.needsReconnect) return { needsReconnect: true, error: data.error }
+      throw new Error(data.error || data.message || `HTTP ${res.status}`)
+    }
     return data
   },
 

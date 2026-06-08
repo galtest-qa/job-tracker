@@ -37,6 +37,7 @@ export default function App() {
   const [popupGroupCount, setPopupGroupCount] = useState(0)
   const [hiringEvents, setHiringEvents] = useState([])
   const [lastSyncInfo, setLastSyncInfo] = useState(null) // {trigger, status, time, skipped, reason, minutesSince, emailsScanned, eventsCreated, error}
+  const [gmailNeedsReconnect, setGmailNeedsReconnect] = useState(false)
   const resumeInfoRef = useRef(null)
   const lastSyncRef = useRef(0)
   const tabHiddenAtRef = useRef(0)
@@ -114,6 +115,30 @@ export default function App() {
     try { const n = await api.getUnreadEventCount(); setUnreadEventCount(n) } catch {}
   }, [])
 
+  const handlePopupClose = useCallback(async (event, action) => {
+    setPopupEvent(null)
+    setPopupGroupCount(0)
+    if (!event) return
+    if (action === 'move' && event.matched_job_id && event.suggested_stage) {
+      moveJob(event.matched_job_id, event.suggested_stage)
+    }
+    try {
+      if (action === 'move') await api.markEventStatus(event.id, 'acted', 'moved_to_stage')
+      else if (action === 'keep') await api.markEventStatus(event.id, 'reviewed')
+      else if (action === 'dismiss') await api.markEventStatus(event.id, 'dismissed')
+    } catch {}
+    if (event.matched_job_id) {
+      try {
+        const remaining = await api.getHiringEventsForJob(event.matched_job_id)
+        if (!remaining.some(e => e.status === 'pending')) {
+          await api.clearJobUnreadEvent(event.matched_job_id)
+        }
+      } catch {}
+      refresh()
+      loadUnreadCount()
+    }
+  }, [moveJob, refresh, loadUnreadCount])
+
   const syncHiringEvents = useCallback(async (trigger = 'auto', force = false) => {
     const now = Date.now()
     // Frontend 2-min debounce — bypassed for manual trigger or force
@@ -121,6 +146,20 @@ export default function App() {
     lastSyncRef.current = now
     try {
       const result = await api.gmailSync(trigger === 'manual' || force)
+
+      // Token expired / refresh failed — surface reconnect banner, don't throw
+      if (result.needsReconnect) {
+        console.warn('[gmail-sync] reconnect required')
+        setGmailNeedsReconnect(true)
+        setLastSyncInfo(prev => ({
+          ...prev,
+          trigger,
+          status: 'reconnect_required',
+          error: result.error ?? 'Session expired — reconnect Gmail',
+        }))
+        return
+      }
+
       const syncTime = result.lastSyncAt ? new Date(result.lastSyncAt) : new Date()
       if (result.skipped) {
         console.log(`[gmail-sync] skipped — ${result.reason} (${result.minutesSinceSync}m since last sync)`)
@@ -138,6 +177,7 @@ export default function App() {
       }
       const newEvents = result.newEvents || []
       console.log(`[gmail-sync] ran — ${result.total} emails, ${newEvents.length} new events`)
+      setGmailNeedsReconnect(false) // clear any previous reconnect warning on successful sync
       setLastSyncInfo({
         trigger,
         status: 'success',
@@ -313,6 +353,7 @@ export default function App() {
           hasExtension={hasExtension}
           onExtensionConfirm={handleExtensionConfirm}
           gmailCallbackResult={gmailCallbackResult}
+          gmailNeedsReconnect={gmailNeedsReconnect}
         />
       )}
 
@@ -321,6 +362,7 @@ export default function App() {
           onClose={() => setShowNotifications(false)}
           onSelectJob={(jobId) => { setShowNotifications(false); openDetail(jobId) }}
           onCountChange={setUnreadEventCount}
+          onRefresh={refresh}
           syncInfo={lastSyncInfo}
           onCheckUpdates={() => syncHiringEvents('manual', true)}
         />
@@ -331,21 +373,10 @@ export default function App() {
           event={popupEvent}
           groupCount={popupGroupCount}
           columns={columns}
-          onMove={() => {
-            if (popupEvent?.matched_job_id && popupEvent?.suggested_stage) {
-              moveJob(popupEvent.matched_job_id, popupEvent.suggested_stage)
-              api.markEventStatus(popupEvent.id, 'acted', 'moved_to_stage').catch(() => {})
-            }
-            setPopupEvent(null); setPopupGroupCount(0)
-          }}
-          onKeepHere={() => {
-            if (popupEvent) api.markEventStatus(popupEvent.id, 'reviewed').catch(() => {})
-            setPopupEvent(null); setPopupGroupCount(0)
-          }}
-          onDismiss={() => {
-            if (popupEvent) api.markEventStatus(popupEvent.id, 'dismissed').catch(() => {})
-            setPopupEvent(null); setPopupGroupCount(0)
-          }}
+          matchedJob={popupEvent?.matched_job_id ? jobs.find(j => j.id === popupEvent.matched_job_id) : null}
+          onMove={() => handlePopupClose(popupEvent, 'move')}
+          onKeepHere={() => handlePopupClose(popupEvent, 'keep')}
+          onDismiss={() => handlePopupClose(popupEvent, 'dismiss')}
           onOpenNotifications={() => {
             setPopupEvent(null); setPopupGroupCount(0)
             setShowNotifications(true)
@@ -420,7 +451,7 @@ export default function App() {
                 columns={columns}
                 initialTab={initialTab}
                 onBack={closePanel}
-                onRefresh={refresh}
+                onRefresh={async () => { await refresh(); loadUnreadCount() }}
                 onJobScoreUpdate={updateJobScore}
                 isPanel
               />

@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { decrypt, encrypt } from "../_shared/crypto-utils.ts"
-import { refreshAccessToken, fetchRecentEmails, type GmailEmail } from "../_shared/gmail-api.ts"
+import { refreshAccessToken, fetchRecentEmails, fetchEmailBody, type GmailEmail } from "../_shared/gmail-api.ts"
 import { shouldPreFilter, getPreFilterReason } from "../_shared/email-prefilter.ts"
+import { applySignalOverride, getRecommendation, type SignalDetectionResult } from "../_shared/hiring-signal-detector.ts"
 
 // ── Versioning ─────────────────────────────────────────────────────────────
 const CLASSIFIER_VERSION = "1.0"
-const PROMPT_VERSION = "2.0"
+const PROMPT_VERSION = "3.0"
 const MODEL = "gpt-4o-mini"
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -54,6 +55,44 @@ If NO  → isJobRelated = false, category = "other"
 CRITICAL: isJobRelated means a hiring-process event occurred — NOT that the email requires action.
 A rejection, position closure, or hiring freeze are all isJobRelated=true even though no action is needed.
 
+━━━ CONFLICTING SIGNALS — MOST IMPORTANT RULE ━━━
+Many emails contain BOTH polite/positive opening language AND a negative hiring outcome.
+The FINAL hiring outcome ALWAYS wins. Polite openings are irrelevant to classification.
+
+Priority order when signals conflict (highest wins):
+  1. offer
+  2. interview_invite / interview_scheduled
+  3. technical_assignment / take_home_assignment
+  4. rejection / position_closed / process_cancelled
+  5. recruiter_response / follow_up_received
+  6. application_confirmation
+  7. application_sent
+  8. other
+
+REJECTION OVERRIDE RULE — These phrases indicate rejection regardless of what else the email says:
+  ✗ "move forward with other candidates"
+  ✗ "moving forward with other candidates"
+  ✗ "decided to proceed with other candidates"
+  ✗ "not moving forward"
+  ✗ "not selected"
+  ✗ "decided not to move forward"
+  ✗ "not aligned with our current needs"
+  ✗ "pursuing other candidates"
+  ✗ "will not be moving forward"
+  ✗ "regret to inform you"
+
+If ANY of these phrases appear, classify as rejection (or position_closed if the role itself was cancelled),
+even if the email ALSO contains:
+  → "Thank you for applying"        ← polite opener, does NOT make it application_confirmation
+  → "We appreciate your interest"   ← polite opener, ignore for classification
+  → "We reviewed your background"   ← neutral, does NOT change the outcome
+
+EXAMPLE — wrong vs correct:
+  Email: "Thank you for applying... After reviewing your background, we've decided to move
+  forward with other candidates whose experience more closely aligns with our needs."
+  WRONG: application_confirmation   ← "Thank you for applying" is just a polite opener
+  RIGHT: rejection                  ← the actual outcome is rejection; confidence=high
+
 ━━━ LANGUAGES ━━━
 English, Hebrew, mixed Hebrew+English. Detect intent regardless of language.
 Hebrew signals:
@@ -63,7 +102,7 @@ Hebrew signals:
 - "המשרה נסגרה" / "המשרה בוטלה" → position_closed
 
 ━━━ TAXONOMY ━━━
-application_confirmation — employer confirms receipt of application (isJobRelated=true)
+application_confirmation — employer ONLY confirms receipt; no other hiring outcome stated (isJobRelated=true)
 application_sent — user sent a job application, outbound (isJobRelated=true)
 recruiter_response — recruiter replied about a SPECIFIC role or moved candidate forward (isJobRelated=true)
 interview_invite — explicit invitation to interview (isJobRelated=true)
@@ -76,6 +115,7 @@ salary_discussion — compensation or salary conversation (isJobRelated=true)
 offer — job offer received (isJobRelated=true)
 offer_discussion — negotiating terms of an offer (isJobRelated=true)
 rejection — employer is not moving forward with this candidate (isJobRelated=true)
+  NOTE: classify as rejection even if email opens with "Thank you for applying"
 position_closed — role was closed, cancelled, or frozen before or during process (isJobRelated=true)
   Examples: "position has been closed", "role no longer available", "hiring freeze",
   "organizational restructuring", "requisition cancelled", "we are pausing hiring"
@@ -117,7 +157,7 @@ reference_request: 80
 recruiter_response: 75
 interview_rescheduled: 72
 follow_up_received: 65
-rejection: 55
+rejection: 60
 position_closed / process_cancelled: 50
 application_confirmation: 20
 application_sent / follow_up_sent: 15
@@ -132,6 +172,7 @@ other: 0
 ━━━ RULES ━━━
 - Only classify as isJobRelated=true if a hiring-process event clearly occurred
 - A hiring-related sender (recruiter, ATS, LinkedIn) does not automatically make an email job-related
+- When signals conflict, the highest-priority outcome wins — polite openers never override a negative outcome
 - Keep summary to 1 sentence; reasoning to 1–2 sentences
 - Do not expose personal details in reasoning
 - For links: include only if type is clearly detectable; use empty string for url if not visible
@@ -142,12 +183,13 @@ function buildUserPrompt(
   connectedEmail: string | null,
 ): string {
   const emailsFormatted = emails
-    .map(
-      (e, idx) =>
-        `[${idx + 1}] id="${e.id}" direction=${e.direction} from="${e.from}" ` +
-        `subject="${e.subject}" snippet="${(e.snippet ?? "").slice(0, 300)}" ` +
-        `labels=${e.gmailLabels?.join(",") || "none"} received=${e.receivedAt}`,
-    )
+    .map((e, idx) => {
+      const snippetPart = `snippet="${(e.snippet ?? "").slice(0, 200)}"`
+      const bodyPart = e.body ? ` body="${e.body.slice(0, 1500)}"` : ""
+      return `[${idx + 1}] id="${e.id}" direction=${e.direction} from="${e.from}" ` +
+        `subject="${e.subject}" ${snippetPart}${bodyPart} ` +
+        `labels=${e.gmailLabels?.join(",") || "none"} received=${e.receivedAt}`
+    })
     .join("\n\n")
 
   return `Connected Gmail: ${connectedEmail ?? "unknown"}
@@ -312,6 +354,7 @@ interface BatchResult {
   rawAI: Record<string, unknown> | null
   reachedAI: boolean
   overrideReason: string | null
+  signalDebug: SignalDetectionResult | null
 }
 
 async function classifyBatch(
@@ -342,20 +385,21 @@ async function classifyBatch(
 
     if (!res.ok) {
       console.error("OpenAI error:", res.status)
-      return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: `openai_error:${res.status}` }))
+      return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: `openai_error:${res.status}`, signalDebug: null }))
     }
 
     const data = await res.json()
     parsed = JSON.parse(data.choices[0].message.content)
   } catch (err) {
-    console.error("classifyBatch parse error:", err.message)
-    return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: `parse_error:${err.message}` }))
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("classifyBatch parse error:", msg)
+    return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: `parse_error:${msg}`, signalDebug: null }))
   }
 
   const rawList = parsed?.classifications
   if (!Array.isArray(rawList) || rawList.length === 0) {
     console.error("classifyBatch: no classifications returned, using safe defaults")
-    return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: "ai_returned_empty" }))
+    return emails.map((e) => ({ row: safeDefaultRow(e), rawAI: null, reachedAI: true, overrideReason: "ai_returned_empty", signalDebug: null }))
   }
 
   // Match by emailId — resilient to AI returning fewer items than requested
@@ -369,19 +413,35 @@ async function classifyBatch(
 
   return emails.map((email) => {
     const raw = byId.get(email.id) as Record<string, unknown> | undefined
-    if (!raw) return { row: safeDefaultRow(email), rawAI: null, reachedAI: true, overrideReason: "ai_missing_email_id" }
+    if (!raw) return { row: safeDefaultRow(email), rawAI: null, reachedAI: true, overrideReason: "ai_missing_email_id", signalDebug: null }
     try {
       const validated = validateRow(raw, email)
-      // Detect if validateRow changed category or isJobRelated
+
+      // Track whether validateRow changed the AI output
       let overrideReason: string | null = null
       if (raw.category !== validated.category) {
         overrideReason = `invalid_category:${raw.category}→other`
       } else if (raw.isJobRelated !== validated.is_job_related) {
         overrideReason = `isJobRelated_coerced:${raw.isJobRelated}→${validated.is_job_related}`
       }
-      return { row: validated, rawAI: raw, reachedAI: true, overrideReason }
+
+      // Post-processing: deterministic signal override scanning body + snippet.
+      // Critical: the rejection phrase may not appear in the snippet (first ~150 chars)
+      // but WILL appear in the full body. Concatenate both so we catch it.
+      const fullText = `${email.body ?? ""} ${email.snippet ?? ""}`
+      const signalResult = applySignalOverride(validated, email.subject, fullText)
+      const finalRow = signalResult.overriddenRow
+      // Stamp signal diagnostics onto the row for DB storage
+      finalRow.detected_signals = signalResult.signalDebug?.detectedSignals ?? []
+      finalRow.winning_signal = signalResult.signalDebug?.winningSignal?.signal ?? null
+      finalRow.signal_selection_reason = signalResult.signalDebug?.selectionReason ?? null
+      const finalOverrideReason = signalResult.overrideApplied
+        ? signalResult.overrideReason
+        : overrideReason
+
+      return { row: finalRow, rawAI: raw, reachedAI: true, overrideReason: finalOverrideReason, signalDebug: signalResult.signalDebug }
     } catch {
-      return { row: safeDefaultRow(email), rawAI: raw, reachedAI: true, overrideReason: "validate_threw" }
+      return { row: safeDefaultRow(email), rawAI: raw, reachedAI: true, overrideReason: "validate_threw", signalDebug: null }
     }
   })
 }
@@ -481,7 +541,9 @@ serve(async (req) => {
       })
     }
 
-    // 5. Load existing classifications (cache)
+    // 5. Version-aware cache — only skip emails classified with the CURRENT versions.
+    // Emails classified by an older classifier_version or prompt_version are eligible
+    // for reclassification so bad old classifications never get permanently stuck.
     const emailIds = emails.map((e) => e.id)
     const { data: existing } = await adminClient
       .from("email_classifications")
@@ -489,8 +551,14 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .in("email_id", emailIds)
 
-    const existingMap = new Map((existing ?? []).map((r) => [r.email_id, r]))
-    const newEmails = emails.filter((e) => !existingMap.has(e.id))
+    const existingRows = (existing ?? []) as Record<string, unknown>[]
+    const existingMap = new Map(existingRows.map((r) => [r.email_id as string, r]))
+    const newEmails = emails.filter((e) => {
+      const cached = existingMap.get(e.id)
+      if (!cached) return true  // never classified
+      // Re-classify if versions are outdated
+      return cached.classifier_version !== CLASSIFIER_VERSION || cached.prompt_version !== PROMPT_VERSION
+    })
 
     // 6. Pre-filter new emails — track debug info per email
     const toClassify: GmailEmail[] = []
@@ -550,7 +618,20 @@ serve(async (req) => {
         .upsert(preFilteredRows, { onConflict: "user_id,email_id" })
     }
 
-    // 7. AI classify remaining in batches
+    // 7. Fetch full email bodies for candidate emails (parallel, never throws)
+    // The Gmail snippet is only ~150 chars. Rejection phrases like "move forward
+    // with other candidates" often appear AFTER the polite opening and are cut off.
+    if (toClassify.length > 0) {
+      const bodyFetches = await Promise.allSettled(
+        toClassify.map((e) => fetchEmailBody(accessToken, e.id)),
+      )
+      toClassify.forEach((e, i) => {
+        const r = bodyFetches[i]
+        if (r.status === "fulfilled" && r.value) e.body = r.value
+      })
+    }
+
+    // 8. AI classify remaining in batches
     const openaiKey = Deno.env.get("OPENAI_API_KEY")
     if (!openaiKey) {
       return new Response(
@@ -575,6 +656,13 @@ serve(async (req) => {
           finalCategory: br.row.category,
           finalIsJobRelated: br.row.is_job_related,
           overrideReason: br.overrideReason,
+          // Signal debug: all detected signals, winning signal, why it was selected
+          detectedSignals: br.signalDebug?.detectedSignals ?? [],
+          winningSignal: br.signalDebug?.winningSignal ?? null,
+          signalSelectionReason: br.signalDebug?.selectionReason ?? null,
+          // Human-readable explanation of why the final category was chosen
+          classificationReason: br.overrideReason
+            ?? (typeof br.rawAI?.reasoning === "string" ? br.rawAI.reasoning : null),
         })
         aiRows.push(br.row)
       }

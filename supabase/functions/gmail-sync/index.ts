@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { decrypt, encrypt } from "../_shared/crypto-utils.ts"
-import { refreshAccessToken, fetchRecentEmails, type GmailEmail } from "../_shared/gmail-api.ts"
+import { refreshAccessToken, fetchRecentEmails, fetchEmailBody, type GmailEmail } from "../_shared/gmail-api.ts"
 import { shouldPreFilter } from "../_shared/email-prefilter.ts"
+import { applySignalOverride, getRecommendation } from "../_shared/hiring-signal-detector.ts"
 
 // ── Versioning ──────────────────────────────────────────────────────────────
 const CLASSIFIER_VERSION = "1.0"
-const PROMPT_VERSION = "2.0"
+const PROMPT_VERSION = "3.0"
 const MODEL = "gpt-4o-mini"
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
-// ── System prompt (same as gmail-classify v2) ─────────────────────────────
+// ── System prompt v3 ──────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are a Hiring Process Event Detection Engine for a job search tracking platform.
 
 ━━━ CENTRAL QUESTION ━━━
@@ -74,6 +75,44 @@ If NO  → isJobRelated = false, category = "other"
 CRITICAL: isJobRelated means a hiring-process event occurred — NOT that the email requires action.
 A rejection, position closure, or hiring freeze are all isJobRelated=true even though no action is needed.
 
+━━━ CONFLICTING SIGNALS — MOST IMPORTANT RULE ━━━
+Many emails contain BOTH polite/positive opening language AND a negative hiring outcome.
+The FINAL hiring outcome ALWAYS wins. Polite openings are irrelevant to classification.
+
+Priority order when signals conflict (highest wins):
+  1. offer
+  2. interview_invite / interview_scheduled
+  3. technical_assignment / take_home_assignment
+  4. rejection / position_closed / process_cancelled
+  5. recruiter_response / follow_up_received
+  6. application_confirmation
+  7. application_sent
+  8. other
+
+REJECTION OVERRIDE RULE — These phrases indicate rejection regardless of what else the email says:
+  ✗ "move forward with other candidates"
+  ✗ "moving forward with other candidates"
+  ✗ "decided to proceed with other candidates"
+  ✗ "not moving forward"
+  ✗ "not selected"
+  ✗ "decided not to move forward"
+  ✗ "not aligned with our current needs"
+  ✗ "pursuing other candidates"
+  ✗ "will not be moving forward"
+  ✗ "regret to inform you"
+
+If ANY of these phrases appear anywhere in the email (subject, snippet, or body), classify as rejection
+(or position_closed if the role itself was cancelled), EVEN IF the email ALSO contains:
+  → "Thank you for applying"        ← polite opener, does NOT make it application_confirmation
+  → "We appreciate your interest"   ← polite opener, ignore for classification
+  → "We reviewed your background"   ← neutral, does NOT change the outcome
+
+EXAMPLE — wrong vs correct:
+  Email: "Thank you for applying... After reviewing your background, we've decided to move
+  forward with other candidates whose experience more closely aligns with our needs."
+  WRONG: application_confirmation   ← "Thank you for applying" is just a polite opener
+  RIGHT: rejection                  ← the actual outcome is rejection; confidence=high
+
 ━━━ LANGUAGES ━━━
 English, Hebrew, mixed Hebrew+English. Detect intent regardless of language.
 Hebrew signals:
@@ -83,7 +122,7 @@ Hebrew signals:
 - "המשרה נסגרה" / "המשרה בוטלה" → position_closed
 
 ━━━ TAXONOMY ━━━
-application_confirmation — employer confirms receipt of application (isJobRelated=true)
+application_confirmation — employer ONLY confirms receipt; no other hiring outcome stated (isJobRelated=true)
 application_sent — user sent a job application, outbound (isJobRelated=true)
 recruiter_response — recruiter replied about a SPECIFIC role or moved candidate forward (isJobRelated=true)
 interview_invite — explicit invitation to interview (isJobRelated=true)
@@ -96,11 +135,11 @@ salary_discussion — compensation or salary conversation (isJobRelated=true)
 offer — job offer received (isJobRelated=true)
 offer_discussion — negotiating terms of an offer (isJobRelated=true)
 rejection — employer is not moving forward with this candidate (isJobRelated=true)
+  NOTE: classify as rejection even if email opens with "Thank you for applying"
 position_closed — role was closed, cancelled, or frozen before or during process (isJobRelated=true)
   Examples: "position has been closed", "role no longer available", "hiring freeze",
   "organizational restructuring", "requisition cancelled", "we are pausing hiring"
 process_cancelled — company stopped the hiring process entirely (isJobRelated=true)
-  Examples: "we are discontinuing our recruitment process", "hiring has been put on hold"
 follow_up_sent — user sent a follow-up, outbound (isJobRelated=true)
 follow_up_received — recruiter or employer followed up inbound (isJobRelated=true)
 networking_outreach — specific job opportunity discussed, NOT generic connection (isJobRelated=true only if specific role discussed)
@@ -109,10 +148,10 @@ other — not a hiring-process event (isJobRelated=false)
 ━━━ LINKEDIN RULES ━━━
 NOT hiring events (isJobRelated=false, category="other"):
 - New connection / connection accepted
-- Someone viewed your profile
-- Someone followed you / endorsements / reactions / comments
-- Generic recruiter follow or profile view with no specific role
-- Content notifications
+- Someone viewed your profile / followed you / endorsed you
+- Generic recruiter follow with no specific role
+- Content notifications, post engagement
+- "You appeared in X searches"
 
 Hiring events (isJobRelated=true):
 - Interview invitation via LinkedIn
@@ -121,11 +160,20 @@ Hiring events (isJobRelated=true):
 - Offer or salary discussion
 
 ━━━ PRIORITY SCORE (0-100) ━━━
-offer: 100 | interview_invite/interview_scheduled: 95 | technical_assignment/take_home_assignment: 90
-salary_discussion/offer_discussion: 88 | reference_request: 80 | recruiter_response: 75
-interview_rescheduled: 72 | follow_up_received: 65 | rejection: 55
-position_closed/process_cancelled: 50 | application_confirmation: 20
-application_sent/follow_up_sent: 15 | networking_outreach: 30 | other: 0
+offer: 100
+interview_invite / interview_scheduled: 95
+technical_assignment / take_home_assignment: 90
+salary_discussion / offer_discussion: 88
+reference_request: 80
+recruiter_response: 75
+interview_rescheduled: 72
+follow_up_received: 65
+rejection: 60
+position_closed / process_cancelled: 50
+application_confirmation: 20
+application_sent / follow_up_sent: 15
+networking_outreach (job-related): 30
+other: 0
 
 ━━━ CONFIDENCE LEVELS ━━━
 0.85+ → "high" | 0.65–0.84 → "medium" | <0.65 → "low"
@@ -133,6 +181,8 @@ application_sent/follow_up_sent: 15 | networking_outreach: 30 | other: 0
 ━━━ RULES ━━━
 - Only classify as isJobRelated=true if a hiring-process event clearly occurred
 - A hiring-related sender does not automatically make an email job-related
+- When signals conflict, the highest-priority outcome wins — polite openers never override a negative outcome
+- Scan the ENTIRE email content including body text, not just the opening sentence
 - Keep summary to 1 sentence; reasoning to 1–2 sentences
 - Return valid JSON only — no prose, no markdown outside the JSON object`
 
@@ -140,11 +190,13 @@ application_sent/follow_up_sent: 15 | networking_outreach: 30 | other: 0
 
 function buildUserPrompt(emails: GmailEmail[], connectedEmail: string | null): string {
   const formatted = emails
-    .map((e, i) =>
-      `[${i + 1}] id="${e.id}" direction=${e.direction} from="${e.from}" ` +
-      `subject="${e.subject}" snippet="${(e.snippet ?? "").slice(0, 300)}" ` +
-      `labels=${e.gmailLabels?.join(",") || "none"} received=${e.receivedAt}`
-    )
+    .map((e, i) => {
+      const snippetPart = `snippet="${(e.snippet ?? "").slice(0, 200)}"`
+      const bodyPart = e.body ? ` body="${e.body.slice(0, 1500)}"` : ""
+      return `[${i + 1}] id="${e.id}" direction=${e.direction} from="${e.from}" ` +
+        `subject="${e.subject}" ${snippetPart}${bodyPart} ` +
+        `labels=${e.gmailLabels?.join(",") || "none"} received=${e.receivedAt}`
+    })
     .join("\n\n")
 
   return `Connected Gmail: ${connectedEmail ?? "unknown"}
@@ -299,8 +351,17 @@ async function classifyBatch(
   return emails.map(email => {
     const raw = byId.get(email.id)
     if (!raw) return safeDefaultRow(email)
-    try { return validateRow(raw as Record<string, unknown>, email) }
-    catch { return safeDefaultRow(email) }
+    try {
+      const validated = validateRow(raw as Record<string, unknown>, email)
+      // Scan body + snippet so rejection phrases buried after the polite opening are caught
+      const fullText = `${email.body ?? ""} ${email.snippet ?? ""}`
+      const signalResult = applySignalOverride(validated, email.subject, fullText)
+      const finalRow = signalResult.overriddenRow
+      finalRow.detected_signals = signalResult.signalDebug?.detectedSignals ?? []
+      finalRow.winning_signal = signalResult.signalDebug?.winningSignal?.signal ?? null
+      finalRow.signal_selection_reason = signalResult.signalDebug?.selectionReason ?? null
+      return finalRow
+    } catch { return safeDefaultRow(email) }
   })
 }
 
@@ -646,6 +707,11 @@ async function matchToJob(
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
 
+  // Hoisted so the outer catch can persist failure status without a second auth round-trip
+  // deno-lint-ignore no-explicit-any
+  let adminClient: any = null
+  let userId: string | null = null
+
   try {
     // 1. Authenticate
     const authHeader = req.headers.get("Authorization")
@@ -668,10 +734,11 @@ serve(async (req) => {
       })
     }
 
-    const adminClient = createClient(
+    adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     )
+    userId = user.id
 
     // 2. Load integration
     const { data: integration } = await adminClient
@@ -718,6 +785,15 @@ serve(async (req) => {
     const expiresAt = new Date(integration.expires_at)
     if (expiresAt <= new Date(Date.now() + 5 * 60 * 1000)) {
       if (!integration.encrypted_refresh_token) {
+        await adminClient
+          .from("user_integrations")
+          .update({
+            needs_reconnect: true,
+            last_sync_status: "reconnect_required",
+            last_sync_error: "Session expired — please reconnect Gmail",
+          })
+          .eq("user_id", user.id)
+          .eq("provider", "gmail")
         return new Response(JSON.stringify({ error: "Token expired. Please reconnect Gmail.", needsReconnect: true }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         })
@@ -740,6 +816,15 @@ serve(async (req) => {
           .eq("user_id", user.id)
           .eq("provider", "gmail")
       } catch {
+        await adminClient
+          .from("user_integrations")
+          .update({
+            needs_reconnect: true,
+            last_sync_status: "reconnect_required",
+            last_sync_error: "Session expired — please reconnect Gmail",
+          })
+          .eq("user_id", user.id)
+          .eq("provider", "gmail")
         return new Response(JSON.stringify({ error: "Session expired. Please reconnect Gmail.", needsReconnect: true }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         })
@@ -749,24 +834,39 @@ serve(async (req) => {
     // 5. Fetch recent emails
     const emails = await fetchRecentEmails(accessToken, MAX_EMAILS, integration.email ?? undefined)
     if (emails.length === 0) {
+      const now = new Date().toISOString()
       await adminClient.from("user_integrations")
-        .update({ last_sync_at: new Date().toISOString() })
+        .update({
+          last_sync_at: now,
+          last_successful_sync_at: now,
+          last_sync_status: "success",
+          last_sync_error: null,
+          needs_reconnect: false,
+        })
         .eq("user_id", user.id).eq("provider", "gmail")
       return new Response(JSON.stringify({ skipped: false, newEvents: [], total: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
     }
 
-    // 6. Load cache (already classified emails)
+    // 6. Version-aware cache — only skip emails classified with the CURRENT versions.
+    // Emails classified by an older classifier_version or prompt_version are eligible
+    // for reclassification so bad old classifications never get permanently stuck.
     const emailIds = emails.map(e => e.id)
     const { data: existing } = await adminClient
       .from("email_classifications")
-      .select("email_id")
+      .select("email_id, classifier_version, prompt_version")
       .eq("user_id", user.id)
       .in("email_id", emailIds)
 
-    const cachedIds = new Set((existing ?? []).map(r => r.email_id))
-    const newEmails = emails.filter(e => !cachedIds.has(e.id))
+    const upToDateIds = new Set(
+      (existing ?? [])
+        .filter((r: Record<string, unknown>) =>
+          r.classifier_version === CLASSIFIER_VERSION && r.prompt_version === PROMPT_VERSION
+        )
+        .map((r: Record<string, unknown>) => r.email_id as string)
+    )
+    const newEmails = emails.filter(e => !upToDateIds.has(e.id))
 
     // 7. Pre-filter + classify new emails
     const toClassify: GmailEmail[] = []
@@ -797,7 +897,21 @@ serve(async (req) => {
         .upsert(preFilteredRows, { onConflict: "user_id,email_id" })
     }
 
-    // 8. AI classify
+    // 8. Fetch full email bodies for emails that will be AI-classified (parallel, never throws)
+    // The Gmail snippet is only the first ~150 chars. Rejection phrases like
+    // "move forward with other candidates" are often buried after the polite opening
+    // and invisible to the AI without the full body.
+    if (toClassify.length > 0) {
+      const bodyFetches = await Promise.allSettled(
+        toClassify.map((e) => fetchEmailBody(accessToken, e.id)),
+      )
+      toClassify.forEach((e, i) => {
+        const r = bodyFetches[i]
+        if (r.status === "fulfilled" && r.value) e.body = r.value
+      })
+    }
+
+    // 9. AI classify
     const openaiKey = Deno.env.get("OPENAI_API_KEY")
     const aiRows: Record<string, unknown>[] = []
     if (openaiKey && toClassify.length > 0) {
@@ -815,7 +929,7 @@ serve(async (req) => {
       }
     }
 
-    // 9. Create hiring events from new job-related classifications
+    // 10. Create hiring events from new job-related classifications
     const jobRelatedRows = aiRows.filter(r => r.is_job_related === true)
     const newEvents: Record<string, unknown>[] = []
 
@@ -859,6 +973,11 @@ serve(async (req) => {
         extracted_role: match.extractedRole ?? null,
         extraction_sources: match.extractionSources ?? [],
         match_score: match.matchScore ?? 0,
+        description: typeof row.summary === "string" ? row.summary : null,
+        ...(() => {
+          const rec = getRecommendation(category)
+          return { recommended_action: rec.action, recommendation_reason: rec.reason }
+        })(),
       }
 
       const { data: inserted, error: eventErr } = await adminClient
@@ -872,7 +991,7 @@ serve(async (req) => {
       }
     }
 
-    // 10. Update has_unread_event on matched jobs
+    // 11. Update has_unread_event on matched jobs
     const matchedJobIds = [...new Set(
       newEvents
         .filter(e => e.matched_job_id)
@@ -885,10 +1004,17 @@ serve(async (req) => {
         .in("id", matchedJobIds)
     }
 
-    // 11. Update last_sync_at
+    // 12. Update sync status
+    const syncedAt = new Date().toISOString()
     await adminClient
       .from("user_integrations")
-      .update({ last_sync_at: new Date().toISOString() })
+      .update({
+        last_sync_at: syncedAt,
+        last_successful_sync_at: syncedAt,
+        last_sync_status: "success",
+        last_sync_error: null,
+        needs_reconnect: false,
+      })
       .eq("user_id", user.id)
       .eq("provider", "gmail")
 
@@ -897,7 +1023,6 @@ serve(async (req) => {
       `classified=${aiRows.length} events=${newEvents.length}`
     )
 
-    const syncedAt = new Date().toISOString()
     return new Response(
       JSON.stringify({
         skipped: false,
@@ -909,7 +1034,16 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (err) {
-    console.error("gmail-sync unexpected error:", err.message)
+    console.error("gmail-sync unexpected error:", (err as Error).message)
+    if (adminClient && userId) {
+      try {
+        await adminClient
+          .from("user_integrations")
+          .update({ last_sync_status: "failed", last_sync_error: "Sync failed — will retry automatically" })
+          .eq("user_id", userId)
+          .eq("provider", "gmail")
+      } catch { /* best-effort, ignore */ }
+    }
     return new Response(
       JSON.stringify({ error: "Sync failed. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },

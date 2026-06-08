@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { clearKeyCache, getAIMode } from '../lib/openai.js'
 import { api } from '../api.js'
 
-export default function Settings({ onClose, initialSection, hasExtension, onExtensionConfirm, gmailCallbackResult }) {
+export default function Settings({ onClose, initialSection, hasExtension, onExtensionConfirm, gmailCallbackResult, gmailNeedsReconnect }) {
   const [openaiKey, setOpenaiKey] = useState('')
   const [aiMode, setAiMode] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -468,9 +468,13 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                 <h4 className="settings-section-title">Email Integration</h4>
                 {gmailStatus === null
                   ? null
-                  : gmailStatus.connected
-                    ? <span className="settings-badge-ok">Connected</span>
-                    : <span className="settings-badge-todo">Not connected</span>
+                  : !gmailStatus.connected
+                    ? <span className="settings-badge-todo">Not connected</span>
+                    : (gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required')
+                      ? <span className="settings-badge-error">Reconnect required</span>
+                      : gmailStatus.syncHealth === 'degraded'
+                        ? <span className="settings-badge-error">Sync issues</span>
+                        : <span className="settings-badge-ok">Connected</span>
                 }
               </div>
               <p className="settings-guide-text">
@@ -496,23 +500,32 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                   <div className="gmail-status-row">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     <span>{gmailStatus.email}</span>
-                    {gmailStatus.lastSyncAt && (
+                    {(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt) && (
                       <span className="gmail-last-sync">
-                        Last sync: {new Date(gmailStatus.lastSyncAt).toLocaleString()}
+                        Last sync: {new Date(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt).toLocaleString()}
                       </span>
                     )}
                   </div>
-                  {gmailStatus.tokenExpired && (
+                  {(gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required') && (
                     <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
-                      Session expired — reconnect to continue.
+                      Session expired — reconnect Gmail to continue receiving updates.
+                    </div>
+                  )}
+                  {!gmailNeedsReconnect && !gmailStatus.needsReconnect && gmailStatus.syncHealth === 'degraded' && (
+                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem', opacity: 0.8 }}>
+                      Last sync failed — will retry automatically.
                     </div>
                   )}
                   <div className="settings-btn-row">
                     <button className="btn btn-primary btn-sm" onClick={handleGmailFetch} disabled={gmailFetching}>
                       {gmailFetching ? 'Fetching…' : 'Test: Fetch Recent Emails'}
                     </button>
-                    <button className="btn btn-ghost btn-sm" onClick={handleGmailConnect} disabled={gmailConnecting}>
-                      Reconnect
+                    <button
+                      className={`btn btn-sm ${(gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required') ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={handleGmailConnect}
+                      disabled={gmailConnecting}
+                    >
+                      {gmailConnecting ? 'Redirecting…' : 'Reconnect'}
                     </button>
                   </div>
                 </>

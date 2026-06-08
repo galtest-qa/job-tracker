@@ -22,6 +22,41 @@ const EVENT_TYPE_LABELS = {
   other: 'Update',
 }
 
+const FOOTER_ANCHORS = [
+  /^-{3,}\s*$/m,
+  /^_{3,}\s*$/m,
+  /unsubscribe/im,
+  /you (are|were) receiving this/im,
+  /this email was sent to/im,
+  /this message was intended for/im,
+  /if you received this (email|message|communication) in error/im,
+  /to stop receiving/im,
+  /manage (your )?(notifications?|preferences?|subscriptions?)/im,
+  /©\s*\d{4}/im,
+  /linkedin corporation/im,
+  /view (this )?in (your )?browser/im,
+  /click here to unsubscribe/im,
+  /you received this (email|notification) because/im,
+]
+
+function cleanEmailBody(text) {
+  if (!text) return text
+  let cutIndex = text.length
+  for (const pattern of FOOTER_ANCHORS) {
+    const match = text.match(pattern)
+    // require at least 120 chars of body before cutting to avoid false positives
+    if (match?.index !== undefined && match.index > 120 && match.index < cutIndex) {
+      cutIndex = match.index
+    }
+  }
+  let result = text.slice(0, cutIndex).trimEnd()
+  // remove bare tracking/pixel URLs on their own line
+  result = result.replace(/^https?:\/\/\S+$/gm, '')
+  // collapse 3+ consecutive blank lines to 2
+  result = result.replace(/\n{3,}/g, '\n\n').trim()
+  return result
+}
+
 function relativeTime(iso) {
   if (!iso) return ''
   const diff = Date.now() - new Date(iso).getTime()
@@ -116,7 +151,7 @@ export default function EmailBodyModal({ emailId, event, classification, onClose
             </div>
           )}
           {!loading && !error && body && (
-            <pre className="email-body-text">{body}</pre>
+            <pre className="email-body-text">{cleanEmailBody(body)}</pre>
           )}
         </div>
       </div>

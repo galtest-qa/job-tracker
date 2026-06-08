@@ -11,6 +11,19 @@ import EmailBodyModal from './EmailBodyModal.jsx'
 
 const PALETTE = ['#6b7280', '#4f6ef7', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
 
+function formatEventDate(iso) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}d ago`
+  return new Date(iso).toLocaleDateString()
+}
+
 export default function JobDetail({ jobId, columns = [], initialTab, onBack, onRefresh, onJobScoreUpdate, isPanel = false }) {
   const [job, setJob] = useState(null)
   const [editing, setEditing] = useState(false)
@@ -131,6 +144,8 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
     onBack()
   }
 
+  const pendingEventCount = hiringEvents.filter(e => e.status === 'pending').length
+
   if (!job) return <div className="loading">Loading...</div>
 
   if (editing) {
@@ -241,14 +256,17 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
       <div className="detail-tabs">
         {[
           { key: 'analysis', label: 'Analysis', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
-          { key: 'reminders', label: 'Reminders', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
+          { key: 'reminders', label: 'Reminders & Updates', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>, badge: pendingEventCount },
           { key: 'resume', label: 'Resume', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
           { key: 'interview', label: 'Interview', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
           { key: 'description', label: 'Description', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg> },
           { key: 'notes', label: 'Notes', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
-        ].map(({ key, label, icon }) => (
+        ].map(({ key, label, icon, badge = 0 }) => (
           <button key={key} className={`detail-tab-btn ${activeTab === key ? 'active' : ''}`} onClick={() => setActiveTab(key)}>
-            <span className="detail-tab-icon">{icon}</span>
+            <span className="detail-tab-icon" style={{ position: 'relative' }}>
+              {icon}
+              {badge > 0 && <span className="tab-event-badge">{badge}</span>}
+            </span>
             <span>{label}</span>
           </button>
         ))}
@@ -271,6 +289,16 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
           touchStartX.current = null
         }}
       >
+        {/* Cross-tab pending event notice — visible on all tabs except analysis/reminders */}
+        {activeTab !== 'analysis' && activeTab !== 'reminders' && pendingEventCount > 0 && (
+          <button className="cross-tab-event-notice" onClick={() => setActiveTab('reminders')}>
+            <span className="cross-tab-event-dot" />
+            {pendingEventCount === 1 ? 'New Gmail update' : `${pendingEventCount} new Gmail updates`}
+            {' '}— see Reminders &amp; Updates
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4, flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        )}
+
         {/* ── Analysis Tab ── */}
         {activeTab === 'analysis' && (
           <div className="analysis-tab">
@@ -405,9 +433,93 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
           </div>
         )}
 
-        {/* ── Reminders Tab ── */}
+        {/* ── Reminders & Updates Tab ── */}
         {activeTab === 'reminders' && (
-          <ReminderPanel jobId={jobId} />
+          <div className="reminders-updates-tab">
+            <ReminderPanel jobId={jobId} />
+
+            <div className="reminders-email-section">
+              <div className="reminders-section-divider">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Gmail Updates
+                {pendingEventCount > 0 && (
+                  <span className="section-pending-badge">{pendingEventCount} new</span>
+                )}
+              </div>
+
+              {/* Pending events — full banner with actions */}
+              {hiringEvents.filter(e => e.status === 'pending').map(event => {
+                const cls = event.email_classifications
+                const stageExists = event.suggested_stage && columns.some(c => c.name === event.suggested_stage)
+                return (
+                  <div key={event.id} className="job-event-banner">
+                    <div className="job-event-banner-header">
+                      <span className="job-event-banner-dot" />
+                      <span className="job-event-banner-label">New Gmail update</span>
+                      {event.created_at && (
+                        <span className="job-event-banner-time">{formatEventDate(event.created_at)}</span>
+                      )}
+                    </div>
+                    {event.title && <div className="job-event-banner-title">{event.title}</div>}
+                    {cls?.summary && <div className="job-event-banner-summary">{cls.summary}</div>}
+                    {cls?.from_address && (
+                      <div className="job-event-banner-source">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <span className="job-event-banner-from">{cls.from_address}</span>
+                      </div>
+                    )}
+                    <div className="job-event-banner-actions">
+                      {stageExists && (
+                        <button className="btn btn-primary btn-sm" onClick={() => handleEventMove(event)}>
+                          Move to {event.suggested_stage}
+                        </button>
+                      )}
+                      {event.email_id && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEmailModal({ emailId: event.email_id, event, classification: cls })}>
+                          View Email
+                        </button>
+                      )}
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleEventReview(event.id)}>Mark reviewed</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleEventDismiss(event.id)}>Dismiss</button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Past events — compact history */}
+              {hiringEvents.filter(e => e.status !== 'pending').length > 0 && (
+                <div className="event-history-section">
+                  <div className="event-history-label">Past Updates</div>
+                  {hiringEvents.filter(e => e.status !== 'pending').map(event => (
+                    <div key={event.id} className="event-history-item">
+                      <div className="event-history-title">{event.title || event.event_type}</div>
+                      <div className="event-history-meta">
+                        <span className={`event-history-status event-status-${event.status}`}>
+                          {event.status === 'acted' ? 'acted on' : event.status}
+                        </span>
+                        <span className="event-history-time">{formatEventDate(event.created_at)}</span>
+                        {event.email_id && (
+                          <button
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => setEmailModal({ emailId: event.email_id, event, classification: event.email_classifications })}
+                          >
+                            View
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {hiringEvents.length === 0 && (
+                <div className="event-empty-state">
+                  <p>No Gmail activity for this job yet.</p>
+                  <p className="muted">When you receive emails about this application, they'll appear here.</p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ── Resume Tab ── */}

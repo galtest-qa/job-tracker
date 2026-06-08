@@ -126,7 +126,7 @@ function SyncStatusFooter({ syncInfo, onCheckUpdates }) {
   )
 }
 
-export default function Notifications({ onClose, onSelectJob, onCountChange, syncInfo, onCheckUpdates }) {
+export default function Notifications({ onClose, onSelectJob, onCountChange, onRefresh, syncInfo, onCheckUpdates }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -154,21 +154,39 @@ export default function Notifications({ onClose, onSelectJob, onCountChange, syn
   }
 
   const markReviewed = useCallback(async (id) => {
+    const event = events.find(e => e.id === id)
     setEvents(prev => prev.map(e => e.id === id ? { ...e, status: 'reviewed' } : e))
     const pendingCount = events.filter(e => e.status === 'pending' && e.id !== id).length
     onCountChange && onCountChange(pendingCount)
     await supabase.from('hiring_events').update({ status: 'reviewed' }).eq('id', id)
-  }, [events, onCountChange])
+    // Clear the kanban card dot if no more pending events for this job
+    if (event?.matched_job_id) {
+      const stillPending = events.some(e => e.id !== id && e.status === 'pending' && e.matched_job_id === event.matched_job_id)
+      if (!stillPending) {
+        await supabase.from('jobs').update({ has_unread_event: false }).eq('id', event.matched_job_id)
+        onRefresh && onRefresh()
+      }
+    }
+  }, [events, onCountChange, onRefresh])
 
   const dismiss = useCallback(async (id) => {
-    const wasPending = events.find(e => e.id === id)?.status === 'pending'
+    const event = events.find(e => e.id === id)
+    const wasPending = event?.status === 'pending'
     setEvents(prev => prev.filter(e => e.id !== id))
     if (wasPending) {
       const pendingCount = events.filter(e => e.status === 'pending' && e.id !== id).length
       onCountChange && onCountChange(pendingCount)
     }
     await supabase.from('hiring_events').update({ status: 'dismissed' }).eq('id', id)
-  }, [events, onCountChange])
+    // Clear the kanban card dot if this was the last pending event for the job
+    if (wasPending && event?.matched_job_id) {
+      const stillPending = events.some(e => e.id !== id && e.status === 'pending' && e.matched_job_id === event.matched_job_id)
+      if (!stillPending) {
+        await supabase.from('jobs').update({ has_unread_event: false }).eq('id', event.matched_job_id)
+        onRefresh && onRefresh()
+      }
+    }
+  }, [events, onCountChange, onRefresh])
 
   const visible = events.filter(e => e.status !== 'dismissed')
   const groups = groupByDate(visible)
@@ -224,7 +242,6 @@ function NotificationRow({ event, onMarkReviewed, onDismiss, onSelectJob, onClos
 
   const handleRowClick = () => {
     if (event.matched_job_id && onSelectJob) {
-      if (isPending) onMarkReviewed(event.id)
       onClose()
       onSelectJob(event.matched_job_id)
     }
