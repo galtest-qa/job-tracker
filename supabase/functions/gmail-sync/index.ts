@@ -4,6 +4,7 @@ import { decrypt, encrypt } from "../_shared/crypto-utils.ts"
 import { refreshAccessToken, fetchRecentEmails, fetchEmailBody, type GmailEmail } from "../_shared/gmail-api.ts"
 import { shouldPreFilter } from "../_shared/email-prefilter.ts"
 import { applySignalOverride, getRecommendation } from "../_shared/hiring-signal-detector.ts"
+import { shouldSurfaceEvent, shouldMarkJobUnread } from "./event-lifecycle.ts"
 
 // ── Versioning ──────────────────────────────────────────────────────────────
 const CLASSIFIER_VERSION = "1.0"
@@ -1007,7 +1008,7 @@ serve(async (req) => {
           .eq("email_id", emailId)
 
         // Only surface to the frontend if it is still unhandled
-        if (existingEvent.status === "pending" && !existingEvent.popup_shown) {
+        if (shouldSurfaceEvent(existingEvent)) {
           const { data: refreshed } = await adminClient
             .from("hiring_events")
             .select()
@@ -1033,7 +1034,7 @@ serve(async (req) => {
     // 11. Update has_unread_event — only for jobs with genuinely new pending events
     const matchedJobIds = [...new Set(
       newEvents
-        .filter(e => e.matched_job_id && e.status === "pending")
+        .filter(e => e.matched_job_id && shouldMarkJobUnread(newEvents, e.matched_job_id as string))
         .map(e => e.matched_job_id as string)
     )]
     if (matchedJobIds.length > 0) {
