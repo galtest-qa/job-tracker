@@ -81,6 +81,12 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
   const [gmailConnecting, setGmailConnecting] = useState(false)
   const [gmailError, setGmailError] = useState(null)
 
+  // MCP state
+  const [mcpKeyStatus, setMcpKeyStatus] = useState(null) // null = loading
+  const [mcpNewKey, setMcpNewKey] = useState(null)       // full key shown once after generation
+  const [mcpWorking, setMcpWorking] = useState(false)
+  const [mcpError, setMcpError] = useState(null)
+
   useEffect(() => {
     if (initialSection === 'extension' && extensionSectionRef.current) {
       setTimeout(() => extensionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
@@ -91,9 +97,10 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
     }
   }, [initialSection])
 
-  // Load Gmail status on mount
+  // Load Gmail + MCP status on mount
   useEffect(() => {
     api.gmailStatus().then(setGmailStatus).catch(() => setGmailStatus({ connected: false }))
+    api.getMcpKeyStatus().then(setMcpKeyStatus).catch(() => setMcpKeyStatus({ hasKey: false, prefix: null }))
   }, [])
 
   const handleGmailConnect = async () => {
@@ -612,6 +619,100 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                   })()}
                 </div>
               )}
+            </div>
+
+            {/* MCP Integration */}
+            <div className="settings-section">
+              <div className="settings-section-title-row">
+                <h4 className="settings-section-title">MCP Integration</h4>
+                {mcpKeyStatus === null
+                  ? null
+                  : mcpKeyStatus.hasKey
+                    ? <span className="settings-badge-ok">Active</span>
+                    : <span className="settings-badge-todo">Not configured</span>
+                }
+              </div>
+              <p className="settings-guide-text">
+                Connect Job Maker to Claude Desktop or any MCP-compatible AI client. Your API key is hashed before storage — the full key is shown only once.
+              </p>
+
+              {mcpKeyStatus?.hasKey && !mcpNewKey && (
+                <div className="gmail-status-row" style={{ marginBottom: '0.5rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span className="muted">{mcpKeyStatus.prefix}…</span>
+                </div>
+              )}
+
+              {mcpNewKey && (
+                <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
+                  <p style={{ marginBottom: '0.4rem', fontWeight: 600 }}>⚠ Copy your API key now — it won't be shown again.</p>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <code style={{ fontSize: '0.75rem', wordBreak: 'break-all', flex: 1 }}>{mcpNewKey}</code>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { navigator.clipboard.writeText(mcpNewKey).catch(() => {}) }}>Copy</button>
+                  </div>
+                  <details style={{ marginTop: '0.75rem' }}>
+                    <summary style={{ fontSize: '0.78rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>Claude Desktop config</summary>
+                    <pre style={{ fontSize: '0.7rem', marginTop: '0.5rem', background: 'rgba(0,0,0,0.04)', padding: '0.6rem', borderRadius: '4px', overflow: 'auto' }}>{JSON.stringify({ mcpServers: { "job-maker": { command: "npx", args: ["-y", "mcp-remote", `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp`], env: { MCP_API_KEY: mcpNewKey } } } }, null, 2)}</pre>
+                  </details>
+                </div>
+              )}
+
+              {mcpError && (
+                <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{mcpError}</p>
+              )}
+
+              <div className="settings-btn-row">
+                {!mcpKeyStatus?.hasKey || mcpNewKey ? (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={mcpWorking}
+                    onClick={async () => {
+                      setMcpWorking(true); setMcpError(null); setMcpNewKey(null)
+                      try {
+                        const { key, prefix } = await api.generateMcpKey()
+                        setMcpNewKey(key)
+                        setMcpKeyStatus({ hasKey: true, prefix })
+                      } catch (err) { setMcpError(err.message) }
+                      setMcpWorking(false)
+                    }}
+                  >
+                    {mcpWorking ? 'Generating…' : mcpKeyStatus?.hasKey ? 'Regenerate Key' : 'Generate API Key'}
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    disabled={mcpWorking}
+                    onClick={async () => {
+                      setMcpWorking(true); setMcpError(null)
+                      try {
+                        await api.revokeMcpKey()
+                        setMcpKeyStatus({ hasKey: false, prefix: null })
+                        setMcpNewKey(null)
+                      } catch (err) { setMcpError(err.message) }
+                      setMcpWorking(false)
+                    }}
+                  >
+                    {mcpWorking ? 'Revoking…' : 'Revoke Key'}
+                  </button>
+                )}
+                {mcpKeyStatus?.hasKey && !mcpNewKey && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={mcpWorking}
+                    onClick={async () => {
+                      setMcpWorking(true); setMcpError(null); setMcpNewKey(null)
+                      try {
+                        const { key, prefix } = await api.generateMcpKey()
+                        setMcpNewKey(key)
+                        setMcpKeyStatus({ hasKey: true, prefix })
+                      } catch (err) { setMcpError(err.message) }
+                      setMcpWorking(false)
+                    }}
+                  >
+                    {mcpWorking ? 'Regenerating…' : 'Regenerate Key'}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Debug: Hiring Event Detection */}

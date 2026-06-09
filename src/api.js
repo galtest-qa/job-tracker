@@ -656,6 +656,160 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     return await api.getJob(id)
   },
 
+  buildInterviewProfile: async (id) => {
+    const job = await api.getJob(id)
+    const candidateContext = await getCandidateContext()
+    const companyKey = (job.company || '').toLowerCase().trim()
+
+    // ── 1. Check shared company profile (skip per-user regeneration) ──
+    let sharedProfile = null
+    if (companyKey) {
+      const { data } = await supabase
+        .from('company_interview_profiles')
+        .select('profile, generated_at')
+        .eq('company_key', companyKey)
+        .gte('expires_at', new Date().toISOString())
+        .maybeSingle()
+      sharedProfile = data
+    }
+
+    // ── 2. Generate company-level profile if not cached ──
+    if (!sharedProfile) {
+      const companyResult = await callOpenAI(`You are a senior hiring expert. Build a company-level interview profile for ${job.company}.
+
+COMPANY CONTEXT:
+${job.company_overview ? `Overview: ${job.company_overview}` : ''}
+${job.company_industry ? `Industry: ${job.company_industry}` : ''}
+${job.company_size ? `Size: ${job.company_size}` : ''}
+Job description excerpt: ${(job.description || '').slice(0, 800)}
+
+IMPORTANT — Evidence classification rules:
+- confidence "high": you have seen multiple consistent reports about this specific company's interview process in your training data (Glassdoor, Reddit, tech blogs, LinkedIn posts). Cite the source type.
+- confidence "medium": you are inferring from the company's size, industry, stage, or role type. Say so explicitly.
+- confidence "low": limited signal — best guess from general patterns.
+
+Be honest. Do not overstate confidence. If this is a small or obscure company, most items will be "medium" or "low".
+
+Return EXACTLY this JSON (no markdown, no code blocks):
+{
+  "stages": [
+    {
+      "name": "Stage name",
+      "format": "Phone / Video / Onsite / Technical / Panel",
+      "duration": "30 min",
+      "focus": "What this stage assesses",
+      "questions": ["Realistic question", "Another"],
+      "confidence": "high|medium|low",
+      "evidence_note": "Observed in Glassdoor reports for this company|Inferred from typical Series B SaaS hiring patterns"
+    }
+  ],
+  "common_mistakes": [
+    { "text": "Specific mistake and why it fails", "confidence": "high|medium|low" }
+  ],
+  "success_signals": [
+    { "text": "What strong candidates do", "confidence": "high|medium|low" }
+  ],
+  "company_intel": "2-3 paragraphs: what the company does, culture signals from the job description, what they value, what differentiates offer-getters",
+  "intel_confidence": "high|medium|low",
+  "data_quality_note": "One honest sentence: how well-known is this company's interview process, and what are the limits of this profile"
+}`, { temperature: 0.3 })
+
+      // Store in shared table — all future users of this company benefit
+      if (companyKey) {
+        await supabase.from('company_interview_profiles').upsert({
+          company_name: job.company,
+          profile: companyResult,
+          generated_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        }, { onConflict: 'company_key' })
+      }
+      sharedProfile = { profile: companyResult, generated_at: new Date().toISOString() }
+    }
+
+    // ── 3. Generate role-specific layer on top of the shared company base ──
+    const roleLayer = await callOpenAI(`You are preparing a candidate for a specific role interview. You have the company's general interview profile — now add what is specific to THIS role and THIS candidate.
+
+ROLE: ${job.role} at ${job.company}
+FULL JOB DESCRIPTION:
+${job.description || '(not provided)'}
+
+${candidateContext}
+
+Generate role-specific additions. Do NOT repeat anything from the company profile. Only add what is unique to this specific role.
+
+Return EXACTLY this JSON:
+{
+  "role_questions": ["Question specific to this role's responsibilities", "Another"],
+  "talking_points": ["Specific experience from the candidate's background that directly maps to a requirement in this JD"],
+  "potential_concerns": ["Gap or concern the interviewer might raise + how to address it honestly"],
+  "prep_checklist": ["Concrete action item before the first interview — be specific to this company and role"]
+}`, { temperature: 0.3 })
+
+    // ── 4. Merge, preserving practice history ──
+    const existing = job.interview_profile || {}
+    const profile = {
+      ...sharedProfile.profile,
+      role_specific: roleLayer,
+      prep_checklist: roleLayer.prep_checklist || [],
+      from_shared_cache: !!(sharedProfile.generated_at && companyKey),
+      mock_attempts: existing.mock_attempts || 0,
+      mock_scores: existing.mock_scores || [],
+      avg_mock_score: existing.avg_mock_score || null,
+      checklist_done: existing.checklist_done || [],
+      generated_at: new Date().toISOString(),
+    }
+
+    await api.updateJob(id, { interview_profile: profile })
+    return await api.getJob(id)
+  },
+
+  mockInterviewScore: async (id, { question, answer }) => {
+    const job = await api.getJob(id)
+
+    const result = await callOpenAI(`You are a senior interviewer at ${job.company} evaluating a ${job.role} candidate.
+
+QUESTION ASKED: "${question}"
+
+CANDIDATE'S ANSWER: "${answer}"
+
+SCORING RUBRIC — apply strictly, do not inflate:
+• 1–3  No specific examples. Vague generalities ("I'm a team player"). Under 3 sentences. Off-topic.
+• 4    Some structure but examples unnamed ("at a previous job") or too brief. No quantified outcome.
+• 5    Recognizable structure (STAR or similar). One specific example but impact is vague or missing.
+• 6    Clear STAR. Named company/project. Specific actions taken. Some quantification or concrete outcome.
+• 7    Strong STAR. Vivid details. Quantified result. The candidate's personal contribution is clear.
+• 8    All of 7 PLUS result is impressive and directly relevant to what ${job.company} is hiring for.
+• 9–10 Reserved for genuinely exceptional: measurable business impact, clear leadership signal, memorable framing perfectly matched to this role. Rare.
+
+Calibration check: most real interview answers land at 4–6. Push to 7 only if the STAR bar is clearly met. Score 8+ only if you would actually flag this answer to the hiring manager as impressive.
+
+Return EXACTLY this JSON (score must be an integer):
+{
+  "score": 5,
+  "breakdown": { "structure": 5, "specificity": 4, "relevance": 6, "impact": 4 },
+  "what_worked": "One concrete thing that was good about this answer",
+  "to_improve": "The single most important thing to fix — be specific",
+  "stronger_version": "Rewrite the answer to score 8/10 using the same experience but with vivid details and a clear quantified result"
+}`, { temperature: 0.2 })
+
+    // Track per-answer scores for avg and readiness calculation
+    const existing = job.interview_profile || {}
+    const prevScores = existing.mock_scores || []
+    const newScores = [...prevScores, result.score]
+    const avgScore = Math.round((newScores.reduce((a, b) => a + b, 0) / newScores.length) * 10) / 10
+
+    await api.updateJob(id, {
+      interview_profile: {
+        ...existing,
+        mock_attempts: newScores.length,
+        mock_scores: newScores,
+        avg_mock_score: avgScore,
+      },
+    })
+
+    return result
+  },
+
   // Export not available in hosted mode (needs server-side docx generation)
   exportResume: () => null,
 
@@ -815,5 +969,69 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
     try { data = JSON.parse(text) } catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 300)}`) }
     if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
     return data
+  },
+
+  // ── MCP API key management ─────────────────────────────────────────────────
+  // Key is generated client-side; only the SHA-256 hash is stored in the DB.
+  // The full key is returned once and never recoverable afterward.
+
+  generateMcpKey: async () => {
+    const bytes = new Uint8Array(32)
+    crypto.getRandomValues(bytes)
+    const b64 = btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+    const key = `jm_live_${b64}`
+
+    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
+    const hashHex = Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0')).join('')
+
+    const prefix = key.slice(0, 20) // 'jm_live_' + 12 chars
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('profiles')
+      .update({ mcp_api_key_hash: hashHex, mcp_api_key_prefix: prefix })
+      .eq('id', user.id)
+    if (error) throw new Error(error.message)
+
+    return { key, prefix } // full key shown once — never stored server-side
+  },
+
+  revokeMcpKey: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('profiles')
+      .update({ mcp_api_key_hash: null, mcp_api_key_prefix: null })
+      .eq('id', user.id)
+    if (error) throw new Error(error.message)
+  },
+
+  getMcpKeyStatus: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('profiles')
+      .select('mcp_api_key_prefix, mcp_api_key_hash')
+      .eq('id', user.id).single()
+    return {
+      hasKey: !!data?.mcp_api_key_hash,
+      prefix: data?.mcp_api_key_prefix || null,
+    }
+  },
+
+  getRecommendations: async (jobId = null) => {
+    const userId = await getUserId()
+    let query = supabase
+      .from('recommendations')
+      .select('id, type, title, reason, priority, status, context, job_id, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('priority', { ascending: false })
+    if (jobId) query = query.eq('job_id', jobId)
+    return throwIfError(await query)
+  },
+
+  dismissRecommendation: async (id) => {
+    return throwIfError(await supabase
+      .from('recommendations')
+      .update({ status: 'dismissed', dismissed_at: new Date().toISOString() })
+      .eq('id', id))
   },
 }

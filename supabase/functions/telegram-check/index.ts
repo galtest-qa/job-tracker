@@ -84,14 +84,15 @@ serve(async (req) => {
         // Row 1: action buttons (callback_data)
         const actionRow = [
           { text: "✅ Done", callback_data: `done:${r.id}` },
-          { text: "⏭ Snooze 1d", callback_data: `snooze:${r.id}` },
+          { text: "⏭ 1d", callback_data: `snooze:${r.id}` },
+          { text: "⏭ 3d", callback_data: `snooze3:${r.id}` },
           { text: "🗑 Cancel", callback_data: `cancel:${r.id}` },
         ]
 
         // Row 2: navigation buttons (url) — only when job_id is available
         const navRow = r.job_id && appUrl ? [
-          { text: "✏️ Edit Reminder", url: `${appUrl}/?job=${r.job_id}&tab=reminders` },
-          { text: "📂 Open Job", url: `${appUrl}/?job=${r.job_id}` },
+          { text: "✏️ Open Reminder", url: `${appUrl}/?job=${r.job_id}&tab=reminders` },
+          { text: "📂 Open Job", url: `${appUrl}/?job=${r.job_id}&tab=updates` },
         ] : []
 
         const inlineKeyboard = navRow.length > 0 ? [actionRow, navRow] : [actionRow]

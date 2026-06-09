@@ -45,14 +45,14 @@ serve(async (req) => {
     return new Response("ok", { status: 200 })
   }
 
-  // ── 3. Parse action:reminderId ────────────────────────────────────────────
+  // ── 3. Parse action:id ───────────────────────────────────────────────────
   const sep = callbackData.indexOf(":")
   if (sep === -1) return new Response("ok", { status: 200 })
 
   const action = callbackData.slice(0, sep)
-  const reminderId = callbackData.slice(sep + 1)
+  const entityId = callbackData.slice(sep + 1)
 
-  if (!["done", "snooze", "cancel"].includes(action) || !reminderId) {
+  if (!["done", "snooze", "snooze3", "cancel", "event_ack"].includes(action) || !entityId) {
     return new Response("ok", { status: 200 })
   }
 
@@ -74,11 +74,39 @@ serve(async (req) => {
     return new Response("ok", { status: 200 })
   }
 
-  // ── 5. Verify reminder ownership ─────────────────────────────────────────
+  // ── 5a. Hiring event acknowledgement ─────────────────────────────────────
+  if (action === "event_ack") {
+    const { data: event } = await supabase
+      .from("hiring_events")
+      .select("id, user_id, status")
+      .eq("id", entityId)
+      .eq("user_id", profile.id)
+      .maybeSingle()
+
+    if (!event) {
+      await answer(profile.telegram_bot_token, callbackQueryId, "⚠️ Event not found.")
+      return new Response("ok", { status: 200 })
+    }
+
+    if (event.status !== "pending") {
+      await answer(profile.telegram_bot_token, callbackQueryId, "ℹ️ Already acknowledged.")
+      return new Response("ok", { status: 200 })
+    }
+
+    await supabase
+      .from("hiring_events")
+      .update({ status: "reviewed" })
+      .eq("id", entityId)
+
+    await answer(profile.telegram_bot_token, callbackQueryId, "✅ Acknowledged.")
+    return new Response("ok", { status: 200 })
+  }
+
+  // ── 5b. Verify reminder ownership ────────────────────────────────────────
   const { data: reminder } = await supabase
     .from("reminders")
     .select("id, user_id, due_at, completed, cancelled_at")
-    .eq("id", reminderId)
+    .eq("id", entityId)
     .eq("user_id", profile.id)
     .maybeSingle()
 
@@ -92,33 +120,39 @@ serve(async (req) => {
     return new Response("ok", { status: 200 })
   }
 
-  // ── 6. Execute action ─────────────────────────────────────────────────────
+  // ── 6. Execute reminder action ────────────────────────────────────────────
   let confirmText = ""
 
   if (action === "done") {
     await supabase
       .from("reminders")
       .update({ completed: true })
-      .eq("id", reminderId)
+      .eq("id", entityId)
     confirmText = "✅ Marked as done!"
 
-  } else if (action === "snooze") {
-    const newDue = new Date(new Date(reminder.due_at).getTime() + 24 * 60 * 60 * 1000)
-    await supabase
+  } else if (action === "snooze" || action === "snooze3") {
+    // Always base snooze on NOW — prevents immediate re-fire if already overdue
+    const days = action === "snooze3" ? 3 : 1
+    const newDue = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+    const { error: snoozeError } = await supabase
       .from("reminders")
       .update({
         due_at: newDue.toISOString(),
-        last_notified_at: null, // reset so it re-notifies at the new time
+        last_notified_at: new Date().toISOString(),
       })
-      .eq("id", reminderId)
-    confirmText = "⏭ Snoozed by 1 day."
+      .eq("id", entityId)
+    if (snoozeError) {
+      console.error("snooze update failed:", snoozeError.message)
+      await answer(profile.telegram_bot_token, callbackQueryId, "⚠️ Snooze failed, please try again.")
+      return new Response("ok", { status: 200 })
+    }
+    confirmText = days === 3 ? "⏭ Snoozed by 3 days." : "⏭ Snoozed by 1 day."
 
   } else if (action === "cancel") {
-    // Soft cancel — preserves history, invisible to existing UI (which filters on completed only)
     await supabase
       .from("reminders")
       .update({ cancelled_at: new Date().toISOString() })
-      .eq("id", reminderId)
+      .eq("id", entityId)
     confirmText = "🗑 Reminder cancelled."
   }
 

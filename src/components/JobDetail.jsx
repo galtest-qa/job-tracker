@@ -7,6 +7,7 @@ import CompanyLogo from './CompanyLogo.jsx'
 import ReminderPanel from './ReminderPanel.jsx'
 import { getNextAction, getFollowUp, getTimeline } from './nextAction.js'
 import ResumeTab from './ResumeTab.jsx'
+import InterviewTab from './InterviewTab.jsx'
 import EmailBodyModal from './EmailBodyModal.jsx'
 
 const PALETTE = ['#6b7280', '#4f6ef7', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
@@ -28,7 +29,6 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const [job, setJob] = useState(null)
   const [editing, setEditing] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
-  const [prepping, setPrepping] = useState(false)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState(initialTab || 'analysis')
   const [jobReminders, setJobReminders] = useState([])
@@ -72,18 +72,6 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
     try { const updated = await api.analyzeJob(jobId); setJob(updated); trackWin('analyzed') }
     catch (err) { setError(err.message) }
     setAnalyzing(false)
-  }
-
-  const generateInterviewPrep = async () => {
-    setPrepping(true); setError(null)
-    try {
-      const updated = await api.interviewPrep(jobId)
-      if (typeof updated.interview_prep_ai === 'string') {
-        try { updated.interview_prep_ai = JSON.parse(updated.interview_prep_ai) } catch {}
-      }
-      setJob(updated)
-    } catch (err) { setError(err.message) }
-    setPrepping(false)
   }
 
   const exportResume = () => {
@@ -150,8 +138,6 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
       />
     )
   }
-
-  const prep = job.interview_prep_ai && typeof job.interview_prep_ai === 'object' ? job.interview_prep_ai : null
 
   return (
     <div className="job-detail">
@@ -519,81 +505,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
 
         {/* ── Interview Prep Tab ── */}
         {activeTab === 'interview' && (
-          <div className="interview-tab">
-            <div className="tab-actions">
-              <button className="btn btn-primary" onClick={generateInterviewPrep} disabled={prepping}>
-                {prepping ? 'Generating...' : prep ? 'Regenerate Prep' : 'Generate Interview Prep'}
-              </button>
-            </div>
-
-            {prep ? (
-              <div className="interview-prep-content">
-                {prep.company_research_notes && (
-                  <div className="prep-section">
-                    <h4>Company Research</h4>
-                    <p>{prep.company_research_notes}</p>
-                  </div>
-                )}
-
-                {prep.key_talking_points?.length > 0 && (
-                  <div className="prep-section">
-                    <h4>Key Talking Points</h4>
-                    <ul className="prep-list">
-                      {prep.key_talking_points.map((p, i) => <li key={i}>{p}</li>)}
-                    </ul>
-                  </div>
-                )}
-
-                {prep.likely_questions?.length > 0 && (
-                  <div className="prep-section">
-                    <h4>Likely Questions & Suggested Answers</h4>
-                    <div className="qa-list">
-                      {prep.likely_questions.map((qa, i) => (
-                        <div key={i} className="qa-item">
-                          <div className="qa-question">Q: {qa.question}</div>
-                          <div className="qa-answer">{qa.suggested_answer}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {prep.questions_to_ask?.length > 0 && (
-                  <div className="prep-section">
-                    <h4>Questions to Ask Them</h4>
-                    <ul className="prep-list">
-                      {prep.questions_to_ask.map((q, i) => <li key={i}>{q}</li>)}
-                    </ul>
-                  </div>
-                )}
-
-                {prep.potential_concerns?.length > 0 && (
-                  <div className="prep-section concerns">
-                    <h4>Potential Concerns & How to Address</h4>
-                    <ul className="prep-list">
-                      {prep.potential_concerns.map((c, i) => <li key={i}>{c}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="empty-tab-state">
-                <p>Generate an AI-powered interview preparation guide tailored to this specific role.</p>
-              </div>
-            )}
-
-            <div className="prep-divider">
-              <span>Your Personal Notes</span>
-            </div>
-            <textarea
-              className="notes-textarea"
-              value={job.interview_notes || ''}
-              onChange={e => setJob({ ...job, interview_notes: e.target.value })}
-              onBlur={e => updateNotes('interview_notes', e.target.value)}
-              placeholder="Add your own interview notes here..."
-              rows={6}
-            />
-          </div>
+          <InterviewTab job={job} setJob={setJob} jobId={jobId} />
         )}
 
         {/* ── Description Tab ── */}

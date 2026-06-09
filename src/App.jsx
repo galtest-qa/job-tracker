@@ -64,7 +64,9 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     const jobId = params.get('job')
     if (jobId) {
-      const tab = params.get('tab') || null
+      const rawTab = params.get('tab') || null
+      // 'updates' is an alias for the 'reminders' tab (Reminders & Updates)
+      const tab = rawTab === 'updates' ? 'reminders' : rawTab
       pendingDeepLink.current = { jobId, tab }
       window.history.replaceState({}, '', window.location.pathname)
     }

@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx supabase *)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(supabase projects *)",
+      "Bash(supabase db *)",
+      "Bash(git checkout *)",
+      "Bash(git rm *)",
+      "Bash(supabase auth *)",
+      "Bash(supabase --help)",
+      "Bash(supabase config *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(security find-generic-password *)",
+      "Bash(security dump-keychain *)",
+      "Bash(gcloud auth *)",
+      "Bash(gcloud projects *)",
+      "Bash(python3 -c ' *)",
+      "Bash(gcloud config *)",
+      "Bash(/Users/galamato/.deno/bin/deno test *)",
+      "Bash(git pull *)"
+    ]
+  }
+}
