@@ -1058,6 +1058,29 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .eq("provider", "gmail")
 
+    // 13. Fire-and-forget: Telegram event notifications + recommendation refresh
+    // These must never block or fail the sync response.
+    const functionsBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1`
+    const internalHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    }
+
+    if (newEvents.length > 0) {
+      const newEventIds = newEvents.map((e) => (e as Record<string, unknown>).id as string)
+      fetch(`${functionsBase}/telegram-notify-events`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({ userId: user.id, eventIds: newEventIds }),
+      }).catch((err) => console.warn("telegram-notify-events dispatch failed:", err))
+    }
+
+    fetch(`${functionsBase}/generate-recommendations`, {
+      method: "POST",
+      headers: internalHeaders,
+      body: JSON.stringify({ userId: user.id }),
+    }).catch((err) => console.warn("generate-recommendations dispatch failed:", err))
+
     console.log(
       `gmail-sync: user=${user.id} fetched=${emails.length} new=${newEmails.length} ` +
       `classified=${aiRows.length} events=${newEvents.length}`

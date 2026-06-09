@@ -1835,6 +1835,82 @@ body {
   .header-right .btn { font-size: 0.73rem; padding: 0.38rem 0.6rem; }
 }
 
+/* ─── Settings & Onboarding: mobile responsive fixes ─── */
+@media (max-width: 640px) {
+  /* Modal: tighter padding, wider, no horizontal scroll on small screens */
+  .modal {
+    width: 95%;
+    padding: 1.25rem 1rem;
+    max-height: 90vh;
+    overflow-x: hidden;
+  }
+
+  /* Settings button rows: wrap so buttons never overflow the container */
+  .settings-btn-row {
+    flex-wrap: wrap;
+  }
+
+  /* Settings guide: reduce list indent on narrow screens */
+  .settings-guide ul,
+  .settings-guide ol {
+    margin-left: 1rem;
+  }
+
+  /* Gmail status row: wrap email + last-sync date */
+  .gmail-status-row {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+  .gmail-last-sync {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  /* Prevent horizontal overflow in settings status banners */
+  .settings-status {
+    flex-wrap: wrap;
+  }
+
+  /* Onboarding hero: reduce top margin and side padding */
+  .onboarding-hero {
+    margin: 1.5rem auto;
+    padding: 0 0.25rem;
+  }
+  .onboarding-hero-header {
+    margin-bottom: 1.5rem;
+  }
+  .onboarding-title {
+    font-size: 1.35rem;
+  }
+  .onboarding-subtitle {
+    font-size: 0.875rem;
+  }
+
+  /* Onboarding steps: stack CTA button full-width below the icon + text row */
+  .onboarding-step {
+    flex-wrap: wrap;
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+  /* Icon and body sit side-by-side; button drops to its own row */
+  .onboarding-step-icon-wrap {
+    align-self: flex-start;
+  }
+  .onboarding-step-body {
+    flex: 1;
+  }
+  .onboarding-step-btn {
+    flex: 0 0 100%;
+    width: 100%;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+  .onboarding-step-done-label {
+    width: 100%;
+  }
+}
+
 /* Kanban: full-width snap scrolling on touch/mobile */
 @media (max-width: 768px) {
   .app { padding: 0 0.75rem 3rem; overflow-x: hidden; }
@@ -3611,4 +3687,546 @@ body {
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: center;
+}
+
+/* ═══════════ Interview Intelligence (InterviewTab) ═══════════ */
+
+.it-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-top: 0.25rem;
+}
+
+/* ── Readiness Score Card ── */
+.it-readiness-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+}
+.it-readiness-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  min-width: 56px;
+}
+.it-readiness-score {
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.it-readiness-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  text-align: center;
+  white-space: nowrap;
+}
+.it-readiness-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.2rem;
+}
+.it-readiness-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+.it-readiness-bar-label {
+  width: 72px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.it-readiness-bar-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.it-readiness-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.it-readiness-bar-pts {
+  width: 30px;
+  text-align: right;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+/* ── Section wrapper ── */
+.it-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.it-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.it-section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.it-section-sub {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ── Empty state ── */
+.it-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+.it-empty svg { flex-shrink: 0; color: var(--text-tertiary); margin-top: 2px; }
+.it-empty p { margin: 0; }
+
+/* ── Content blocks ── */
+.it-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.it-block-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+}
+.it-block-label--danger { color: #ef4444; }
+.it-block-label--success { color: #10b981; }
+
+/* ── Stage cards ── */
+.it-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.it-stage-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.it-stage-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  background: var(--surface);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+}
+.it-stage-header:hover { background: var(--surface-hover); }
+.it-stage-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+.it-stage-meta { display: flex; gap: 0.35rem; flex-shrink: 0; }
+.it-stage-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: var(--border-light);
+  color: var(--text-tertiary);
+  border-radius: 20px;
+  padding: 0.1rem 0.45rem;
+}
+.it-stage-chevron {
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+  margin-left: 0.25rem;
+  flex-shrink: 0;
+}
+.it-stage-body {
+  padding: 0.75rem 0.85rem;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg);
+}
+.it-stage-focus {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.65rem;
+  line-height: 1.5;
+}
+.it-stage-questions {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.it-stage-question {
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+/* ── Prep checklist ── */
+.it-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.it-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.45;
+  padding: 0.35rem 0;
+}
+.it-checklist-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.it-checklist-item--done span {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+.it-checklist-count {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--primary);
+  margin-left: 0.4rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── Company intel ── */
+.it-intel-text {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ── Warning / success lists ── */
+.it-warning-list,
+.it-success-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.it-warning-list li { font-size: 0.83rem; color: #ef4444; line-height: 1.45; }
+.it-success-list li { font-size: 0.83rem; color: #10b981; line-height: 1.45; }
+
+/* ── Mock interview ── */
+.it-mock-question-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.it-mock-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.83rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+.it-mock-custom {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.83rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+.it-mock-active-q {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border-left: 3px solid var(--primary);
+  padding: 0.55rem 0.75rem;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  line-height: 1.45;
+}
+.it-mock-answer {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.84rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  line-height: 1.55;
+}
+.it-mock-answer:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+/* ── Mock feedback card ── */
+.it-feedback-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+.it-feedback-score-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+.it-feedback-score {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  letter-spacing: -0.03em;
+}
+.it-mock-breakdown {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.15rem;
+}
+.it-mock-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+}
+.it-mock-breakdown-label {
+  width: 72px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.it-mock-breakdown-track {
+  flex: 1;
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.it-mock-breakdown-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.it-mock-breakdown-val {
+  width: 32px;
+  text-align: right;
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+/* ── Feedback blocks ── */
+.it-feedback-block {
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-xs);
+  font-size: 0.83rem;
+  line-height: 1.55;
+}
+.it-feedback-block p { margin: 0.2rem 0 0; color: var(--text); }
+.it-feedback-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.1rem;
+}
+.it-feedback-block--good {
+  background: #f0fdf4;
+  border-left: 3px solid #10b981;
+}
+.it-feedback-block--good .it-feedback-label { color: #059669; }
+.it-feedback-block--warn {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+}
+.it-feedback-block--warn .it-feedback-label { color: #d97706; }
+.it-feedback-block--new {
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+}
+.it-feedback-block--new .it-feedback-label { color: #2563eb; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 640px) {
+  .it-readiness-card { flex-direction: column; gap: 1rem; }
+  .it-readiness-left { flex-direction: row; align-items: baseline; gap: 0.5rem; min-width: unset; }
+  .it-readiness-score { font-size: 1.75rem; }
+  .it-mock-question-row { flex-direction: column; align-items: stretch; }
+  .it-mock-select, .it-mock-custom { width: 100%; }
+  .it-feedback-score-row { flex-direction: column; gap: 0.75rem; }
+}
+
+/* ─── Interview Intelligence Phase 2: evidence badges, new blocks ─── */
+
+/* Confidence / evidence badges */
+.it-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.it-badge--observed  { background: #d1fae5; color: #059669; }
+.it-badge--inferred  { background: #fef3c7; color: #b45309; }
+.it-badge--estimated { background: #f1f5f9; color: #64748b; }
+
+/* Data quality / evidence note */
+.it-quality-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xs);
+  padding: 0.55rem 0.75rem;
+  line-height: 1.45;
+}
+.it-quality-icon { flex-shrink: 0; }
+
+/* Evidence note inside stage card */
+.it-evidence-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: 0 0 0.6rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+.it-evidence-icon { flex-shrink: 0; }
+
+/* Shared cache indicator */
+.it-cache-note {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  margin-top: 0.1rem;
+  display: block;
+}
+
+/* Practice note in readiness card */
+.it-readiness-practice-note {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  margin-top: 0.1rem;
+  padding-left: 74px;
+}
+
+/* Mistakes list with confidence badges */
+.it-mistake-list,
+.it-success-evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.it-mistake-item,
+.it-success-evidence-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+.it-mistake-item  { color: #ef4444; }
+.it-success-evidence-item { color: #10b981; }
+.it-mistake-item .it-badge,
+.it-success-evidence-item .it-badge { flex-shrink: 0; margin-top: 2px; }
+
+/* Warning list amber variant (potential concerns) */
+.it-warning-list--amber li { color: #b45309; }
+
+/* Role-specific questions — slightly distinct from stage questions */
+.it-role-questions {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.65rem 0.65rem 1.5rem;
+}
+
+/* Sub-label inside block label */
+.it-block-label--sub {
+  font-weight: 400;
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 0.3rem;
+}
+.it-block-label--warn { color: #b45309; }
+
+/* Feedback score label */
+.it-feedback-score-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-top: 0.1rem;
+}
+
+/* Phase 2 mobile adjustments */
+@media (max-width: 640px) {
+  .it-readiness-practice-note { padding-left: 0; }
+  .it-mistake-item,
+  .it-success-evidence-item { flex-direction: column; gap: 0.25rem; }
 }
