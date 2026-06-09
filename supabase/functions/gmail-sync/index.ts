@@ -933,6 +933,22 @@ serve(async (req) => {
     const jobRelatedRows = aiRows.filter(r => r.is_job_related === true)
     const newEvents: Record<string, unknown>[] = []
 
+    // Pre-load existing event states in one query so we can preserve user-facing
+    // status/popup_shown when a re-classification hits an already-handled event.
+    // This prevents the "resurface" bug where a version bump re-opens dismissed events.
+    const jobRelatedEmailIds = jobRelatedRows.map(r => r.email_id as string)
+    const { data: existingEventRows } = jobRelatedEmailIds.length > 0
+      ? await adminClient
+          .from("hiring_events")
+          .select("email_id, id, status, popup_shown")
+          .eq("user_id", user.id)
+          .in("email_id", jobRelatedEmailIds)
+      : { data: [] }
+    const existingByEmailId = new Map(
+      ((existingEventRows ?? []) as Array<{ email_id: string; id: string; status: string; popup_shown: boolean }>)
+        .map(e => [e.email_id, e])
+    )
+
     for (const row of jobRelatedRows) {
       const category = row.category as string
       const company = row.detected_company as string | null
@@ -956,7 +972,10 @@ serve(async (req) => {
         row.snippet as string,
       )
 
-      const eventRow = {
+      const rec = getRecommendation(category)
+
+      // Metadata that is always safe to update (factual, not user-facing)
+      const metaFields = {
         user_id: user.id,
         email_id: emailId,
         classification_id: classRow?.id ?? null,
@@ -967,34 +986,54 @@ serve(async (req) => {
         match_confidence: match.confidence,
         match_signals: match.signals,
         suggested_stage: SUGGESTED_STAGES[category] ?? null,
-        status: "pending",
-        popup_shown: false,
         extracted_company: match.extractedCompany ?? null,
         extracted_role: match.extractedRole ?? null,
         extraction_sources: match.extractionSources ?? [],
         match_score: match.matchScore ?? 0,
         description: typeof row.summary === "string" ? row.summary : null,
-        ...(() => {
-          const rec = getRecommendation(category)
-          return { recommended_action: rec.action, recommendation_reason: rec.reason }
-        })(),
+        recommended_action: rec.action,
+        recommendation_reason: rec.reason,
       }
 
-      const { data: inserted, error: eventErr } = await adminClient
-        .from("hiring_events")
-        .upsert(eventRow, { onConflict: "user_id,email_id" })
-        .select()
-        .single()
+      const existingEvent = existingByEmailId.get(emailId) as { email_id: string; id: string; status: string; popup_shown: boolean } | undefined
 
-      if (!eventErr && inserted) {
-        newEvents.push(inserted)
+      if (existingEvent) {
+        // Row already exists — update metadata only, never touch status/popup_shown.
+        // This preserves any action the user already took (reviewed, dismissed, acted).
+        await adminClient
+          .from("hiring_events")
+          .update(metaFields)
+          .eq("user_id", user.id)
+          .eq("email_id", emailId)
+
+        // Only surface to the frontend if it is still unhandled
+        if (existingEvent.status === "pending" && !existingEvent.popup_shown) {
+          const { data: refreshed } = await adminClient
+            .from("hiring_events")
+            .select()
+            .eq("user_id", user.id)
+            .eq("email_id", emailId)
+            .single()
+          if (refreshed) newEvents.push(refreshed)
+        }
+      } else {
+        // Genuinely new event — insert with pending/unshown state
+        const { data: inserted, error: eventErr } = await adminClient
+          .from("hiring_events")
+          .insert({ ...metaFields, status: "pending", popup_shown: false })
+          .select()
+          .single()
+
+        if (!eventErr && inserted) {
+          newEvents.push(inserted)
+        }
       }
     }
 
-    // 11. Update has_unread_event on matched jobs
+    // 11. Update has_unread_event — only for jobs with genuinely new pending events
     const matchedJobIds = [...new Set(
       newEvents
-        .filter(e => e.matched_job_id)
+        .filter(e => e.matched_job_id && e.status === "pending")
         .map(e => e.matched_job_id as string)
     )]
     if (matchedJobIds.length > 0) {

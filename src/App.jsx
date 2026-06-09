@@ -41,6 +41,9 @@ export default function App() {
   const resumeInfoRef = useRef(null)
   const lastSyncRef = useRef(0)
   const tabHiddenAtRef = useRef(0)
+  // Session-level popup dedup: prevents the same event from triggering a
+  // second popup within one browser session even if the server returns it again.
+  const shownPopupIdsRef = useRef(new Set())
 
   // Handle OAuth callback redirect (e.g. ?gmail=connected)
   useEffect(() => {
@@ -217,7 +220,12 @@ export default function App() {
         setHiringEvents(prev => [...newEvents, ...prev])
         loadUnreadCount()
         refresh()
-        const highPriority = newEvents.filter(e => e.priority_score >= 70 && !e.popup_shown)
+        const highPriority = newEvents.filter(e =>
+          e.priority_score >= 70 &&
+          !e.popup_shown &&
+          !shownPopupIdsRef.current.has(e.id)
+        )
+        highPriority.forEach(e => shownPopupIdsRef.current.add(e.id))
         if (highPriority.length === 1) {
           setPopupEvent(highPriority[0])
           api.markEventPopupShown(highPriority[0].id).catch(() => {})
