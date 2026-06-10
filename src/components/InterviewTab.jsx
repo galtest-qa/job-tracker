@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { api } from '../api.js'
+import { api, normalizeCompanyName } from '../api.js'
 
 // ── Readiness score v2 ─────────────────────────────────────────────────────
 // Anti-inflation model: practice is weighted heavily, profile generation is not.
@@ -54,15 +54,61 @@ function computeReadiness(job) {
 }
 
 // ── Evidence confidence badge ──────────────────────────────────────────────
+// Each badge carries a title tooltip so users understand what it means.
 
 function ConfidenceBadge({ level }) {
   const map = {
-    high:   { label: 'Observed', cls: 'it-badge--observed' },
-    medium: { label: 'Inferred', cls: 'it-badge--inferred' },
-    low:    { label: 'Estimated', cls: 'it-badge--estimated' },
+    high: {
+      label: 'Observed',
+      cls: 'it-badge--observed',
+      tip: "Based on documented reports of this company's interview process (Glassdoor, Reddit, blogs)",
+    },
+    medium: {
+      label: 'Inferred',
+      cls: 'it-badge--inferred',
+      tip: 'Inferred from company size, stage, and industry patterns — not directly confirmed',
+    },
+    low: {
+      label: 'Estimated',
+      cls: 'it-badge--estimated',
+      tip: 'Limited information available — best guess based on general interview patterns',
+    },
   }
-  const { label, cls } = map[level] || map.low
-  return <span className={`it-badge ${cls}`}>{label}</span>
+  const { label, cls, tip } = map[level] || map.low
+  return <span className={`it-badge ${cls}`} title={tip}>{label}</span>
+}
+
+// Question source badge — shown in the mock interview picker and question lists
+function QuestionSourceBadge({ q }) {
+  if (!q.fromLibrary) return null
+  if (!q.is_ai_generated && q.frequency >= 1) {
+    return (
+      <span
+        className="it-badge it-badge--user-report"
+        title="Reported by Job Maker users who interviewed at this company"
+      >
+        {q.frequency > 1 ? `×${q.frequency} reported` : 'User reported'}
+      </span>
+    )
+  }
+  if (q.frequency > 2) {
+    return (
+      <span
+        className="it-badge it-badge--observed"
+        title={`${q.frequency} users have seen this question at this company`}
+      >
+        ×{q.frequency} confirmed
+      </span>
+    )
+  }
+  return (
+    <span
+      className="it-badge it-badge--estimated"
+      title="AI suggested — not yet confirmed by users"
+    >
+      AI suggested
+    </span>
+  )
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -105,7 +151,7 @@ function ReadinessCard({ readiness }) {
   )
 }
 
-function StageCard({ stage, expanded, onToggle }) {
+function StageCard({ stage, expanded, onToggle, libraryQuestions = [] }) {
   return (
     <div className={`it-stage-card ${expanded ? 'it-stage-card--open' : ''}`}>
       <button className="it-stage-header" onClick={onToggle}>
@@ -127,9 +173,20 @@ function StageCard({ stage, expanded, onToggle }) {
           {stage.focus && <p className="it-stage-focus">{stage.focus}</p>}
           {stage.questions?.length > 0 && (
             <ul className="it-stage-questions">
-              {stage.questions.map((q, i) => (
-                <li key={i} className="it-stage-question">{q}</li>
-              ))}
+              {stage.questions.map((q, i) => {
+                // Find this question in the library to show its source status
+                const libEntry = libraryQuestions?.find(
+                  lq => lq.question.toLowerCase().trim() === q.toLowerCase().trim()
+                )
+                return (
+                  <li key={i} className="it-stage-question">
+                    <span>{q}</span>
+                    {libEntry && (
+                      <QuestionSourceBadge q={{ ...libEntry, fromLibrary: true }} />
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -288,7 +345,7 @@ export default function InterviewTab({ job, setJob, jobId }) {
 
   const profile   = job.interview_profile || null
   const readiness = computeReadiness(job)
-  const companyKey = (job.company || '').toLowerCase().trim()
+  const companyKey = normalizeCompanyName(job.company)
 
   // Load question library for this company
   useEffect(() => {
@@ -431,6 +488,7 @@ export default function InterviewTab({ job, setJob, jobId }) {
                       stage={stage}
                       expanded={expandedStage === i}
                       onToggle={() => setExpandedStage(expandedStage === i ? null : i)}
+                      libraryQuestions={libraryQuestions}
                     />
                   ))}
                 </div>
@@ -550,10 +608,16 @@ export default function InterviewTab({ job, setJob, jobId }) {
 
       {/* Mock Interview */}
       <div className="it-section">
-        <h4 className="it-section-title">Mock Interview</h4>
+        <div className="it-section-header">
+          <h4 className="it-section-title">Mock Interview</h4>
+          <div className="it-legend">
+            <span className="it-badge it-badge--user-report" title="Reported by Job Maker users">User reported</span>
+            <span className="it-badge it-badge--observed" title="AI-generated, confirmed by multiple users">Confirmed</span>
+            <span className="it-badge it-badge--estimated" title="AI suggested, not yet confirmed">AI suggested</span>
+          </div>
+        </div>
         <p className="it-section-sub">
-          Answer as you would in the real interview. Most candidates score 4–6. Scoring 7+ requires
-          specific examples with a clear, quantified result.
+          Most candidates score 4–6. Scoring 7+ requires a specific example with a clear, quantified result.
         </p>
 
         <div className="it-mock-question-row">

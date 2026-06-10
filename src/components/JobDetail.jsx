@@ -4,7 +4,7 @@ import { trackWin } from '../lib/winTracker.js'
 import JobForm from './JobForm.jsx'
 import MatchAnalysis from './MatchAnalysis.jsx'
 import CompanyLogo from './CompanyLogo.jsx'
-import ReminderPanel from './ReminderPanel.jsx'
+import ActivityFeed from './ActivityFeed.jsx'
 import { getNextAction, getFollowUp, getTimeline } from './nextAction.js'
 import ResumeTab from './ResumeTab.jsx'
 import InterviewTab from './InterviewTab.jsx'
@@ -434,93 +434,19 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
           </div>
         )}
 
-        {/* ── Reminders & Updates Tab ── */}
+        {/* ── Reminders & Updates Tab → unified ActivityFeed ── */}
         {activeTab === 'reminders' && (
-          <div className="reminders-updates-tab">
-            <ReminderPanel jobId={jobId} />
-
-            <div className="reminders-email-section">
-              <div className="reminders-section-divider">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                Gmail Updates
-                {pendingEventCount > 0 && (
-                  <span className="section-pending-badge">{pendingEventCount} new</span>
-                )}
-              </div>
-
-              {/* Pending events — full banner with actions */}
-              {hiringEvents.filter(e => e.status === 'pending').map(event => {
-                const cls = event.email_classifications
-                const stageExists = event.suggested_stage && columns.some(c => c.name === event.suggested_stage)
-                return (
-                  <div key={event.id} className="job-event-banner">
-                    <div className="job-event-banner-header">
-                      <span className="job-event-banner-dot" />
-                      <span className="job-event-banner-label">New Gmail update</span>
-                      {event.created_at && (
-                        <span className="job-event-banner-time">{formatEventDate(event.created_at)}</span>
-                      )}
-                    </div>
-                    {event.title && <div className="job-event-banner-title">{event.title}</div>}
-                    {cls?.summary && <div className="job-event-banner-summary">{cls.summary}</div>}
-                    {cls?.from_address && (
-                      <div className="job-event-banner-source">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                        <span className="job-event-banner-from">{cls.from_address}</span>
-                      </div>
-                    )}
-                    <div className="job-event-banner-actions">
-                      {stageExists && (
-                        <button className="btn btn-primary btn-sm" onClick={() => handleEventMove(event)}>
-                          Move to {event.suggested_stage}
-                        </button>
-                      )}
-                      {event.email_id && (
-                        <button className="btn btn-ghost btn-sm" onClick={() => setEmailModal({ emailId: event.email_id, event, classification: cls })}>
-                          View Email
-                        </button>
-                      )}
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleEventReview(event.id)}>Mark reviewed</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleEventDismiss(event.id)}>Dismiss</button>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* Past events — compact history */}
-              {hiringEvents.filter(e => e.status !== 'pending').length > 0 && (
-                <div className="event-history-section">
-                  <div className="event-history-label">Past Updates</div>
-                  {hiringEvents.filter(e => e.status !== 'pending').map(event => (
-                    <div key={event.id} className="event-history-item">
-                      <div className="event-history-title">{event.title || event.event_type}</div>
-                      <div className="event-history-meta">
-                        <span className={`event-history-status event-status-${event.status}`}>
-                          {event.status === 'acted' ? 'acted on' : event.status}
-                        </span>
-                        <span className="event-history-time">{formatEventDate(event.created_at)}</span>
-                        {event.email_id && (
-                          <button
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => setEmailModal({ emailId: event.email_id, event, classification: event.email_classifications })}
-                          >
-                            View
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {hiringEvents.length === 0 && (
-                <div className="event-empty-state">
-                  <p>No Gmail activity for this job yet.</p>
-                  <p className="muted">When you receive emails about this application, they'll appear here.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <ActivityFeed
+            hiringEvents={hiringEvents}
+            reminders={jobReminders}
+            columns={columns}
+            jobId={jobId}
+            onEventMove={handleEventMove}
+            onEventReview={handleEventReview}
+            onEventDismiss={handleEventDismiss}
+            onViewEmail={(event, cls) => setEmailModal({ emailId: event.email_id, event, classification: cls })}
+            onReminderChange={loadReminders}
+          />
         )}
 
         {/* ── Resume Tab ── */}

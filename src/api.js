@@ -5,6 +5,28 @@ import { FIXED_COLUMNS, guessFixedColumn } from './lib/columns.js'
 
 // ── Interview knowledge base helpers ──────────────────────────────────────
 
+// Mirror of the Postgres normalize_company_name() function.
+// Must stay in sync with 20260618_normalization_guardrails.sql.
+//
+// Examples:
+//   "Wix"              → "wix"
+//   "wix.com"          → "wix"
+//   "Wix.com Ltd."     → "wix"
+//   "careers.wix.com"  → "wix"
+//   "Google LLC"       → "google"
+//   "Monday.com"       → "monday"
+export function normalizeCompanyName(name) {
+  if (!name) return ''
+  let s = name.trim().toLowerCase()
+  s = s.replace(/^https?:\/\//, '')
+  s = s.replace(/^(?:www|careers|jobs|talent|about|hire)\./, '')
+  s = s.replace(/[/?#].*$/, '')
+  s = s.replace(/\.(?:com|io|org|net|co|app|ai|dev|tech|inc|biz|us|uk|de|fr|ca|au)\b.*/i, '')
+  s = s.replace(/[\s,]+(?:llc|ltd\.?|inc\.?|corp\.?|co\.?|gmbh|b\.?v\.?|s\.?a\.?|plc|limited|incorporated|company|group|holdings?)[\s.,]*$/gi, '')
+  s = s.replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+  return s
+}
+
 // Map a job role string to one of the broad role_family values stored in
 // company_questions. Returns null when no confident mapping can be made.
 function inferRoleFamily(role) {
@@ -720,7 +742,7 @@ Respond in EXACTLY this JSON format (no markdown, no code blocks, just raw JSON)
   buildInterviewProfile: async (id) => {
     const job = await api.getJob(id)
     const candidateContext = await getCandidateContext()
-    const companyKey = (job.company || '').toLowerCase().trim()
+    const companyKey = normalizeCompanyName(job.company)
 
     // ── 1. Check shared company profile (skip per-user regeneration) ──
     let sharedProfile = null
@@ -886,7 +908,7 @@ Return EXACTLY this JSON (score must be an integer):
   reportInterviewStage: async (jobId, { stage, outcome, duration_min, questions_seen, notes }) => {
     const userId = await getUserId()
     const job = await api.getJob(jobId)
-    const companyKey = (job.company || '').toLowerCase().trim()
+    const companyKey = normalizeCompanyName(job.company)
     const roleFamily = inferRoleFamily(job.role)
 
     // Save the stage report (upsert so the user can update their entry)
@@ -902,17 +924,31 @@ Return EXACTLY this JSON (score must be an integer):
       notes: notes || null,
     }, { onConflict: 'user_id,job_id,stage_name' })
 
-    // If questions were reported, store them as a user_report source and
-    // add each question to the library with high confidence.
-    const cleanQuestions = (questions_seen || []).map(q => q.trim()).filter(Boolean)
+    // Validate and sanitise questions before touching shared tables.
+    // Rules (enforced here AND in the Postgres upsert function):
+    //   • cap at 20 questions per report (prevents bulk seeding)
+    //   • strip HTML / control characters
+    //   • reject anything < 10 or > 500 characters
+    //   • strip patterns that look like personal data (email, phone, names)
+    const rawQuestions = (questions_seen || []).slice(0, 20)
+    const cleanQuestions = rawQuestions
+      .map(q => q.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+      .filter(q => q.length >= 10 && q.length <= 500)
+      // Reject question-shaped personal data (email addresses, phone numbers)
+      .filter(q => !/[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test(q))
+      .filter(q => !/\b\d{3}[-.\s]?\d{3,4}[-.\s]?\d{4}\b/.test(q))
+
     if (cleanQuestions.length > 0) {
+      // Privacy: company_intel_sources is readable by all authenticated users.
+      // Store only the stage name and sanitised questions — NO user ID, role,
+      // notes, or any other personal/job-specific data.
       const { data: source } = await supabase
         .from('company_intel_sources')
         .insert({
           company_key: companyKey,
           source_type: 'user_report',
-          contributed_by: userId,
-          extracted_findings: { stage, questions: cleanQuestions, role: job.role },
+          // contributed_by intentionally omitted — prevents linking back to user
+          extracted_findings: { stage, questions: cleanQuestions },
           confidence: 0.85,
           relevance_tags: [stage, 'questions'],
         })

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { api } from '../api.js'
 
 const EVENT_META = {
   offer:                    { label: 'Offer',         color: '#10b981', bg: '#f0fdf4' },
@@ -129,9 +130,12 @@ function SyncStatusFooter({ syncInfo, onCheckUpdates }) {
 export default function Notifications({ onClose, onSelectJob, onCountChange, onRefresh, syncInfo, onCheckUpdates }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [recommendations, setRecommendations] = useState([])
+  const [recsExpanded, setRecsExpanded] = useState(true)
 
   useEffect(() => {
     load()
+    api.getRecommendations().then(setRecommendations).catch(() => {})
   }, [])
 
   const load = async () => {
@@ -188,6 +192,11 @@ export default function Notifications({ onClose, onSelectJob, onCountChange, onR
     }
   }, [events, onCountChange, onRefresh])
 
+  const dismissRec = useCallback(async (id) => {
+    setRecommendations(prev => prev.filter(r => r.id !== id))
+    await api.dismissRecommendation(id).catch(() => {})
+  }, [])
+
   const visible = events.filter(e => e.status !== 'dismissed')
   const groups = groupByDate(visible)
 
@@ -198,6 +207,44 @@ export default function Notifications({ onClose, onSelectJob, onCountChange, onR
           <h3>Hiring Activity</h3>
           <button className="btn btn-ghost" onClick={onClose}>&times;</button>
         </div>
+
+        {/* Coach Suggestions — shown above events when active recommendations exist */}
+        {recommendations.length > 0 && (
+          <div className="notif-recs-section">
+            <button className="notif-recs-header" onClick={() => setRecsExpanded(x => !x)}>
+              <span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.35rem', verticalAlign: 'middle' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Coach Suggestions
+              </span>
+              <span className="notif-recs-count">
+                {recommendations.length}
+                <span className="notif-recs-chevron">{recsExpanded ? ' ▲' : ' ▼'}</span>
+              </span>
+            </button>
+            {recsExpanded && (
+              <div className="notif-recs-list">
+                {recommendations.slice(0, 5).map(rec => (
+                  <div key={rec.id} className="notif-rec-item">
+                    <div className="notif-rec-body">
+                      <span className={`notif-rec-priority notif-rec-priority--${rec.priority >= 85 ? 'high' : rec.priority >= 65 ? 'mid' : 'low'}`} />
+                      <div className="notif-rec-text">
+                        <span
+                          className="notif-rec-title"
+                          onClick={() => rec.job_id && onSelectJob(rec.job_id)}
+                          style={rec.job_id ? { cursor: 'pointer' } : {}}
+                        >
+                          {rec.title}
+                        </span>
+                        {rec.reason && <span className="notif-rec-reason">{rec.reason}</span>}
+                      </div>
+                    </div>
+                    <button className="notif-rec-dismiss" onClick={() => dismissRec(rec.id)} title="Dismiss">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <p className="muted" style={{ padding: '1rem' }}>Loading…</p>

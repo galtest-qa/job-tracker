@@ -5,3 +5,4 @@ jobs.db
 .env.local
 .telegram-chat-id
 supabase/.temp/
+.codex/

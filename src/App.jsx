@@ -33,6 +33,7 @@ export default function App() {
   const [gmailCallbackResult, setGmailCallbackResult] = useState(null)
   const [showNotifications, setShowNotifications] = useState(false)
   const [unreadEventCount, setUnreadEventCount] = useState(0)
+  const [activeRecCount, setActiveRecCount] = useState(0)
   const [popupEvent, setPopupEvent] = useState(null)
   const [popupGroupCount, setPopupGroupCount] = useState(0)
   const [hiringEvents, setHiringEvents] = useState([])
@@ -144,6 +145,10 @@ export default function App() {
     try { const n = await api.getUnreadEventCount(); setUnreadEventCount(n) } catch {}
   }, [])
 
+  const loadActiveRecCount = useCallback(async () => {
+    try { const recs = await api.getRecommendations(); setActiveRecCount(recs.length) } catch {}
+  }, [])
+
   const handlePopupClose = useCallback(async (event, action) => {
     setPopupEvent(null)
     setPopupGroupCount(0)
@@ -221,6 +226,7 @@ export default function App() {
       if (newEvents.length > 0) {
         setHiringEvents(prev => [...newEvents, ...prev])
         loadUnreadCount()
+        loadActiveRecCount()
         refresh()
         const highPriority = newEvents.filter(e =>
           e.priority_score >= 70 &&
@@ -274,6 +280,7 @@ export default function App() {
         loadResume()
         loadSettings()
         loadUnreadCount()
+        loadActiveRecCount()
         syncHiringEvents('app_load')
       })
     } else if (session === null) {
@@ -363,8 +370,8 @@ export default function App() {
           )}
           <button className="btn btn-ghost bell-btn" onClick={() => setShowNotifications(true)} title="Hiring activity">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            {unreadEventCount > 0 && (
-              <span className="bell-badge">{unreadEventCount > 9 ? '9+' : unreadEventCount}</span>
+            {(unreadEventCount + activeRecCount) > 0 && (
+              <span className="bell-badge">{(unreadEventCount + activeRecCount) > 9 ? '9+' : unreadEventCount + activeRecCount}</span>
             )}
           </button>
           <button className="btn btn-ghost" onClick={() => setShowSettings(true)} title="Settings">
