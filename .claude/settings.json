@@ -19,7 +19,8 @@
       "Bash(python3 -c ' *)",
       "Bash(gcloud config *)",
       "Bash(/Users/galamato/.deno/bin/deno test *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(supabase migration *)"
     ]
   }
 }

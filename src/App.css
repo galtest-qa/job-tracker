@@ -266,9 +266,27 @@ body {
   background: var(--surface); border-radius: var(--radius);
   border: 1px solid var(--border-light); padding: 2rem; box-shadow: var(--shadow);
 }
-.form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.75rem; }
+.form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
 .form-header h2 { font-size: 1.15rem; font-weight: 700; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* Job URL import bar */
+.job-import-bar {
+  margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem;
+  padding: 0.85rem 1rem; background: var(--surface-hover);
+  border: 1px solid var(--border-light); border-radius: var(--radius);
+}
+.job-import-input-row { display: flex; gap: 0.5rem; align-items: center; }
+.job-import-input {
+  flex: 1; padding: 0.45rem 0.7rem; border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm); font-size: 0.83rem; background: var(--surface);
+  color: var(--text-primary); outline: none; min-width: 0;
+  transition: border-color 0.15s;
+}
+.job-import-input:focus { border-color: var(--primary); }
+.job-import-note { font-size: 0.78rem; color: var(--text-secondary); margin: 0; }
+.job-import-note--error { color: var(--danger); }
+.job-import-note--ok { color: #16a34a; }
 .form-group { margin-bottom: 1rem; }
 .form-group label {
   display: block; font-size: 0.78rem; font-weight: 600; margin-bottom: 0.4rem;

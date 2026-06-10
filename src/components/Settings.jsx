@@ -31,16 +31,18 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
   const [tgTesting, setTgTesting] = useState(false)
   const [tgSaving, setTgSaving] = useState(false)
   const [tgStatus, setTgStatus] = useState('')
+  const [tgLastCheck, setTgLastCheck] = useState(null) // ISO string or null
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase.from('profiles').select('openai_key, telegram_bot_token, telegram_chat_id, telegram_enabled, profile_context').eq('id', user.id).single()
+        const { data } = await supabase.from('profiles').select('openai_key, telegram_bot_token, telegram_chat_id, telegram_enabled, profile_context, last_telegram_check_at').eq('id', user.id).single()
         if (data?.openai_key) setOpenaiKey(data.openai_key)
         if (data?.telegram_bot_token) setTgToken(data.telegram_bot_token)
         if (data?.telegram_chat_id) setTgChatId(data.telegram_chat_id)
         if (data?.telegram_enabled) setTgEnabled(data.telegram_enabled)
+        if (data?.last_telegram_check_at) setTgLastCheck(data.last_telegram_check_at)
         if (data?.profile_context && typeof data.profile_context === 'object') setProfileContext(data.profile_context)
       }
       const mode = await getAIMode()
@@ -494,6 +496,26 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                       {tgStatus && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{tgStatus}</p>}
                     </>
                   )}
+
+                  {/* Cron health indicator */}
+                  {tgEnabled && tgChatId && (() => {
+                    if (!tgLastCheck) return (
+                      <div className="settings-status settings-status-error" style={{ marginTop: '0.75rem' }}>
+                        ⚠ Telegram cron has not run yet. Set up a schedule for <code>telegram-check</code> in{' '}
+                        <a href="https://supabase.com/dashboard/project/uytuyjodqvlrnsenitnh/functions/telegram-check" target="_blank" rel="noreferrer">Supabase Dashboard → Functions → telegram-check → Schedules</a>.
+                        Recommended: <code>*/30 * * * *</code>
+                      </div>
+                    )
+                    const minAgo = Math.round((Date.now() - new Date(tgLastCheck).getTime()) / 60000)
+                    const isStale = minAgo > 240 // 4h threshold
+                    return (
+                      <div className={`settings-status ${isStale ? 'settings-status-error' : 'settings-status-ok'}`} style={{ marginTop: '0.75rem' }}>
+                        {isStale
+                          ? `⚠ Cron may be down — last check was ${minAgo >= 60 ? `${Math.round(minAgo / 60)}h` : `${minAgo}m`} ago`
+                          : `✓ Cron healthy — last check ${minAgo < 2 ? 'just now' : `${minAgo}m ago`}`}
+                      </div>
+                    )
+                  })()}
                 </div>
               </details>
             </div>

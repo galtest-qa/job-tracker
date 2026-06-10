@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { api } from '../api.js'
 
 // ── Readiness score v2 ─────────────────────────────────────────────────────
@@ -182,6 +182,88 @@ function ScoreBreakdown({ breakdown }) {
   )
 }
 
+// ── Stage report form ──────────────────────────────────────────────────────
+
+const STAGE_OPTIONS = [
+  { value: 'recruiter_screen', label: 'Recruiter Screen' },
+  { value: 'hiring_manager',  label: 'Hiring Manager' },
+  { value: 'technical',       label: 'Technical' },
+  { value: 'culture',         label: 'Culture / Values' },
+  { value: 'case_study',      label: 'Case Study / Take-home' },
+  { value: 'panel',           label: 'Panel / Onsite' },
+  { value: 'offer',           label: 'Offer' },
+  { value: 'rejection',       label: 'Rejection' },
+]
+
+function StageReportForm({ job, jobId, onDone }) {
+  const [stage, setStage]           = useState('')
+  const [outcome, setOutcome]       = useState('')
+  const [duration, setDuration]     = useState('')
+  const [questions, setQuestions]   = useState('')
+  const [notes, setNotes]           = useState('')
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState(null)
+
+  const handleSubmit = async () => {
+    if (!stage) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.reportInterviewStage(jobId, {
+        stage,
+        outcome: outcome || undefined,
+        duration_min: duration ? Number(duration) : undefined,
+        questions_seen: questions.split('\n').map(q => q.trim()).filter(Boolean),
+        notes: notes || undefined,
+      })
+      onDone()
+    } catch (err) {
+      setError(err.message)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="it-stage-report-form">
+      <div className="it-srf-row">
+        <div className="it-srf-field">
+          <label className="it-srf-label">Stage</label>
+          <select className="it-srf-select" value={stage} onChange={e => setStage(e.target.value)}>
+            <option value="">Select stage…</option>
+            {STAGE_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+        <div className="it-srf-field">
+          <label className="it-srf-label">Outcome</label>
+          <select className="it-srf-select" value={outcome} onChange={e => setOutcome(e.target.value)}>
+            <option value="">Unknown</option>
+            <option value="passed">Passed</option>
+            <option value="rejected">Rejected</option>
+            <option value="pending">Pending</option>
+            <option value="withdrew">Withdrew</option>
+          </select>
+        </div>
+        <div className="it-srf-field it-srf-field--sm">
+          <label className="it-srf-label">Duration (min)</label>
+          <input className="it-srf-input" type="number" min="5" max="480" value={duration} onChange={e => setDuration(e.target.value)} placeholder="45" />
+        </div>
+      </div>
+      <div className="it-srf-field">
+        <label className="it-srf-label">Questions asked <span className="it-srf-hint">(one per line — these improve the shared question library)</span></label>
+        <textarea className="it-srf-textarea" rows={4} value={questions} onChange={e => setQuestions(e.target.value)} placeholder={"Tell me about yourself.\nHow do you handle tight deadlines?\nDescribe a time you dealt with conflict."} />
+      </div>
+      <div className="it-srf-field">
+        <label className="it-srf-label">Notes</label>
+        <textarea className="it-srf-textarea" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anything else worth remembering about this stage…" />
+      </div>
+      {error && <div className="rc-error">{error}</div>}
+      <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={saving || !stage}>
+        {saving ? 'Saving…' : 'Submit Report'}
+      </button>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function InterviewTab({ job, setJob, jobId }) {
@@ -197,19 +279,45 @@ export default function InterviewTab({ job, setJob, jobId }) {
   const [feedbackError, setFeedbackError]       = useState(null)
   const [showCustom, setShowCustom]             = useState(false)
 
-  const profile  = job.interview_profile || null
-  const readiness = computeReadiness(job)
+  // Stage reporting
+  const [showReportForm, setShowReportForm] = useState(false)
+  const [reportDone, setReportDone]         = useState(false)
 
-  // Flatten all stage questions for the question picker
-  const allQuestions = [
+  // Question library (from shared company_questions table)
+  const [libraryQuestions, setLibraryQuestions] = useState([])
+
+  const profile   = job.interview_profile || null
+  const readiness = computeReadiness(job)
+  const companyKey = (job.company || '').toLowerCase().trim()
+
+  // Load question library for this company
+  useEffect(() => {
+    if (!companyKey) return
+    api.getCompanyQuestions(companyKey, { limit: 40 })
+      .then(rows => setLibraryQuestions(rows))
+      .catch(() => {})
+  }, [companyKey])
+
+  // Merge profile questions + library questions for the mock interview picker.
+  // Library questions appear first if they have frequency > 1 (user-confirmed).
+  const confirmedLibraryQ = libraryQuestions
+    .filter(q => !q.is_ai_generated || q.frequency > 1)
+    .map(q => ({ stage: q.stage, question: q.question, fromLibrary: true, frequency: q.frequency }))
+
+  const profileQuestions = [
     ...((profile?.stages || []).flatMap(s =>
-      (s.questions || []).map(q => ({ stage: s.name, question: q }))
+      (s.questions || []).map(q => ({ stage: s.name, question: q, fromLibrary: false }))
     )),
     ...((profile?.role_specific?.role_questions || []).map(q => ({
-      stage: 'Role-Specific',
-      question: q,
+      stage: 'Role-Specific', question: q, fromLibrary: false,
     }))),
   ]
+
+  // Deduplicate: prefer library entry when both exist
+  const librarySet = new Set(confirmedLibraryQ.map(q => q.question.toLowerCase().trim()))
+  const filteredProfileQ = profileQuestions.filter(q => !librarySet.has(q.question.toLowerCase().trim()))
+
+  const allQuestions = [...confirmedLibraryQ, ...filteredProfileQ]
 
   const handleBuildProfile = async () => {
     setBuilding(true)
@@ -455,10 +563,23 @@ export default function InterviewTab({ job, setJob, jobId }) {
               value={selectedQuestion}
               onChange={e => { setSelectedQuestion(e.target.value); setFeedback(null) }}
             >
-              <option value="">Pick a question from the profile…</option>
-              {allQuestions.map((q, i) => (
-                <option key={i} value={q.question}>[{q.stage}] {q.question}</option>
-              ))}
+              <option value="">Pick a question…</option>
+              {confirmedLibraryQ.length > 0 && (
+                <optgroup label={`Shared Library (${confirmedLibraryQ.length})`}>
+                  {confirmedLibraryQ.map((q, i) => (
+                    <option key={`lib-${i}`} value={q.question}>
+                      {q.frequency > 1 ? `[×${q.frequency}] ` : ''}{q.question}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {filteredProfileQ.length > 0 && (
+                <optgroup label="From Profile">
+                  {filteredProfileQ.map((q, i) => (
+                    <option key={`prof-${i}`} value={q.question}>[{q.stage}] {q.question}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           )}
           {showCustom && (
@@ -543,6 +664,51 @@ export default function InterviewTab({ job, setJob, jobId }) {
             >
               Try another question
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Stage Report */}
+      <div className="it-section">
+        <div className="it-section-header">
+          <div>
+            <h4 className="it-section-title">Report Interview Stage</h4>
+            <span className="it-section-sub">
+              Questions you share improve the library for everyone applying here.
+            </span>
+          </div>
+          {!showReportForm && !reportDone && (
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowReportForm(true)}>
+              + Report Stage
+            </button>
+          )}
+        </div>
+
+        {reportDone && (
+          <div className="it-report-done">
+            Reported — thank you. Questions added to the shared library.
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: '0.75rem' }}
+              onClick={() => { setReportDone(false); setShowReportForm(false) }}>
+              Report another
+            </button>
+          </div>
+        )}
+
+        {showReportForm && !reportDone && (
+          <StageReportForm
+            job={job}
+            jobId={jobId}
+            onDone={() => { setReportDone(true); setShowReportForm(false) }}
+          />
+        )}
+
+        {libraryQuestions.length > 0 && (
+          <div className="it-library-note">
+            <span className="it-library-count">{libraryQuestions.length}</span>
+            {' '}question{libraryQuestions.length !== 1 ? 's' : ''} in the shared library for {job.company}
+            {libraryQuestions.some(q => !q.is_ai_generated) && (
+              <span className="it-library-user-note"> · {libraryQuestions.filter(q => !q.is_ai_generated).length} user-reported</span>
+            )}
           </div>
         )}
       </div>

@@ -35,6 +35,15 @@ serve(async (req) => {
     const thirtyMinLater = new Date(Date.now() + 30 * 60 * 1000).toISOString()
     let totalNotified = 0
 
+    // Stamp all Telegram users so the app can show cron health.
+    // One bulk update is cheaper than N individual updates in the loop.
+    if (users.length > 0) {
+      await supabase
+        .from("profiles")
+        .update({ last_telegram_check_at: now })
+        .in("id", users.map((u) => u.id))
+    }
+
     for (const user of users) {
       // Get due reminders — exclude completed AND soft-cancelled
       const { data: reminders } = await supabase

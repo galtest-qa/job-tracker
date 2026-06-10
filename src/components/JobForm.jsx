@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
+import { api } from '../api.js'
 
 const SOURCES = ['LinkedIn', 'Referral', 'Company Website', 'Job Board', 'Recruiter', 'Other']
 
@@ -28,8 +29,47 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
     industry: initial?.industry || '',
   })
   const [saving, setSaving] = useState(false)
+  const [importUrl, setImportUrl] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState(null)
+  const [importPartial, setImportPartial] = useState(false)
+  const urlInputRef = useRef(null)
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
+
+  const handleImport = async (e) => {
+    e?.preventDefault()
+    const url = importUrl.trim()
+    if (!url) return
+    setImporting(true)
+    setImportError(null)
+    setImportPartial(false)
+    try {
+      const result = await api.importJobFromUrl(url)
+      setForm(prev => ({
+        ...prev,
+        company:     result.company     || prev.company,
+        role:        result.role        || prev.role,
+        description: result.description || prev.description,
+        link:        url,
+        source:      inferSource(result.source_type),
+      }))
+      if (result.partial) setImportPartial(true)
+    } catch (err) {
+      setImportError(err.message || 'Could not extract job — please fill in manually')
+    }
+    setImporting(false)
+  }
+
+  const handleImportKeyDown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleImport() }
+  }
+
+  function inferSource(sourceType) {
+    if (sourceType === 'linkedin') return 'LinkedIn'
+    if (['greenhouse', 'lever', 'ashby', 'workday'].includes(sourceType)) return 'Company Website'
+    return 'Job Board'
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -49,6 +89,44 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
         <h2>{initial ? 'Edit Job' : 'Add New Job'}</h2>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
+
+      {/* URL Import — only show on new job form */}
+      {!initial && (
+        <div className="job-import-bar">
+          <div className="job-import-input-row">
+            <input
+              ref={urlInputRef}
+              type="url"
+              className="job-import-input"
+              value={importUrl}
+              onChange={e => setImportUrl(e.target.value)}
+              onKeyDown={handleImportKeyDown}
+              placeholder="Paste job URL to auto-fill (LinkedIn, Greenhouse, Lever, Ashby, Workday…)"
+              disabled={importing}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={handleImport}
+              disabled={importing || !importUrl.trim()}
+            >
+              {importing ? 'Importing…' : 'Import'}
+            </button>
+          </div>
+          {importError && (
+            <p className="job-import-note job-import-note--error">{importError}</p>
+          )}
+          {importPartial && !importError && (
+            <p className="job-import-note">
+              ⚠ Some fields couldn't be extracted — please review and fill in missing details.
+            </p>
+          )}
+          {!importError && !importPartial && importUrl && !importing && form.company && (
+            <p className="job-import-note job-import-note--ok">✓ Fields filled from URL — review and save</p>
+          )}
+        </div>
+      )}
 
       <div className="form-grid">
         <div className="form-group">

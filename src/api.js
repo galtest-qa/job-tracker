@@ -3,6 +3,67 @@ import { callOpenAI } from './lib/openai.js'
 import { getCandidateContext } from './lib/candidateContext.js'
 import { FIXED_COLUMNS, guessFixedColumn } from './lib/columns.js'
 
+// ── Interview knowledge base helpers ──────────────────────────────────────
+
+// Map a job role string to one of the broad role_family values stored in
+// company_questions. Returns null when no confident mapping can be made.
+function inferRoleFamily(role) {
+  if (!role) return null
+  const r = role.toLowerCase()
+  if (/engineer|developer|\bdev\b|swe|sre|devops|platform|backend|frontend|fullstack|mobile/.test(r)) return 'engineering'
+  if (/product manager|\bpm\b|product owner/.test(r)) return 'product'
+  if (/design|ux\b|ui\b/.test(r)) return 'design'
+  if (/\bdata\b|analyst|machine learning|\bml\b|\bai\b/.test(r)) return 'data'
+  if (/ops|operations|program manager|project manager|release/.test(r)) return 'ops'
+  if (/sales|account executive|\bae\b/.test(r)) return 'sales'
+  if (/marketing/.test(r)) return 'marketing'
+  return null
+}
+
+// Seed the company_questions table from a freshly-generated profile.
+// Uses the upsert_company_question RPC so frequency increments on repeats.
+async function seedQuestionsFromProfile(companyKey, roleFamily, profile) {
+  const entries = []
+
+  // Stage questions from company-level profile
+  for (const stage of profile.stages || []) {
+    const stageName = normalizeStage(stage.name)
+    for (const q of stage.questions || []) {
+      if (q?.trim()) entries.push({ stage: stageName, question: q.trim() })
+    }
+  }
+  // Role-specific questions
+  for (const q of profile.role_specific?.role_questions || []) {
+    if (q?.trim()) entries.push({ stage: 'general', question: q.trim() })
+  }
+
+  for (const { stage, question } of entries) {
+    await supabase.rpc('upsert_company_question', {
+      p_company_key: companyKey,
+      p_role_family: roleFamily,
+      p_stage: stage,
+      p_question: question,
+      p_source_id: null,
+      p_confidence: 0.50,
+      p_is_ai_generated: true,
+    })
+  }
+}
+
+// Map human-readable stage names (from AI output) to the enum values
+// stored in company_questions / interview_stage_reports.
+function normalizeStage(name) {
+  if (!name) return 'general'
+  const n = name.toLowerCase()
+  if (/recruiter|hr screen|phone screen/.test(n)) return 'recruiter_screen'
+  if (/hiring manager/.test(n)) return 'hiring_manager'
+  if (/technical|coding|system design/.test(n)) return 'technical'
+  if (/culture|values|fit/.test(n)) return 'culture'
+  if (/case|take.?home|assignment/.test(n)) return 'case_study'
+  if (/panel|onsite|loop/.test(n)) return 'panel'
+  return 'general'
+}
+
 async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
@@ -760,6 +821,13 @@ Return EXACTLY this JSON:
     }
 
     await api.updateJob(id, { interview_profile: profile })
+
+    // ── 5. Seed question library (fire-and-forget, non-blocking) ──
+    // Questions accumulate in company_questions so future users benefit
+    // from frequency counts even before any web scraping is added.
+    const roleFamily = inferRoleFamily(job.role)
+    seedQuestionsFromProfile(companyKey, roleFamily, profile).catch(() => {})
+
     return await api.getJob(id)
   },
 
@@ -808,6 +876,80 @@ Return EXACTLY this JSON (score must be an integer):
     })
 
     return result
+  },
+
+  // ── Interview Knowledge Base ────────────────────────────────────────────
+
+  // User reports an interview stage they completed, with optional questions.
+  // Populates interview_stage_reports and seeds company_questions with
+  // any questions the user remembers being asked.
+  reportInterviewStage: async (jobId, { stage, outcome, duration_min, questions_seen, notes }) => {
+    const userId = await getUserId()
+    const job = await api.getJob(jobId)
+    const companyKey = (job.company || '').toLowerCase().trim()
+    const roleFamily = inferRoleFamily(job.role)
+
+    // Save the stage report (upsert so the user can update their entry)
+    await supabase.from('interview_stage_reports').upsert({
+      user_id: userId,
+      job_id: jobId,
+      company_key: companyKey,
+      role_family: roleFamily,
+      stage_name: stage,
+      outcome: outcome || null,
+      duration_min: duration_min || null,
+      questions_seen: questions_seen || [],
+      notes: notes || null,
+    }, { onConflict: 'user_id,job_id,stage_name' })
+
+    // If questions were reported, store them as a user_report source and
+    // add each question to the library with high confidence.
+    const cleanQuestions = (questions_seen || []).map(q => q.trim()).filter(Boolean)
+    if (cleanQuestions.length > 0) {
+      const { data: source } = await supabase
+        .from('company_intel_sources')
+        .insert({
+          company_key: companyKey,
+          source_type: 'user_report',
+          contributed_by: userId,
+          extracted_findings: { stage, questions: cleanQuestions, role: job.role },
+          confidence: 0.85,
+          relevance_tags: [stage, 'questions'],
+        })
+        .select('id')
+        .single()
+
+      for (const q of cleanQuestions) {
+        await supabase.rpc('upsert_company_question', {
+          p_company_key: companyKey,
+          p_role_family: roleFamily,
+          p_stage: stage,
+          p_question: q,
+          p_source_id: source?.id ?? null,
+          p_confidence: 0.85,
+          p_is_ai_generated: false,
+        })
+      }
+    }
+  },
+
+  // Fetch questions from the shared library for a given company.
+  // Returns questions ordered by frequency desc so the most-confirmed
+  // questions surface first.
+  getCompanyQuestions: async (companyKey, { roleFamily, stage, limit = 30 } = {}) => {
+    let q = supabase
+      .from('company_questions')
+      .select('id, stage, role_family, question, frequency, confidence, is_ai_generated')
+      .eq('company_key', companyKey)
+      .order('frequency', { ascending: false })
+      .order('confidence', { ascending: false })
+      .limit(limit)
+
+    if (roleFamily) q = q.or(`role_family.eq.${roleFamily},role_family.is.null`)
+    if (stage)      q = q.eq('stage', stage)
+
+    const { data } = await q
+    return data || []
   },
 
   // Export not available in hosted mode (needs server-side docx generation)
@@ -968,6 +1110,20 @@ Return EXACTLY this JSON (score must be an integer):
     let data
     try { data = JSON.parse(text) } catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 300)}`) }
     if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
+    return data
+  },
+
+  importJobFromUrl: async (url) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Not authenticated')
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const res = await fetch(`${supabaseUrl}/functions/v1/job-import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ url }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
     return data
   },
 
