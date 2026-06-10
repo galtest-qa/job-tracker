@@ -43,7 +43,6 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
       try { data.interview_prep_ai = JSON.parse(data.interview_prep_ai) } catch {}
     }
     setJob(data)
-    // Compute score from breakdown so it always matches the requirements table
     const breakdown = data.score_breakdown || []
     const overrides = data.score_breakdown_overrides || {}
     if (breakdown.length > 0) {
@@ -55,6 +54,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
     } else {
       setLiveScore(data.match_score)
     }
+    return data
   }
 
   const loadReminders = async () => {
@@ -62,10 +62,26 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   }
 
   const loadHiringEvents = async () => {
-    try { const e = await api.getHiringEventsForJob(jobId); setHiringEvents(e) } catch {}
+    try {
+      const e = await api.getHiringEventsForJob(jobId)
+      setHiringEvents(e)
+      return e
+    } catch { return [] }
   }
 
-  useEffect(() => { load(); loadReminders(); loadHiringEvents() }, [jobId])
+  useEffect(() => {
+    loadReminders()
+    Promise.all([load(), loadHiringEvents()]).then(([jobData, events]) => {
+      // Fix B: clear stale has_unread_event — fires when all events were dismissed
+      // externally (e.g. via Notifications panel) and the clearing logic didn't reach
+      // this job (e.g. matched_job_id was null). The red dot would otherwise be permanent.
+      if (jobData?.has_unread_event && events.length === 0) {
+        api.clearJobUnreadEvent(jobId).catch(() => {})
+        setJob(prev => prev ? { ...prev, has_unread_event: false } : prev)
+        onRefresh()
+      }
+    }).catch(() => {})
+  }, [jobId])
 
   const analyze = async () => {
     setAnalyzing(true); setError(null)
@@ -278,6 +294,15 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
         {/* ── Analysis Tab ── */}
         {activeTab === 'analysis' && (
           <div className="analysis-tab">
+            {/* Fix A+C: when updates exist but all are reviewed, tell the user where to find them */}
+            {pendingEventCount === 0 && hiringEvents.length > 0 && (
+              <button className="reviewed-updates-notice" onClick={() => setActiveTab('reminders')}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                {hiringEvents.length === 1 ? '1 email update' : `${hiringEvents.length} email updates`} reviewed — view history in Reminders &amp; Updates
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            )}
+
             {/* Hiring event banners — pending events for this job */}
             {hiringEvents.filter(e => e.status === 'pending').map(event => {
               const cls = event.email_classifications

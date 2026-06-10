@@ -483,6 +483,7 @@ function GoalsPopover({ goals, onSave, onClose }) {
 
 function ProgressSection({ jobs, goals, onSaveGoals }) {
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const [chartExpanded, setChartExpanded] = useState(false)
   const pencilRef = useRef(null)
 
   const CHART_H = 52
@@ -541,46 +542,7 @@ function ProgressSection({ jobs, goals, onSaveGoals }) {
         <span className="focus-section-label">Your Progress</span>
       </div>
 
-      {/* 7-day stacked bar chart */}
-      <div className="focus-chart-wrap">
-        <div className="focus-chart-bars">
-          {dayData.map((day, i) => {
-            const barH = day.total > 0 ? Math.max(4, (day.total / maxTotal) * CHART_H) : 0
-            const segs = [
-              { key: 'added',    h: day.added    / Math.max(day.total, 1) * barH },
-              { key: 'analyzed', h: day.analyzed / Math.max(day.total, 1) * barH },
-              { key: 'tailored', h: day.tailored / Math.max(day.total, 1) * barH },
-              { key: 'applied',  h: day.applied  / Math.max(day.total, 1) * barH },
-            ].filter(s => s.h > 0)
-            return (
-              <div key={i} className={`focus-chart-col${day.isToday ? ' is-today' : ''}`}>
-                <div className="focus-chart-track" style={{ height: CHART_H }}>
-                  {barH > 0 ? (
-                    <div className="focus-chart-bar" style={{ height: barH }}>
-                      {segs.map(s => (
-                        <div key={s.key} style={{ height: s.h, background: METRIC_COLORS[s.key] }} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="focus-chart-empty-bar" />
-                  )}
-                </div>
-                <div className="focus-chart-day-label">{day.label}</div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="focus-chart-legend">
-          {Object.entries(METRIC_COLORS).map(([key, color]) => (
-            <span key={key} className="focus-legend-item">
-              <span className="focus-legend-dot" style={{ background: color }} />
-              {key}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Today's metric pills */}
+      {/* Today's metric pills — always visible, most glanceable */}
       <div className="focus-today-row">
         <span className="focus-today-label">Today</span>
         <div className="focus-metric-pills">
@@ -594,7 +556,7 @@ function ProgressSection({ jobs, goals, onSaveGoals }) {
         </div>
       </div>
 
-      {/* Weekly goals */}
+      {/* Weekly goals — always visible */}
       <div className="focus-goals-section">
         <div className="focus-goals-header">
           <span className="focus-section-label">Weekly Goals</span>
@@ -638,6 +600,57 @@ function ProgressSection({ jobs, goals, onSaveGoals }) {
           })}
         </div>
       </div>
+
+      {/* 7-day activity chart — collapsed by default so goals are visible immediately */}
+      <button
+        className="focus-chart-toggle"
+        onClick={() => setChartExpanded(e => !e)}
+        aria-expanded={chartExpanded}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
+        7-day activity
+        <svg className={`focus-chart-chevron${chartExpanded ? ' open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      {chartExpanded && (
+        <div className="focus-chart-wrap">
+          <div className="focus-chart-bars">
+            {dayData.map((day, i) => {
+              const barH = day.total > 0 ? Math.max(4, (day.total / maxTotal) * CHART_H) : 0
+              const segs = [
+                { key: 'added',    h: day.added    / Math.max(day.total, 1) * barH },
+                { key: 'analyzed', h: day.analyzed / Math.max(day.total, 1) * barH },
+                { key: 'tailored', h: day.tailored / Math.max(day.total, 1) * barH },
+                { key: 'applied',  h: day.applied  / Math.max(day.total, 1) * barH },
+              ].filter(s => s.h > 0)
+              return (
+                <div key={i} className={`focus-chart-col${day.isToday ? ' is-today' : ''}`}>
+                  <div className="focus-chart-track" style={{ height: CHART_H }}>
+                    {barH > 0 ? (
+                      <div className="focus-chart-bar" style={{ height: barH }}>
+                        {segs.map(s => (
+                          <div key={s.key} style={{ height: s.h, background: METRIC_COLORS[s.key] }} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="focus-chart-empty-bar" />
+                    )}
+                  </div>
+                  <div className="focus-chart-day-label">{day.label}</div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="focus-chart-legend">
+            {Object.entries(METRIC_COLORS).map(([key, color]) => (
+              <span key={key} className="focus-legend-item">
+                <span className="focus-legend-dot" style={{ background: color }} />
+                {key}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

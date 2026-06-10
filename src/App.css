@@ -3567,6 +3567,78 @@ body {
 }
 .event-empty-state p { margin: 0 0 0.3rem; }
 
+/* ── Fix A+C: reviewed-updates notice in Analysis tab ────────────── */
+.reviewed-updates-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  color: #16a34a;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+.reviewed-updates-notice:hover { background: #dcfce7; }
+
+/* ── Fix 5: chart collapse toggle ────────────────────────────────── */
+.focus-chart-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.35rem 0;
+  margin-top: 0.75rem;
+  width: 100%;
+  text-align: left;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transition: color 0.15s;
+}
+.focus-chart-toggle:hover { color: var(--text-secondary); }
+.focus-chart-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+.focus-chart-chevron.open { transform: rotate(180deg); }
+
+/* ── Fix 3: email modal — mobile overflow ─────────────────────────── */
+.email-body-section { overflow-x: hidden; }
+
+@media (max-width: 640px) {
+  .email-modal { max-height: 92vh; }
+  .email-modal-meta { padding: 0.6rem 1rem; }
+  .email-body-section { padding: 0.75rem 1rem; }
+  .email-body-text { font-size: 0.76rem; }
+}
+
+/* ── Fix 4: hiring popup — mobile padding ─────────────────────────── */
+@media (max-width: 480px) {
+  .hiring-popup {
+    padding: 1.5rem 1.25rem 1.25rem;
+  }
+  .hiring-popup-headline { font-size: 0.95rem; }
+  .hiring-popup-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hiring-popup-actions .btn {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
 /* ── Notifications sync footer ───────────────────────────────────── */
 .notifications-sync-footer {
   border-top: 1px solid var(--border-light);
@@ -4229,4 +4301,98 @@ body {
   .it-readiness-practice-note { padding-left: 0; }
   .it-mistake-item,
   .it-success-evidence-item { flex-direction: column; gap: 0.25rem; }
+}
+
+/* ─── Phase 3: stage reporting + library UI ─── */
+
+/* Stage Report Form */
+.it-stage-report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+.it-srf-row {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.it-srf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 130px;
+}
+.it-srf-field--sm { max-width: 110px; }
+.it-srf-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.it-srf-hint {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+.it-srf-select,
+.it-srf-input {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.83rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--text);
+}
+.it-srf-textarea {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.82rem;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  line-height: 1.5;
+}
+.it-srf-textarea:focus,
+.it-srf-select:focus,
+.it-srf-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+/* Report done confirmation */
+.it-report-done {
+  font-size: 0.84rem;
+  color: #059669;
+  background: #f0fdf4;
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-xs);
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+/* Library question count note */
+.it-library-note {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  margin-top: 0.25rem;
+}
+.it-library-count {
+  font-weight: 700;
+  color: var(--primary);
+}
+.it-library-user-note { color: #059669; }
+
+/* Mobile: full-width stage form fields */
+@media (max-width: 640px) {
+  .it-srf-field,
+  .it-srf-field--sm { min-width: 100%; max-width: 100%; }
 }
