@@ -19,7 +19,7 @@ serve(async (req) => {
     // Get all users with Telegram enabled
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select("id, telegram_bot_token, telegram_chat_id")
+      .select("id, telegram_bot_token, telegram_chat_id, last_rec_digest_at")
       .eq("telegram_enabled", true)
       .neq("telegram_bot_token", "")
       .neq("telegram_chat_id", "")
@@ -120,6 +120,72 @@ serve(async (req) => {
         } catch (err) {
           console.error(`Failed to notify user ${user.id}:`, err)
         }
+      }
+    }
+
+    // ── Recommendations digest ─────────────────────────────────────────────
+    // Generate fresh recommendations for every Telegram user (fire-and-forget),
+    // then send a once-per-day digest for users whose recommendations are stale.
+    const digestCutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString() // 20h ago
+    const functionsBase = `${supabaseUrl}/functions/v1`
+    const internalHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+    }
+
+    for (const user of users) {
+      // Regenerate recommendations in background — never wait on this
+      fetch(`${functionsBase}/generate-recommendations`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({ userId: user.id }),
+      }).catch(() => {})
+
+      // Skip digest if sent within the last 20 hours
+      const lastDigest = (user as any).last_rec_digest_at
+      if (lastDigest && lastDigest > digestCutoff) continue
+
+      // Load top-3 active recommendations for this user
+      const { data: recs } = await supabase
+        .from("recommendations")
+        .select("id, title, reason, priority, job_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("priority", { ascending: false })
+        .limit(3)
+
+      if (!recs?.length) continue
+
+      // Build digest message
+      const lines = ["🤖 <b>Job Maker — Daily Coach</b>\n"]
+      for (const rec of recs) {
+        lines.push(`→ ${rec.title}`)
+        if (rec.reason) lines.push(`   <i>${rec.reason}</i>`)
+      }
+      if (appUrl) lines.push(`\n<a href="${appUrl}">Open App →</a>`)
+
+      try {
+        const res = await fetch(
+          `https://api.telegram.org/bot${user.telegram_bot_token}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: user.telegram_chat_id,
+              text: lines.join("\n"),
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: true },
+            }),
+          },
+        )
+        if (res.ok) {
+          await supabase
+            .from("profiles")
+            .update({ last_rec_digest_at: now })
+            .eq("id", user.id)
+        }
+      } catch (err) {
+        console.error(`Digest failed for user ${user.id}:`, err)
       }
     }
 
