@@ -32,7 +32,7 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
   const [importUrl, setImportUrl] = useState('')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState(null)
-  const [importPartial, setImportPartial] = useState(false)
+  const [importedData, setImportedData] = useState(null) // preview before applying
   const urlInputRef = useRef(null)
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
@@ -43,22 +43,32 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
     if (!url) return
     setImporting(true)
     setImportError(null)
-    setImportPartial(false)
+    setImportedData(null)
     try {
       const result = await api.importJobFromUrl(url)
-      setForm(prev => ({
-        ...prev,
-        company:     result.company     || prev.company,
-        role:        result.role        || prev.role,
-        description: result.description || prev.description,
-        link:        url,
-        source:      inferSource(result.source_type),
-      }))
-      if (result.partial) setImportPartial(true)
+      if (result.error && !result.company && !result.role) {
+        setImportError(result.error || 'Could not extract job — please fill in manually')
+      } else {
+        setImportedData({ ...result, url })
+      }
     } catch (err) {
       setImportError(err.message || 'Could not extract job — please fill in manually')
     }
     setImporting(false)
+  }
+
+  const handleApplyImport = () => {
+    if (!importedData) return
+    setForm(prev => ({
+      ...prev,
+      company:     importedData.company     || prev.company,
+      role:        importedData.role        || prev.role,
+      description: importedData.description || prev.description,
+      link:        importedData.url         || prev.link,
+      source:      inferSource(importedData.source_type),
+    }))
+    setImportedData(null)
+    setImportUrl('')
   }
 
   const handleImportKeyDown = (e) => {
@@ -69,6 +79,11 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
     if (sourceType === 'linkedin') return 'LinkedIn'
     if (['greenhouse', 'lever', 'ashby', 'workday'].includes(sourceType)) return 'Company Website'
     return 'Job Board'
+  }
+
+  const SOURCE_LABELS = {
+    greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby',
+    workday: 'Workday', linkedin: 'LinkedIn', generic: 'Career page',
   }
 
   const handleSubmit = async (e) => {
@@ -117,13 +132,47 @@ export default function JobForm({ onSave, onCancel, initial, columns }) {
           {importError && (
             <p className="job-import-note job-import-note--error">{importError}</p>
           )}
-          {importPartial && !importError && (
-            <p className="job-import-note">
-              ⚠ Some fields couldn't be extracted — please review and fill in missing details.
-            </p>
-          )}
-          {!importError && !importPartial && importUrl && !importing && form.company && (
-            <p className="job-import-note job-import-note--ok">✓ Fields filled from URL — review and save</p>
+
+          {/* Preview card — shown after extraction, before applying */}
+          {importedData && (
+            <div className={`job-import-preview ${importedData.partial ? 'job-import-preview--partial' : ''}`}>
+              <div className="job-import-preview-source">
+                <span className="job-import-badge">{SOURCE_LABELS[importedData.source_type] || importedData.source_type}</span>
+                {importedData.confidence === 'high' && <span className="job-import-confidence high">High confidence</span>}
+                {importedData.confidence === 'medium' && <span className="job-import-confidence medium">Review fields</span>}
+                {importedData.confidence === 'low' && <span className="job-import-confidence low">Low confidence</span>}
+              </div>
+              <div className="job-import-preview-fields">
+                <div className="job-import-field">
+                  <span className="job-import-field-label">Company</span>
+                  <span className="job-import-field-value">{importedData.company || <em className="muted">not found</em>}</span>
+                </div>
+                <div className="job-import-field">
+                  <span className="job-import-field-label">Role</span>
+                  <span className="job-import-field-value">{importedData.role || <em className="muted">not found</em>}</span>
+                </div>
+                {importedData.location && (
+                  <div className="job-import-field">
+                    <span className="job-import-field-label">Location</span>
+                    <span className="job-import-field-value">{importedData.location}</span>
+                  </div>
+                )}
+              </div>
+              {importedData.error && (
+                <p className="job-import-note job-import-note--error" style={{ marginTop: '0.4rem' }}>{importedData.error}</p>
+              )}
+              {importedData.partial && !importedData.error && (
+                <p className="job-import-note" style={{ marginTop: '0.4rem' }}>⚠ Some fields incomplete — review before saving</p>
+              )}
+              <div className="job-import-preview-actions">
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleApplyImport}>
+                  Apply to form →
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setImportedData(null); setImportUrl('') }}>
+                  Discard
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

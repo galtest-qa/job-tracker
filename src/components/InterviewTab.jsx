@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { api, normalizeCompanyName } from '../api.js'
 
 // ── Readiness score v2 ─────────────────────────────────────────────────────
@@ -239,6 +239,186 @@ function ScoreBreakdown({ breakdown }) {
   )
 }
 
+// ── Coaching-first landing ─────────────────────────────────────────────────
+
+function gapItems(readiness, profile) {
+  const gaps = []
+  if (readiness.resumeFit < 20)
+    gaps.push({ text: 'Analyze your resume for this role', pts: 35 - readiness.resumeFit, action: 'resume' })
+  if (readiness.practice < 18)
+    gaps.push({ text: readiness.attempts === 0 ? 'No practice yet — mock answers are worth 40 pts' : 'More practice needed', pts: 40 - readiness.practice, action: 'practice' })
+  if (readiness.prepDone < 10 && (profile?.prep_checklist?.length || 0) > 0) {
+    const undone = (profile.prep_checklist?.length || 0) - (profile.checklist_done?.length || 0)
+    if (undone > 0) gaps.push({ text: `${undone} prep item${undone !== 1 ? 's' : ''} not done`, pts: 15 - readiness.prepDone, action: 'checklist' })
+  }
+  return gaps.sort((a, b) => b.pts - a.pts).slice(0, 3)
+}
+
+function CoachingLanding({ readiness, profile, job, onStartPractice, onScrollTo }) {
+  const gaps = gapItems(readiness, profile)
+  return (
+    <div className="it-coaching-landing">
+      <div className="it-cl-score-row">
+        <div>
+          <span className="it-cl-score" style={{ color: readiness.color }}>{readiness.total}</span>
+          <span className="it-cl-score-label">{readiness.label}</span>
+        </div>
+        <div className="it-cl-bar-wrap">
+          <div className="it-readiness-bar-track" style={{ height: 6 }}>
+            <div className="it-readiness-bar-fill" style={{ width: `${readiness.total}%`, background: readiness.color, height: '100%' }} />
+          </div>
+          <span className="it-cl-bar-caption">Interview readiness out of 100</span>
+        </div>
+      </div>
+
+      {gaps.length > 0 && (
+        <div className="it-cl-gaps">
+          <span className="it-cl-gaps-label">Biggest gaps</span>
+          {gaps.map((g, i) => (
+            <div key={i} className="it-cl-gap-row">
+              <span className="it-cl-gap-dot" />
+              <span className="it-cl-gap-text">{g.text}</span>
+              <span className="it-cl-gap-pts">+{g.pts} pts</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="it-cl-actions">
+        {(profile?.stages?.length > 0 || profile?.role_specific?.role_questions?.length > 0) && (
+          <button className="btn btn-primary" onClick={onStartPractice}>
+            Start Practice Session →
+          </button>
+        )}
+        <button className="btn btn-ghost btn-sm" onClick={() => onScrollTo('profile')}>
+          View full profile
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Practice session (guided Q&A) ──────────────────────────────────────────
+
+function PracticeSession({ questions, job, jobId, setJob, onExit }) {
+  const [qIdx, setQIdx]       = useState(0)
+  const [answer, setAnswer]   = useState('')
+  const [scoring, setScoring] = useState(false)
+  const [result, setResult]   = useState(null)
+  const [error, setError]     = useState(null)
+
+  const q = questions[qIdx]
+  const isLast = qIdx >= questions.length - 1
+
+  const handleScore = async () => {
+    if (!answer.trim() || !q) return
+    setScoring(true)
+    setError(null)
+    try {
+      const r = await api.mockInterviewScore(jobId, { question: q.question, answer: answer.trim() })
+      setJob(prev => {
+        const pp = prev.interview_profile || {}
+        const scores = [...(pp.mock_scores || []), r.score]
+        const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10
+        return { ...prev, interview_profile: { ...pp, mock_attempts: scores.length, mock_scores: scores, avg_mock_score: avg } }
+      })
+      setResult(r)
+    } catch (err) {
+      setError(err.message)
+    }
+    setScoring(false)
+  }
+
+  const moveNext = () => {
+    if (isLast) { onExit(); return }
+    setQIdx(i => i + 1)
+    setAnswer('')
+    setResult(null)
+    setError(null)
+  }
+
+  if (!q) return null
+
+  const scoreColor = result
+    ? result.score >= 8 ? 'var(--success)' : result.score >= 6 ? 'var(--warning)' : 'var(--danger)'
+    : 'var(--text)'
+
+  return (
+    <div className="it-practice">
+      {/* Header */}
+      <div className="it-practice-header">
+        <button className="btn btn-ghost btn-sm" onClick={onExit}>← Back</button>
+        <div className="it-practice-dots">
+          {questions.map((_, i) => (
+            <span key={i} className={`it-practice-dot ${i < qIdx ? 'it-practice-dot--done' : i === qIdx ? 'it-practice-dot--active' : ''}`} />
+          ))}
+        </div>
+        <span className="it-practice-counter">{qIdx + 1} of {questions.length}</span>
+      </div>
+
+      {/* Stage + Question */}
+      <div className="it-practice-stage">{q.stage?.replace(/_/g, ' ')}</div>
+      <blockquote className="it-practice-question">"{q.question}"</blockquote>
+
+      {/* Answer or Feedback */}
+      {!result ? (
+        <>
+          <textarea
+            className="it-mock-answer"
+            rows={6}
+            value={answer}
+            onChange={e => setAnswer(e.target.value)}
+            placeholder="Write your answer here. Use a specific example — what happened, what you did, and the result."
+            disabled={scoring}
+            autoFocus
+          />
+          {error && <div className="rc-error">{error}</div>}
+          <div className="it-practice-btns">
+            <button className="btn btn-primary" onClick={handleScore} disabled={scoring || !answer.trim()}>
+              {scoring ? 'Scoring…' : 'Submit Answer'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={moveNext}>
+              {isLast ? 'Finish' : 'Skip →'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="it-practice-feedback">
+          <div className="it-practice-score-row">
+            <span className="it-practice-score" style={{ color: scoreColor }}>{result.score}/10</span>
+            <span className="it-practice-score-label" style={{ color: scoreColor }}>
+              {result.score >= 8 ? 'Strong' : result.score >= 6 ? 'Average' : 'Needs work'}
+            </span>
+          </div>
+
+          {result.what_worked && (
+            <div className="it-feedback-block it-feedback-block--good">
+              <span className="it-feedback-label">What worked</span>
+              <p>{result.what_worked}</p>
+            </div>
+          )}
+          {result.to_improve && (
+            <div className="it-feedback-block it-feedback-block--warn">
+              <span className="it-feedback-label">Biggest improvement</span>
+              <p>{result.to_improve}</p>
+            </div>
+          )}
+          {result.stronger_version && (
+            <div className="it-feedback-block it-feedback-block--new">
+              <span className="it-feedback-label">Stronger version</span>
+              <p>{result.stronger_version}</p>
+            </div>
+          )}
+
+          <button className="btn btn-primary" onClick={moveNext}>
+            {isLast ? 'Finish session' : 'Next question →'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Stage report form ──────────────────────────────────────────────────────
 
 const STAGE_OPTIONS = [
@@ -335,6 +515,10 @@ export default function InterviewTab({ job, setJob, jobId }) {
   const [feedback, setFeedback]                 = useState(null)
   const [feedbackError, setFeedbackError]       = useState(null)
   const [showCustom, setShowCustom]             = useState(false)
+
+  // View mode: 'overview' shows coaching landing; 'practice' shows session
+  const [viewMode, setViewMode] = useState('overview')
+  const profileSectionRef = useRef(null)
 
   // Stage reporting
   const [showReportForm, setShowReportForm] = useState(false)
@@ -436,11 +620,36 @@ export default function InterviewTab({ job, setJob, jobId }) {
   return (
     <div className="it-container">
 
-      {/* Readiness Score */}
-      <ReadinessCard readiness={readiness} />
+      {/* Practice Session — full-screen guided mode */}
+      {viewMode === 'practice' && allQuestions.length > 0 && (
+        <PracticeSession
+          questions={allQuestions}
+          job={job}
+          jobId={jobId}
+          setJob={setJob}
+          onExit={() => setViewMode('overview')}
+        />
+      )}
+
+      {viewMode === 'overview' && (
+      <>
+
+      {/* Coaching-first landing (readiness + gaps + CTA) */}
+      {profile ? (
+        <CoachingLanding
+          readiness={readiness}
+          profile={profile}
+          job={job}
+          onStartPractice={() => setViewMode('practice')}
+          onScrollTo={() => profileSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        />
+      ) : (
+        /* No profile yet — show the raw readiness card */
+        <ReadinessCard readiness={readiness} />
+      )}
 
       {/* Interview Profile */}
-      <div className="it-section">
+      <div className="it-section" ref={profileSectionRef}>
         <div className="it-section-header">
           <div>
             <h4 className="it-section-title">Interview Profile</h4>
@@ -789,6 +998,9 @@ export default function InterviewTab({ job, setJob, jobId }) {
           rows={6}
         />
       </div>
+
+      </> // end overview mode
+      )}
     </div>
   )
 }
