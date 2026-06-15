@@ -245,6 +245,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
         </div>
       </div>
 
+      <div className="detail-tabs-wrapper">
       <div className="detail-tabs">
         {[
           { key: 'analysis', label: 'Analysis', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
@@ -263,6 +264,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
           </button>
         ))}
       </div>
+      </div>{/* detail-tabs-wrapper */}
 
       {error && <div className="error-msg">{error}</div>}
 

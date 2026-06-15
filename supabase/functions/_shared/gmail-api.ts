@@ -1,5 +1,19 @@
 // Gmail API helpers — metadata + optional full body fetching
 
+/**
+ * Thrown when Gmail returns 401 or 403 — token revoked, expired without refresh,
+ * or scope mismatch. Callers must treat this as a reconnect signal, not a generic
+ * retry-able failure.
+ */
+export class GmailAuthError extends Error {
+  readonly status: number
+  constructor(status: number, message?: string) {
+    super(message ?? `Gmail authorization failed (${status}) — token revoked or expired`)
+    this.name = "GmailAuthError"
+    this.status = status
+  }
+}
+
 export type EmailDirection = "inbound" | "outbound"
 
 export interface GmailEmail {
@@ -182,6 +196,10 @@ export async function fetchRecentEmails(
   ])
 
   if (!inboxRes.ok) {
+    // 401/403 means the token is revoked or the app lost scope — must reconnect
+    if (inboxRes.status === 401 || inboxRes.status === 403) {
+      throw new GmailAuthError(inboxRes.status)
+    }
     const err = await inboxRes.json().catch(() => ({}))
     throw new Error(
       `Gmail messages.list (inbox) failed: ${err.error?.message || inboxRes.status}`,

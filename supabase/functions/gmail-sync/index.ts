@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { decrypt, encrypt } from "../_shared/crypto-utils.ts"
-import { refreshAccessToken, fetchRecentEmails, fetchEmailBody, type GmailEmail } from "../_shared/gmail-api.ts"
+import { refreshAccessToken, fetchRecentEmails, fetchEmailBody, GmailAuthError, type GmailEmail } from "../_shared/gmail-api.ts"
 import { shouldPreFilter } from "../_shared/email-prefilter.ts"
 import { applySignalOverride, getRecommendation } from "../_shared/hiring-signal-detector.ts"
 import { shouldSurfaceEvent, shouldMarkJobUnread } from "./event-lifecycle.ts"
@@ -1097,14 +1097,36 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (err) {
-    console.error("gmail-sync unexpected error:", (err as Error).message)
+    const isAuthError = err instanceof GmailAuthError
+    console.error(
+      isAuthError ? "gmail-sync auth error:" : "gmail-sync unexpected error:",
+      (err as Error).message,
+    )
     if (adminClient && userId) {
       try {
-        await adminClient
-          .from("user_integrations")
-          .update({ last_sync_status: "failed", last_sync_error: "Sync failed — will retry automatically" })
-          .eq("user_id", userId)
-          .eq("provider", "gmail")
+        if (isAuthError) {
+          // Gmail rejected the token (401/403) — mark as reconnect_required so the
+          // frontend shows the Reconnect button, not a generic "sync failed" message.
+          await adminClient
+            .from("user_integrations")
+            .update({
+              needs_reconnect: true,
+              last_sync_status: "reconnect_required",
+              last_sync_error: "Gmail session expired — please reconnect",
+            })
+            .eq("user_id", userId)
+            .eq("provider", "gmail")
+          return new Response(
+            JSON.stringify({ error: (err as Error).message, needsReconnect: true }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          )
+        } else {
+          await adminClient
+            .from("user_integrations")
+            .update({ last_sync_status: "failed", last_sync_error: "Sync failed — will retry automatically" })
+            .eq("user_id", userId)
+            .eq("provider", "gmail")
+        }
       } catch { /* best-effort, ignore */ }
     }
     return new Response(

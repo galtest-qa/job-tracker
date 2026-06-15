@@ -279,12 +279,127 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Settings</h3>
+          <h3>Integrations &amp; Settings</h3>
           <button className="btn btn-ghost" onClick={onClose}>&times;</button>
         </div>
 
         {loading ? <p className="muted">Loading...</p> : (
           <>
+            {/* ── Integrations Overview ── */}
+            <div className="settings-section" style={{ paddingBottom: '0.5rem' }}>
+              <h4 className="settings-section-title" style={{ marginBottom: '0.75rem' }}>Integrations</h4>
+              <div className="integrations-grid">
+
+                {/* Gmail */}
+                <div className={`integration-card ${gmailStatus?.connected ? (gmailNeedsReconnect || gmailStatus?.needsReconnect || gmailStatus?.syncHealth === 'reconnect_required' ? 'integration-card--error' : gmailStatus?.syncHealth === 'degraded' ? 'integration-card--warn' : 'integration-card--ok') : ''}`}>
+                  <div className="integration-card-top">
+                    <div className="integration-icon integration-icon--gmail">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    </div>
+                    <div className="integration-card-info">
+                      <span className="integration-card-name">Gmail</span>
+                      {gmailStatus === null ? <span className="integration-card-status">Loading…</span>
+                        : !gmailStatus.connected ? <span className="integration-card-status status-off">Not connected</span>
+                        : (gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required')
+                          ? <span className="integration-card-status status-error">Reconnect required</span>
+                          : gmailStatus.syncHealth === 'degraded'
+                            ? <span className="integration-card-status status-warn">Sync issues</span>
+                            : <span className="integration-card-status status-ok">Active</span>
+                      }
+                    </div>
+                  </div>
+                  {gmailStatus?.connected && (
+                    <div className="integration-card-detail">
+                      <span>{gmailStatus.email}</span>
+                      {(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt) && (
+                        <span>Last sync: {new Date(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      )}
+                    </div>
+                  )}
+                  <div className="integration-card-action">
+                    {!gmailStatus?.connected
+                      ? <button className="btn btn-primary btn-sm" onClick={() => api.gmailAuthUrl().then(u => { window.location.href = u })}>Connect</button>
+                      : (gmailNeedsReconnect || gmailStatus?.needsReconnect)
+                        ? <button className="btn btn-primary btn-sm" onClick={() => api.gmailAuthUrl().then(u => { window.location.href = u })}>Reconnect</button>
+                        : <span className="integration-card-ok-note">✓ Connected</span>
+                    }
+                  </div>
+                </div>
+
+                {/* Telegram */}
+                <div className={`integration-card ${tgEnabled && tgChatId ? 'integration-card--ok' : ''}`}>
+                  <div className="integration-card-top">
+                    <div className="integration-icon integration-icon--telegram">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </div>
+                    <div className="integration-card-info">
+                      <span className="integration-card-name">Telegram</span>
+                      {!tgEnabled || !tgChatId
+                        ? <span className="integration-card-status status-off">Not connected</span>
+                        : tgLastCheck ? (() => {
+                            const minAgo = Math.round((Date.now() - new Date(tgLastCheck).getTime()) / 60000)
+                            return minAgo > 240
+                              ? <span className="integration-card-status status-warn">Cron stale</span>
+                              : <span className="integration-card-status status-ok">Active</span>
+                          })()
+                        : <span className="integration-card-status status-warn">Cron not set up</span>
+                      }
+                    </div>
+                  </div>
+                  {tgEnabled && tgChatId && tgLastCheck && (
+                    <div className="integration-card-detail">
+                      <span>Last check: {new Date(tgLastCheck).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  )}
+                  <div className="integration-card-action">
+                    {tgEnabled && tgChatId
+                      ? <span className="integration-card-ok-note">✓ Connected</span>
+                      : <span className="muted" style={{ fontSize: '0.75rem' }}>Configure below ↓</span>
+                    }
+                  </div>
+                </div>
+
+                {/* LinkedIn */}
+                <div className="integration-card integration-card--soon">
+                  <div className="integration-card-top">
+                    <div className="integration-icon integration-icon--linkedin">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                    </div>
+                    <div className="integration-card-info">
+                      <span className="integration-card-name">LinkedIn</span>
+                      <span className="integration-card-status status-off">Coming soon</span>
+                    </div>
+                  </div>
+                  <div className="integration-card-detail">
+                    <span>Save recruiters and contacts from visited profiles</span>
+                  </div>
+                  <div className="integration-card-action">
+                    <span className="integration-card-soon-badge">Planned</span>
+                  </div>
+                </div>
+
+                {/* Google Calendar */}
+                <div className="integration-card integration-card--soon">
+                  <div className="integration-card-top">
+                    <div className="integration-icon integration-icon--gcal">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </div>
+                    <div className="integration-card-info">
+                      <span className="integration-card-name">Google Calendar</span>
+                      <span className="integration-card-status status-off">Coming soon</span>
+                    </div>
+                  </div>
+                  <div className="integration-card-detail">
+                    <span>Auto-add interview reminders to your calendar</span>
+                  </div>
+                  <div className="integration-card-action">
+                    <span className="integration-card-soon-badge">Planned</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
             {/* Chrome Extension — top priority for new users */}
             <div className="settings-section" ref={extensionSectionRef}>
               <div className="settings-section-title-row">
@@ -570,16 +685,22 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
                     </div>
                   )}
                   {!gmailNeedsReconnect && !gmailStatus.needsReconnect && gmailStatus.syncHealth === 'degraded' && (
-                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem', opacity: 0.8 }}>
-                      Last sync failed — will retry automatically.
+                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
+                      Last sync failed — will retry automatically. If this persists, reconnect Gmail.
+                    </div>
+                  )}
+                  {gmailStatus.lastSyncError && gmailStatus.syncHealth !== 'healthy' && (
+                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
+                      {gmailStatus.lastSyncError}
                     </div>
                   )}
                   <div className="settings-btn-row">
                     <button className="btn btn-primary btn-sm" onClick={handleGmailFetch} disabled={gmailFetching}>
                       {gmailFetching ? 'Fetching…' : 'Test: Fetch Recent Emails'}
                     </button>
+                    {/* Reconnect is primary CTA whenever health is not healthy */}
                     <button
-                      className={`btn btn-sm ${(gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required') ? 'btn-primary' : 'btn-ghost'}`}
+                      className={`btn btn-sm ${(gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth !== 'healthy') ? 'btn-primary' : 'btn-ghost'}`}
                       onClick={handleGmailConnect}
                       disabled={gmailConnecting}
                     >

@@ -149,6 +149,32 @@ export default function App() {
     try { const recs = await api.getRecommendations(); setActiveRecCount(recs.length) } catch {}
   }, [])
 
+  // Load Gmail sync health from DB on startup so the header shows accurate state
+  // even before the first sync of this session completes.
+  const loadGmailSyncHealth = useCallback(async () => {
+    try {
+      const status = await api.gmailStatus()
+      if (!status?.connected) return
+      if (status.needsReconnect || status.syncHealth === 'reconnect_required') {
+        setGmailNeedsReconnect(true)
+      }
+      // Seed lastSyncInfo from DB if we have no session data yet
+      if (status.lastSuccessfulSyncAt || status.lastSyncAt) {
+        setLastSyncInfo(prev => prev ?? {
+          trigger: 'cached',
+          status: status.syncHealth === 'reconnect_required' ? 'reconnect_required'
+            : status.syncHealth === 'degraded' ? 'failed'
+            : 'success',
+          skipped: false, reason: null, minutesSince: null,
+          time: new Date(status.lastSuccessfulSyncAt ?? status.lastSyncAt),
+          lastSuccessfulSyncAt: status.lastSuccessfulSyncAt,
+          emailsScanned: 0, eventsCreated: 0,
+          error: status.lastSyncError ?? null,
+        })
+      }
+    } catch {}
+  }, [])
+
   const handlePopupClose = useCallback(async (event, action) => {
     setPopupEvent(null)
     setPopupGroupCount(0)
@@ -219,6 +245,7 @@ export default function App() {
         reason: null,
         minutesSince: null,
         time: syncTime,
+        lastSuccessfulSyncAt: syncTime.toISOString(),
         emailsScanned: result.total ?? 0,
         eventsCreated: newEvents.length,
         error: null,
@@ -281,6 +308,7 @@ export default function App() {
         loadSettings()
         loadUnreadCount()
         loadActiveRecCount()
+        loadGmailSyncHealth()   // seed header health state before first sync
         syncHiringEvents('app_load')
       })
     } else if (session === null) {
@@ -354,18 +382,34 @@ export default function App() {
             Find Jobs
           </button>
           <button className="btn btn-primary" onClick={() => setView('add')}>+ Add Job</button>
-          {lastSyncInfo && (
+          {/* Gmail sync health indicator — shown whenever we have sync state */}
+          {gmailNeedsReconnect ? (
             <button
-              className="sync-status-btn"
-              onClick={() => syncHiringEvents('manual', true)}
-              title={lastSyncInfo.skipped
-                ? `Skipped — synced ${lastSyncInfo.minutesSince}m ago. Click to force check.`
-                : 'Click to check for updates'}
+              className="sync-status-btn sync-status-reconnect"
+              onClick={() => { setShowSettings(true); setShowSettingsSection('gmail') }}
+              title="Gmail session expired — click to reconnect"
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/>
-              </svg>
-              {lastSyncInfo.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Reconnect Gmail
+            </button>
+          ) : lastSyncInfo && (
+            <button
+              className={`sync-status-btn${lastSyncInfo.status === 'failed' || lastSyncInfo.status === 'reconnect_required' ? ' sync-status-warn' : ''}`}
+              onClick={() => syncHiringEvents('manual', true)}
+              title={lastSyncInfo.status === 'failed'
+                ? `Last sync failed — click to retry`
+                : lastSyncInfo.skipped
+                  ? `Skipped — synced ${lastSyncInfo.minutesSince}m ago. Click to force check.`
+                  : 'Click to check for updates'}
+            >
+              {lastSyncInfo.status === 'failed' || lastSyncInfo.status === 'reconnect_required' ? (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/>
+                </svg>
+              )}
+              {lastSyncInfo.status === 'failed' ? 'Sync issue' : lastSyncInfo.time?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </button>
           )}
           <button className="btn btn-ghost bell-btn" onClick={() => setShowNotifications(true)} title="Hiring activity">
@@ -374,7 +418,7 @@ export default function App() {
               <span className="bell-badge">{(unreadEventCount + activeRecCount) > 9 ? '9+' : unreadEventCount + activeRecCount}</span>
             )}
           </button>
-          <button className="btn btn-ghost" onClick={() => setShowSettings(true)} title="Settings">
+          <button className="btn btn-ghost" onClick={() => setShowSettings(true)} title="Integrations &amp; Settings">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
