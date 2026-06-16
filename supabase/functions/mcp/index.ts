@@ -205,7 +205,7 @@ async function toolGetJobs(
   const limit = Math.min(Number(args.limit ?? 50), 100)
   let query = supabase
     .from("jobs")
-    .select("id, company, role, status, match_score, location, created_at, updated_at, has_unread_event")
+    .select("id, company, role, status, match_score, created_at, updated_at")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(limit)
