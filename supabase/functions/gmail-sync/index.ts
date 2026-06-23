@@ -715,6 +715,9 @@ serve(async (req) => {
 
   try {
     // 1. Authenticate
+    // Two modes:
+    //   a) Normal: user JWT in Authorization header (frontend-triggered)
+    //   b) Cron:   service role key + X-Cron-User-Id header (background sync via gmail-sync-cron)
     const authHeader = req.headers.get("Authorization")
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
@@ -722,30 +725,39 @@ serve(async (req) => {
       })
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    )
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    const cronUserId = req.headers.get("X-Cron-User-Id")
+    const isCronMode = !!cronUserId && authHeader === `Bearer ${serviceKey}`
 
     adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      serviceKey,
     )
-    userId = user.id
+
+    if (isCronMode) {
+      // Background sync — called by gmail-sync-cron with service role key
+      userId = cronUserId!  // non-null: guaranteed by isCronMode check above
+    } else {
+      // Frontend sync — validate user JWT
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      )
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      userId = user.id
+    }
 
     // 2. Load integration
     const { data: integration } = await adminClient
       .from("user_integrations")
       .select("encrypted_access_token, encrypted_refresh_token, expires_at, email, last_sync_at")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("provider", "gmail")
       .single()
 
@@ -793,7 +805,7 @@ serve(async (req) => {
             last_sync_status: "reconnect_required",
             last_sync_error: "Session expired — please reconnect Gmail",
           })
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .eq("provider", "gmail")
         return new Response(JSON.stringify({ error: "Token expired. Please reconnect Gmail.", needsReconnect: true }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -814,7 +826,7 @@ serve(async (req) => {
             expires_at: refreshed.expiresAt.toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .eq("provider", "gmail")
       } catch {
         await adminClient
@@ -824,7 +836,7 @@ serve(async (req) => {
             last_sync_status: "reconnect_required",
             last_sync_error: "Session expired — please reconnect Gmail",
           })
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .eq("provider", "gmail")
         return new Response(JSON.stringify({ error: "Session expired. Please reconnect Gmail.", needsReconnect: true }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -844,7 +856,7 @@ serve(async (req) => {
           last_sync_error: null,
           needs_reconnect: false,
         })
-        .eq("user_id", user.id).eq("provider", "gmail")
+        .eq("user_id", userId).eq("provider", "gmail")
       return new Response(JSON.stringify({ skipped: false, newEvents: [], total: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
@@ -857,7 +869,7 @@ serve(async (req) => {
     const { data: existing } = await adminClient
       .from("email_classifications")
       .select("email_id, classifier_version, prompt_version")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .in("email_id", emailIds)
 
     const upToDateIds = new Set(
@@ -876,7 +888,7 @@ serve(async (req) => {
     for (const email of newEmails) {
       if (shouldPreFilter(email)) {
         preFilteredRows.push({
-          user_id: user.id,
+          user_id: userId,
           email_id: email.id, thread_id: email.threadId,
           from_address: email.from, subject: email.subject,
           snippet: (email.snippet ?? "").slice(0, SNIPPET_MAX),
@@ -924,7 +936,7 @@ serve(async (req) => {
       if (aiRows.length > 0) {
         await adminClient.from("email_classifications")
           .upsert(
-            aiRows.map(r => ({ ...r, user_id: user.id })),
+            aiRows.map(r => ({ ...r, user_id: userId })),
             { onConflict: "user_id,email_id" },
           )
       }
@@ -942,7 +954,7 @@ serve(async (req) => {
       ? await adminClient
           .from("hiring_events")
           .select("email_id, id, status, popup_shown")
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .in("email_id", jobRelatedEmailIds)
       : { data: [] }
     const existingByEmailId = new Map(
@@ -960,13 +972,13 @@ serve(async (req) => {
       const { data: classRow } = await adminClient
         .from("email_classifications")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("email_id", emailId)
         .single()
 
       // Match to job
       const match = await matchToJob(
-        adminClient, user.id,
+        adminClient, userId,
         company, role,
         row.from_address as string,
         row.subject as string,
@@ -977,7 +989,7 @@ serve(async (req) => {
 
       // Metadata that is always safe to update (factual, not user-facing)
       const metaFields = {
-        user_id: user.id,
+        user_id: userId,
         email_id: emailId,
         classification_id: classRow?.id ?? null,
         event_type: category,
@@ -1004,7 +1016,7 @@ serve(async (req) => {
         await adminClient
           .from("hiring_events")
           .update(metaFields)
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .eq("email_id", emailId)
 
         // Only surface to the frontend if it is still unhandled
@@ -1012,7 +1024,7 @@ serve(async (req) => {
           const { data: refreshed } = await adminClient
             .from("hiring_events")
             .select()
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .eq("email_id", emailId)
             .single()
           if (refreshed) newEvents.push(refreshed)
@@ -1055,7 +1067,7 @@ serve(async (req) => {
         last_sync_error: null,
         needs_reconnect: false,
       })
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("provider", "gmail")
 
     // 13. Fire-and-forget: Telegram event notifications + recommendation refresh
@@ -1071,18 +1083,18 @@ serve(async (req) => {
       fetch(`${functionsBase}/telegram-notify-events`, {
         method: "POST",
         headers: internalHeaders,
-        body: JSON.stringify({ userId: user.id, eventIds: newEventIds }),
+        body: JSON.stringify({ userId: userId, eventIds: newEventIds }),
       }).catch((err) => console.warn("telegram-notify-events dispatch failed:", err))
     }
 
     fetch(`${functionsBase}/generate-recommendations`, {
       method: "POST",
       headers: internalHeaders,
-      body: JSON.stringify({ userId: user.id }),
+      body: JSON.stringify({ userId }),
     }).catch((err) => console.warn("generate-recommendations dispatch failed:", err))
 
     console.log(
-      `gmail-sync: user=${user.id} fetched=${emails.length} new=${newEmails.length} ` +
+      `gmail-sync: user=${userId} fetched=${emails.length} new=${newEmails.length} ` +
       `classified=${aiRows.length} events=${newEvents.length}`
     )
 
