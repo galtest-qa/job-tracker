@@ -242,37 +242,39 @@ function CoachingSession({ opportunities, baseScore, resumeText, job, jobId, set
     setStepGain(0)
   }
 
+  const progressPct = Math.round((idx / opportunities.length) * 100)
+  const oppType = opp.type || (opp.title?.toLowerCase().includes('keyword') ? 'Keyword gap'
+    : opp.title?.toLowerCase().includes('bullet') ? 'Bullet strength'
+    : opp.title?.toLowerCase().includes('quant') ? 'Quantification'
+    : 'Improvement')
+
   return (
     <div className="rc-session">
 
-      {/* Session header */}
+      {/* ── Progress bar header ── */}
       <div className="rc-session-header">
-        <div className="rc-session-progress">
-          {opportunities.map((_, i) => (
-            <span key={i} className={`rc-session-dot ${i < idx ? 'rc-session-dot--done' : i === idx ? 'rc-session-dot--active' : ''}`} />
-          ))}
-          <span className="rc-session-counter">{idx + 1} of {opportunities.length}</span>
+        <div className="rc-session-toprow">
+          <span className="rc-session-step">Step {idx + 1} of {opportunities.length}</span>
+          <button className="rc-session-exit" onClick={() => onExit(scoreGain)} title="Exit coaching">✕</button>
         </div>
-        <button className="rc-session-exit" onClick={() => onExit(scoreGain)}>✕ Exit</button>
+        <div className="rc-session-bar-track">
+          <div className="rc-session-bar-fill" style={{ width: `${progressPct}%` }} />
+        </div>
+        {scoreGain > 0 && (
+          <p className="rc-session-gain-line">+{scoreGain} pts gained this session</p>
+        )}
       </div>
 
-      {/* Score (updates as improvements are applied) */}
-      {baseScore > 0 && (
-        <div className="rc-session-score">
-          <span className="rc-session-score-num">{estimatedScore}</span>
-          {scoreGain > 0 && (
-            <span className="rc-session-score-delta">+{scoreGain} from this session</span>
-          )}
-        </div>
-      )}
+      {/* ── Improvement card ── */}
+      <div className="rc-session-card">
+        <span className="rc-session-type-badge">{oppType}</span>
+        <h3 className="rc-session-title">{opp.title}</h3>
+        {opp.target_statement && (
+          <p className="rc-session-target">{opp.target_statement}</p>
+        )}
+      </div>
 
-      {/* Opportunity title */}
-      <div className="rc-session-title">{opp.title}</div>
-      {opp.target_statement && (
-        <blockquote className="rc-session-target">❝ {opp.target_statement} ❞</blockquote>
-      )}
-
-      {/* Questions step */}
+      {/* ── Questions step ── */}
       {step === 'questions' && (
         <div className="rc-session-questions">
           {(opp.questions || []).map((q, i) => (
@@ -283,18 +285,14 @@ function CoachingSession({ opportunities, baseScore, resumeText, job, jobId, set
                 rows={2}
                 value={answers[i] || ''}
                 onChange={e => { const a = [...answers]; a[i] = e.target.value; setAnswers(a) }}
-                placeholder="Your answer…"
+                placeholder="Optional — helps generate a more specific improvement"
                 disabled={generating}
               />
             </div>
           ))}
           <div className="rc-session-actions">
-            <button
-              className="btn btn-primary"
-              onClick={handleGenerate}
-              disabled={generating || !answers.some(a => a.trim())}
-            >
-              {generating ? 'Generating…' : 'Generate Improvement'}
+            <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
+              {generating ? <><span className="rc-spinner" />Generating…</> : 'Generate improvement'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={moveNext}>
               {isLast ? 'Skip & finish' : 'Skip →'}
@@ -303,49 +301,41 @@ function CoachingSession({ opportunities, baseScore, resumeText, job, jobId, set
         </div>
       )}
 
-      {/* Result step */}
+      {/* ── Result step ── */}
       {step === 'result' && result && (
         <div className="rc-session-result">
-          <div className="rc-session-diff">
-            <div className="rc-session-diff-before">
-              <span className="rc-session-diff-label">Before</span>
-              <p>{result.original}</p>
+
+          {/* Before → After */}
+          <div className="rc-result-comparison">
+            <div className="rc-result-before">
+              <span className="rc-result-label">Before</span>
+              <p className="rc-result-text">{result.original}</p>
             </div>
-            <div className="rc-session-diff-after">
-              <span className="rc-session-diff-label">After</span>
-              <p>{result.improved}</p>
+            <div className="rc-result-arrow">↓</div>
+            <div className="rc-result-after">
+              <span className="rc-result-label">After</span>
+              <p className="rc-result-text rc-result-text--improved">{result.improved}</p>
             </div>
           </div>
 
-          {result.reason && <p className="rc-session-reason">{result.reason}</p>}
-
-          {stepGain > 0 && (
-            <div className="rc-session-gain">
-              +{stepGain} pts → score {Math.min(100, estimatedScore + (applied ? 0 : stepGain))}
-            </div>
-          )}
-
+          {/* Match quality note — only when relevant */}
           {matchType === 'failed' && !applied && (
-            <div className="rc-session-match-warn">
-              Text not found in resume — it may have been edited. Copy the improved version below.
-            </div>
+            <p className="rc-result-note rc-result-note--warn">
+              Text not found — resume may have been edited. Copy the improved version manually.
+            </p>
           )}
-
           {matchType === 'fuzzy' && applied && (
-            <div className="rc-session-match-note">
-              Applied with fuzzy match — review the change in your resume.
-            </div>
+            <p className="rc-result-note">Applied with fuzzy match — review the change.</p>
           )}
 
+          {/* Actions */}
           <div className="rc-session-actions">
             {!applied && matchType !== 'failed' && (
               <button className="btn btn-primary" onClick={handleApply} disabled={applying}>
-                {applying ? 'Applying…' : `Apply → ${Math.min(100, estimatedScore + stepGain)}`}
+                {applying ? 'Applying…' : stepGain > 0 ? `Apply · +${stepGain} pts` : 'Apply'}
               </button>
             )}
-            {applied && (
-              <span className="rc-session-applied">✓ Applied</span>
-            )}
+            {applied && <span className="rc-session-applied">✓ Applied</span>}
             <button className="btn btn-ghost btn-sm" onClick={() => copy(result.improved)}>Copy</button>
             <button className="btn btn-ghost btn-sm" onClick={moveNext}>
               {isLast ? (applied ? 'Finish' : 'Skip & finish') : (applied ? 'Next →' : 'Skip →')}
@@ -447,9 +437,14 @@ export default function ResumeTab({ job, setJob, jobId }) {
     setAnalyzing(true)
     setAnalyzeError(null)
     setCoaching(null)
+    setSessionMode(false)
     try {
       const updated = await api.analyzeResume(jobId)
       setJob(updated)
+      // Auto-enter coaching immediately — skip the list screen
+      if (updated.resume_score?.coaching_opportunities?.length > 0) {
+        setSessionMode(true)
+      }
     } catch (err) {
       setAnalyzeError(err.message)
     }
@@ -599,45 +594,43 @@ export default function ResumeTab({ job, setJob, jobId }) {
         </div>
       )}
 
-      {/* Primary action bar */}
-      <div className="rc-action-bar">
-        <button
-          className="btn btn-primary"
-          onClick={handleAnalyze}
-          disabled={analyzing || !originalResume}
-        >
-          {analyzing ? 'Analyzing…' : hasAnalysis ? 'Re-analyze' : 'Analyze Resume'}
-        </button>
-        <button
-          className="btn btn-secondary"
-          onClick={handleTailor}
-          disabled={tailoring || !originalResume}
-          title="Generate keyword-optimized version of your resume"
-        >
-          {tailoring ? 'Tailoring…' : 'Tailor Resume'}
-        </button>
-        {(editText || job.tailored_resume) && (
-          <>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowPreview(true)}>Preview</button>
-            <button className="btn btn-ghost btn-sm" onClick={handleExport}>Export .docx</button>
-          </>
-        )}
-      </div>
-
-      {(analyzeError || tailorError) && (
-        <div className="rc-error">{analyzeError || tailorError}</div>
-      )}
-
-      {/* Empty state */}
-      {!hasAnalysis && !analyzing && (
-        <div className="rc-empty-state">
-          <div className="rc-empty-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          </div>
-          <p className="rc-empty-title">Analyze your resume against this role</p>
-          <p className="rc-empty-sub">
-            Get a match score, discover the highest-impact improvements, and work with an AI coach to strengthen specific bullets.
-          </p>
+      {/* ── Entry — one clear action ── */}
+      {!sessionMode && (
+        <div className="rc-entry">
+          {!hasAnalysis ? (
+            <>
+              <button
+                className="btn btn-primary rc-entry-cta"
+                onClick={handleAnalyze}
+                disabled={analyzing || !originalResume}
+                title={!originalResume ? 'Upload your resume first' : ''}
+              >
+                {analyzing
+                  ? <><span className="rc-spinner" />Analyzing your resume…</>
+                  : '✦ Analyze & Improve'}
+              </button>
+              {!analyzing && (
+                <p className="rc-entry-hint">
+                  Finds keyword gaps, scores your match, and walks you through improvements one at a time.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="rc-entry-tools">
+              <button className="btn btn-ghost btn-sm" onClick={handleAnalyze} disabled={analyzing}>
+                {analyzing ? 'Re-analyzing…' : 'Re-analyze'}
+              </button>
+              {(editText || job.tailored_resume) && <>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowPreview(true)}>Preview</button>
+                <button className="btn btn-ghost btn-sm" onClick={handleExport} disabled={exporting}>
+                  {exporting ? 'Exporting…' : 'Export .docx'}
+                </button>
+              </>}
+            </div>
+          )}
+          {(analyzeError || tailorError) && (
+            <p className="rc-entry-error">{analyzeError || tailorError}</p>
+          )}
         </div>
       )}
 

@@ -2005,7 +2005,7 @@ body {
 
 /* Kanban: full-width snap scrolling on touch/mobile */
 @media (max-width: 768px) {
-  .app { padding: 0 0.75rem 3rem; overflow-x: hidden; }
+  .app { padding: 0 0.75rem 0; overflow-x: hidden; }
   .kanban-board {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
@@ -2017,7 +2017,7 @@ body {
     scroll-snap-align: start;
     flex: 0 0 calc(100vw - 3rem);
     width: calc(100vw - 3rem);
-    max-height: calc(100vh - 220px);
+    max-height: calc(100vh - 250px);
   }
   .kanban-column-header {
     position: sticky; top: 0; z-index: 5;
@@ -4871,6 +4871,47 @@ body {
 .rc-opp-row:hover .rc-opp-jump { opacity: 1; }
 
 /* ── Coaching Session ── */
+/* ── Resume Coach: entry ── */
+.rc-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+.rc-entry-cta {
+  align-self: flex-start;
+}
+.rc-entry-hint {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin: 0;
+  line-height: 1.5;
+}
+.rc-entry-tools {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.rc-entry-error {
+  font-size: 0.8rem;
+  color: var(--danger, #ef4444);
+  margin: 0;
+}
+.rc-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: rc-spin 0.7s linear infinite;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+@keyframes rc-spin { to { transform: rotate(360deg); } }
+
+/* ── Resume Coach: coaching session ── */
 .rc-session {
   display: flex;
   flex-direction: column;
@@ -4880,72 +4921,85 @@ body {
   border-radius: var(--radius);
   padding: 1.25rem;
 }
+
+/* Header with progress bar */
 .rc-session-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.rc-session-toprow {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.rc-session-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.rc-session-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--border);
-  flex-shrink: 0;
-}
-.rc-session-dot--done   { background: var(--success); }
-.rc-session-dot--active { background: var(--primary); transform: scale(1.25); }
-.rc-session-counter {
+.rc-session-step {
   font-size: 0.72rem;
+  font-weight: 600;
   color: var(--text-tertiary);
-  margin-left: 0.4rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.rc-session-bar-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.rc-session-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+.rc-session-gain-line {
+  font-size: 0.72rem;
+  color: var(--success);
+  font-weight: 500;
+  margin: 0;
 }
 .rc-session-exit {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-tertiary);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0.25rem 0.4rem;
+  padding: 0.2rem 0.35rem;
   border-radius: var(--radius-xs);
+  line-height: 1;
 }
 .rc-session-exit:hover { background: var(--surface-hover); color: var(--text); }
 
-.rc-session-score {
+/* Improvement card */
+.rc-session-card {
   display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.4rem;
 }
-.rc-session-score-num {
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--text);
-  line-height: 1;
-  letter-spacing: -0.04em;
-}
-.rc-session-score-delta {
-  font-size: 0.8rem;
+.rc-session-type-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  font-size: 0.68rem;
   font-weight: 600;
-  color: var(--success);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--primary-subtle, #eff2ff);
+  color: var(--primary);
+  border-radius: 99px;
+  padding: 0.2rem 0.6rem;
 }
-
 .rc-session-title {
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: var(--text);
-  line-height: 1.35;
+  line-height: 1.4;
+  margin: 0;
 }
 .rc-session-target {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
-  border-left: 3px solid var(--border);
-  padding-left: 0.75rem;
   margin: 0;
-  font-style: italic;
   line-height: 1.5;
 }
 
@@ -4986,66 +5040,66 @@ body {
 }
 
 /* Result diff */
+/* ── Before → After comparison ── */
 .rc-session-result { display: flex; flex-direction: column; gap: 0.75rem; }
-.rc-session-diff {
+
+.rc-result-comparison {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.2rem;
 }
-.rc-session-diff-before,
-.rc-session-diff-after {
-  padding: 0.65rem 0.85rem;
+.rc-result-before,
+.rc-result-after {
+  padding: 0.7rem 0.85rem;
   border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.rc-result-before { background: var(--surface-hover); }
+.rc-result-after  { background: var(--surface); border-color: var(--primary); }
+
+.rc-result-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.rc-result-after .rc-result-label { color: var(--primary); }
+
+.rc-result-text {
   font-size: 0.84rem;
+  margin: 0;
+  color: var(--text-secondary);
   line-height: 1.55;
 }
-.rc-session-diff-before {
-  background: #fef2f2;
-  border-left: 3px solid #fca5a5;
-}
-.rc-session-diff-after {
-  background: #f0fdf4;
-  border-left: 3px solid #86efac;
-}
-.rc-session-diff-label {
-  display: block;
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-  margin-bottom: 0.3rem;
-}
-.rc-session-diff-before p,
-.rc-session-diff-after p { margin: 0; color: var(--text); }
+.rc-result-text--improved { color: var(--text); font-weight: 500; }
 
-.rc-session-reason {
-  font-size: 0.78rem;
+.rc-result-arrow {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  padding: 0.1rem 0;
+}
+.rc-result-note {
+  font-size: 0.77rem;
   color: var(--text-tertiary);
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.5;
 }
-.rc-session-gain {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--success);
+.rc-result-note--warn {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-xs);
+  padding: 0.45rem 0.65rem;
 }
 .rc-session-applied {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--success);
-}
-.rc-session-match-warn {
-  font-size: 0.78rem;
-  color: var(--danger);
-  background: #fef2f2;
-  border-radius: var(--radius-xs);
-  padding: 0.45rem 0.65rem;
-}
-.rc-session-match-note {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  font-style: italic;
 }
 
 /* ── Interview: coaching landing ── */
@@ -5203,4 +5257,339 @@ body {
   .it-cl-score-row { flex-direction: column; gap: 0.65rem; }
   .rc-session { padding: 1rem; }
   .rc-session-diff { flex-direction: column; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   BOTTOM NAVIGATION — Mobile Only (≤640px)
+   ───────────────────────────────────────────────────────────────────── */
+
+.bottom-nav {
+  display: none; /* hidden on desktop */
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: var(--bg);
+  border-top: 1px solid var(--border-light);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  z-index: 100;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  gap: 0;
+}
+
+@media (max-width: 640px) {
+  .bottom-nav { display: flex; }
+  body { padding-bottom: 70px; }
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 70px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  gap: 0.2rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  transition: color 0.15s, background 0.15s;
+  position: relative;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav-item:active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.bottom-nav-item.bottom-nav-active {
+  color: var(--primary);
+}
+
+.bottom-nav-item svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.bottom-nav-item span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+/* Center FAB — Add Job */
+.bottom-nav-fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s, box-shadow 0.15s;
+  outline: none;
+  position: absolute;
+  bottom: 57px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 101;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav-fab:active {
+  transform: translateX(-50%) scale(0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.bottom-nav-fab svg {
+  width: 26px;
+  height: 26px;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* Badge + Reconnect indicator */
+.bottom-nav-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: var(--danger);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border: 2px solid var(--bg);
+}
+
+.bottom-nav-reconnect-dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  background: var(--danger);
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   MOBILE KANBAN COLUMN SWITCHER
+   ───────────────────────────────────────────────────────────────────── */
+
+.kanban-mobile-switcher {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .kanban-mobile-switcher { display: flex; }
+}
+
+.kanban-mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.kanban-mobile-arrow {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  padding: 0.3rem 0.4rem;
+  line-height: 1;
+  transition: color 0.15s;
+  outline: none;
+  min-height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kanban-mobile-arrow:disabled {
+  color: var(--border);
+  cursor: not-allowed;
+}
+
+.kanban-mobile-arrow:not(:disabled):active {
+  color: var(--primary);
+}
+
+.kanban-mobile-column-name {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+.kanban-mobile-column-count {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.kanban-mobile-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.kanban-mobile-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-light);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, transform 0.15s;
+  outline: none;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kanban-mobile-dot.kanban-mobile-dot-active {
+  background: var(--primary);
+  transform: scale(1.2);
+}
+
+.kanban-mobile-dot:active {
+  transform: scale(1.15);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOUCH TARGET ACCESSIBILITY PASS
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  /* Form inputs: ensure 44px minimum height */
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    min-height: 44px;
+    padding: 0.65rem 0.85rem;
+  }
+
+  /* Buttons: ensure 44px minimum tap target */
+  .btn { min-height: 44px; display: inline-flex; align-items: center; }
+  .btn-sm { min-height: 44px; padding: 0.5rem 0.85rem; }
+
+  /* Activity feed button row: stack on small screens */
+  .feed-item-actions { flex-wrap: wrap; gap: 0.5rem; }
+  .feed-item-actions .btn { flex: 1 1 45%; min-height: 40px; }
+
+  /* Reminder action buttons */
+  .reminder-action-btn { min-height: 40px; min-width: 40px; }
+
+  /* Column header buttons */
+  .kanban-col-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* Focus header buttons */
+  .focus-header-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* Panel close button */
+  .panel-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Toggle buttons (Met/Partial/Unmet) */
+  .req-toggle-btn {
+    min-height: 36px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  /* Reminder checkbox/button */
+  .reminder-check {
+    min-width: 40px;
+    min-height: 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Suggestion dismiss button */
+  .focus-suggestion-dismiss {
+    min-width: 36px;
+    min-height: 36px;
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Modal buttons */
+  .modal .btn { min-height: 40px; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   KANBAN BOARD — MOBILE SINGLE COLUMN
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  /* Hide all columns except active one */
+  .kanban-board {
+    overflow-x: hidden;
+    gap: 0;
+  }
+
+  .kanban-column {
+    width: 100%;
+    flex: 1 1 100%;
+    max-height: calc(100vh - 280px);
+  }
+
+  .kanban-column:not(.kanban-column-visible) {
+    display: none;
+  }
 }
