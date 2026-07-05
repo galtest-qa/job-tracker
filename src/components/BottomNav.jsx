@@ -15,15 +15,14 @@ export default function BottomNav({
   return (
     <nav className="bottom-nav" role="navigation" aria-label="Main navigation">
       <button
-        className={`bottom-nav-item${view === 'board' ? ' bottom-nav-active' : ''}`}
+        className={`bottom-nav-item${view === 'home' || view === 'board' ? ' bottom-nav-active' : ''}`}
         onClick={onGoHome}
-        aria-label="Board"
+        aria-label="Home"
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          <path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>
         </svg>
-        <span>Board</span>
+        <span>Home</span>
       </button>
 
       <button

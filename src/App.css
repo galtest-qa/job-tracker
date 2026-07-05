@@ -5689,3 +5689,143 @@ details[open] .it-stronger-summary::before { content: '▾  '; }
     display: none;
   }
 }
+
+/* ═══════════ Career OS Home ═══════════ */
+.cos-home {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.cos-greeting h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.cos-sub {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: 0.15rem;
+}
+
+.cos-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cos-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+/* Today's Focus — the one primary action */
+.cos-focus {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  text-align: left;
+  padding: 1.1rem;
+  border: 1.5px solid var(--primary, #4f6ef7);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(79,110,247,0.08), rgba(79,110,247,0.02));
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.cos-focus:active { transform: scale(0.985); }
+.cos-focus-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface, #fff);
+  border-radius: 12px;
+}
+.cos-focus-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
+.cos-focus-eyebrow { font-size: 0.7rem; font-weight: 600; color: var(--primary, #4f6ef7); text-transform: uppercase; letter-spacing: 0.04em; }
+.cos-focus-title { font-size: 1rem; font-weight: 650; line-height: 1.25; }
+.cos-focus-sub { font-size: 0.82rem; color: var(--text-secondary); }
+.cos-focus-cta { font-size: 0.82rem; font-weight: 600; color: var(--primary, #4f6ef7); white-space: nowrap; align-self: center; }
+
+/* Recommended next steps */
+.cos-rec-list, .cos-continue-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.cos-rec, .cos-continue {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.cos-rec:active, .cos-continue:active { transform: scale(0.99); }
+.cos-rec:hover, .cos-continue:hover { border-color: var(--primary, #4f6ef7); }
+.cos-rec-main { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
+.cos-rec-title { font-size: 0.9rem; font-weight: 600; }
+.cos-rec-reason { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3; }
+.cos-rec-chevron { color: var(--text-secondary); flex-shrink: 0; }
+
+/* Continue — background work visible */
+.cos-continue-icon { font-size: 1.15rem; flex-shrink: 0; width: 26px; text-align: center; }
+.cos-continue-body { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
+.cos-continue-title { font-size: 0.9rem; font-weight: 600; }
+.cos-continue-status { font-size: 0.8rem; color: var(--text-secondary); }
+.cos-working {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--primary, #4f6ef7);
+  flex-shrink: 0;
+  animation: cos-pulse 1.2s ease-in-out infinite;
+}
+.cos-spin { display: inline-block; animation: cos-rotate 1.6s linear infinite; }
+@keyframes cos-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes cos-rotate { to { transform: rotate(360deg); } }
+
+/* Recent activity — meaningful events */
+.cos-activity { display: flex; flex-direction: column; gap: 0.1rem; }
+.cos-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.25rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border-light, #f0f0f0);
+}
+.cos-activity-item:last-child { border-bottom: none; }
+.cos-activity-icon { flex-shrink: 0; width: 20px; text-align: center; }
+.cos-activity-text { flex: 1; min-width: 0; color: var(--text-primary); }
+.cos-activity-when { flex-shrink: 0; font-size: 0.72rem; color: var(--text-secondary); }
+
+/* Calm empty state */
+.cos-empty {
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cos-empty-icon { font-size: 2.5rem; }
+.cos-empty h2 { font-size: 1.1rem; font-weight: 700; }
+.cos-empty p { font-size: 0.88rem; color: var(--text-secondary); max-width: 320px; margin-bottom: 0.5rem; }
+
+.cos-board-link {
+  align-self: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+.cos-board-link:hover { color: var(--primary, #4f6ef7); }

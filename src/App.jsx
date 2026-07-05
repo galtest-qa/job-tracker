@@ -3,6 +3,7 @@ import { supabase, isConfigured } from './lib/supabase.js'
 import { api, initUserData } from './api.js'
 import { trackWin } from './lib/winTracker.js'
 import KanbanBoard from './components/KanbanBoard.jsx'
+import CareerOSHome from './components/CareerOSHome.jsx'
 import JobForm from './components/JobForm.jsx'
 import JobDetail from './components/JobDetail.jsx'
 import ResumeUpload from './components/ResumeUpload.jsx'
@@ -18,7 +19,7 @@ export default function App() {
   const [jobs, setJobs] = useState([])
   const [columns, setColumns] = useState([])
   const [stats, setStats] = useState(null)
-  const [view, setView] = useState('board')
+  const [view, setView] = useState('home')
   const [selectedJobId, setSelectedJobId] = useState(null)
   const [initialTab, setInitialTab] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -332,9 +333,16 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handler)
   }, [session, syncHiringEvents])
 
+  const userDisplayName = (() => {
+    const meta = session?.user?.user_metadata || {}
+    const raw = meta.full_name || meta.name || session?.user?.email || ''
+    const first = String(raw).split(/[@\s]/)[0]
+    return first ? first.charAt(0).toUpperCase() + first.slice(1) : ''
+  })()
+
   const closePanel = () => { setSelectedJobId(null); setInitialTab(null); setPanelWide(false) }
   const openDetail = (id, tab = null) => { setSelectedJobId(id); setInitialTab(tab ?? null) }
-  const goHome = () => { setView('board'); closePanel() }
+  const goHome = () => { setView('home'); closePanel() }
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') closePanel() }
@@ -480,6 +488,18 @@ export default function App() {
       )}
 
       <main className="main">
+        {view === 'home' && (
+          <CareerOSHome
+            jobs={jobs}
+            hiringEvents={hiringEvents}
+            generatingJobIds={generatingJobIds}
+            userName={userDisplayName}
+            onSelectJob={openDetail}
+            onOpenBoard={() => setView('board')}
+            onOpenNotifications={() => setShowNotifications(true)}
+            onAddJob={() => setView('add')}
+          />
+        )}
         {view === 'board' && (
           <KanbanBoard
             jobs={jobs}
