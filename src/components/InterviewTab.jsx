@@ -387,6 +387,11 @@ function PracticeSession({ questions, job, jobId, setJob, onExit }) {
             rows={6}
             value={answer}
             onChange={e => setAnswer(e.target.value)}
+            onKeyDown={e => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && answer.trim() && !scoring) {
+                e.preventDefault(); handleScore()
+              }
+            }}
             placeholder="Write your answer. Use a specific example — situation, what you did, and the result."
             disabled={scoring}
             autoFocus
@@ -399,6 +404,7 @@ function PracticeSession({ questions, job, jobId, setJob, onExit }) {
             <button className="btn btn-ghost btn-sm" onClick={moveNext}>
               {isLast ? 'Finish' : 'Skip →'}
             </button>
+            {answer.trim() && !scoring && <span className="it-kbd-hint">⌘↵ to submit</span>}
           </div>
         </>
       ) : (

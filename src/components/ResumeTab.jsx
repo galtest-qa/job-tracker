@@ -285,6 +285,11 @@ function CoachingSession({ opportunities, baseScore, resumeText, job, jobId, set
                 rows={2}
                 value={answers[i] || ''}
                 onChange={e => { const a = [...answers]; a[i] = e.target.value; setAnswers(a) }}
+                onKeyDown={e => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !generating) {
+                    e.preventDefault(); handleGenerate()
+                  }
+                }}
                 placeholder="Optional — helps generate a more specific improvement"
                 disabled={generating}
               />

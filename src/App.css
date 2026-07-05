@@ -5307,10 +5307,52 @@ details[open] .it-stronger-summary::before { content: '▾  '; }
 }
 
 /* Mobile */
+/* ── Phase 3 polish: keyboard hint ── */
+.it-kbd-hint {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  margin-left: auto;
+  align-self: center;
+  opacity: 0.7;
+  user-select: none;
+}
+
+/* ── Phase 3 polish: tactile button feedback ── */
+.rc-session .btn-primary:not(:disabled):active,
+.rc-entry .btn-primary:not(:disabled):active,
+.it-practice .btn-primary:not(:disabled):active,
+.it-coaching-landing .btn-primary:not(:disabled):active {
+  transform: scale(0.97);
+  transition: transform 0.08s ease;
+}
+
+/* ── Phase 3 polish: mobile-first refinements ── */
 @media (max-width: 640px) {
   .it-cl-readiness-num { font-size: 1.2rem; }
   .rc-session { padding: 1rem; }
   .rc-session-diff { flex-direction: column; }
+
+  /* Comfortable tap targets (min 44px) for guided-flow actions */
+  .rc-session .btn,
+  .rc-entry .btn,
+  .it-practice .btn,
+  .it-coaching-landing .btn {
+    min-height: 44px;
+  }
+
+  /* Full-width primary actions on mobile — thumb-friendly */
+  .rc-session-actions .btn-primary,
+  .it-practice-btns .btn-primary,
+  .it-practice-feedback > .btn-primary,
+  .rc-entry-cta {
+    width: 100%;
+  }
+
+  /* Slightly larger question text for readability */
+  .it-practice-question { font-size: 1.05rem; }
+
+  /* Keyboard hint is noise on touch devices */
+  .it-kbd-hint { display: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────
