@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { api } from '../api.js'
 import KanbanCard from './KanbanCard.jsx'
+import KanbanMobileColumnSwitcher from './KanbanMobileColumnSwitcher.jsx'
 import ReminderSummary from './ReminderSummary.jsx'
 import TodaysFocus from './TodaysFocus.jsx'
 import OnboardingHero from './OnboardingHero.jsx'
 import { getReminderState } from './reminderUtils.js'
 
-export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set(), hasExtension, hasResume, onOpenSettings, onOpenResume, onAddJob, hiringEvents = [], onCheckUpdates }) {
+export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMoveJob, onReorderColumns, searchQuery, onSearchChange, filterScore, onFilterScoreChange, generatingJobIds = new Set(), hasExtension, hasResume, onOpenSettings, onOpenResume, onAddJob, hiringEvents = [], onCheckUpdates, mobileKanbanColumn = 0, setMobileKanbanColumn }) {
   const [reminders, setReminders] = useState([])
   const [analyzingId, setAnalyzingId] = useState(null)
   const [dragOverCol, setDragOverCol] = useState(null)
@@ -257,9 +258,18 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
         ))}
       </div>
 
+      <KanbanMobileColumnSwitcher
+        columns={columns.map((col, idx) => ({
+          name: col.name,
+          jobCount: filtered.filter(j => j.status === col.name).length,
+        }))}
+        activeColumnIndex={mobileKanbanColumn}
+        onColumnChange={setMobileKanbanColumn}
+      />
+
       <div className="kanban-board" ref={boardRef => {
         if (!boardRef) return
-        const dots = boardRef.previousSibling?.querySelectorAll('.kanban-col-dot')
+        const dots = boardRef.previousSibling?.previousSibling?.querySelectorAll('.kanban-col-dot')
         if (!dots) return
         const onScroll = () => {
           const colW = boardRef.firstChild?.offsetWidth || 1
@@ -269,13 +279,14 @@ export default function KanbanBoard({ jobs, columns, onSelect, onRefresh, onMove
         boardRef.addEventListener('scroll', onScroll, { passive: true })
         onScroll()
       }}>
-        {columns.map(col => {
+        {columns.map((col, colIdx) => {
           const colJobs = filtered.filter(j => j.status === col.name)
+          const isMobileVisible = colIdx === mobileKanbanColumn
 
           return (
             <div
               key={col.id}
-              className={`kanban-column ${dragOverCol === col.name ? 'card-drag-over' : ''}`}
+              className={`kanban-column${isMobileVisible ? ' kanban-column-visible' : ''}${dragOverCol === col.name ? ' card-drag-over' : ''}`}
               onDragOver={(e) => handleCardDragOver(e, col.name)}
               onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCol(null) }}
               onDrop={(e) => {

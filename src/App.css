@@ -4519,7 +4519,6 @@ body {
   background: var(--surface-hover);
   border-left: 3px solid var(--border);
 }
-}
 .it-feedback-block--new .it-feedback-label { color: #2563eb; }
 
 /* ── Mobile responsive ── */

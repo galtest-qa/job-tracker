@@ -6,6 +6,7 @@ import KanbanBoard from './components/KanbanBoard.jsx'
 import JobForm from './components/JobForm.jsx'
 import JobDetail from './components/JobDetail.jsx'
 import ResumeUpload from './components/ResumeUpload.jsx'
+import BottomNav from './components/BottomNav.jsx'
 import Auth from './components/Auth.jsx'
 import Settings from './components/Settings.jsx'
 import FindJobs from './components/FindJobs.jsx'
@@ -39,6 +40,7 @@ export default function App() {
   const [hiringEvents, setHiringEvents] = useState([])
   const [lastSyncInfo, setLastSyncInfo] = useState(null) // {trigger, status, time, skipped, reason, minutesSince, emailsScanned, eventsCreated, error}
   const [gmailNeedsReconnect, setGmailNeedsReconnect] = useState(false)
+  const [mobileKanbanColumn, setMobileKanbanColumn] = useState(0) // index into columns array, mobile only
   const resumeInfoRef = useRef(null)
   const lastSyncRef = useRef(0)
   const tabHiddenAtRef = useRef(0)
@@ -498,6 +500,8 @@ export default function App() {
             onAddJob={() => setView('add')}
             hiringEvents={hiringEvents}
             onCheckUpdates={syncHiringEvents}
+            mobileKanbanColumn={mobileKanbanColumn}
+            setMobileKanbanColumn={setMobileKanbanColumn}
           />
         )}
         {view === 'find' && <FindJobs />}
@@ -544,6 +548,17 @@ export default function App() {
           </div>
         </>
       )}
+
+      <BottomNav
+        view={view}
+        onGoHome={goHome}
+        onFindJobs={() => setView('find')}
+        onAddJob={() => setView('add')}
+        onNotifications={() => setShowNotifications(true)}
+        onSettings={() => setShowSettings(true)}
+        unreadCount={unreadEventCount + activeRecCount}
+        gmailNeedsReconnect={gmailNeedsReconnect}
+      />
     </div>
   )
 }
