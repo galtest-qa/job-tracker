@@ -254,44 +254,57 @@ function gapItems(readiness, profile) {
   return gaps.sort((a, b) => b.pts - a.pts).slice(0, 3)
 }
 
+function todayFocus(readiness) {
+  if (readiness.attempts === 0)  return { label: 'Practice your first answer', est: '10 min' }
+  if (readiness.attempts < 3)   return { label: 'Complete 3 practice answers', est: '20 min' }
+  if (readiness.prepDone < 5)   return { label: 'Work through your prep checklist', est: '15 min' }
+  if (readiness.avg < 7)        return { label: 'Strengthen weak answers', est: '20 min' }
+  return { label: 'Review company research', est: '10 min' }
+}
+
 function CoachingLanding({ readiness, profile, job, onStartPractice, onScrollTo }) {
-  const gaps = gapItems(readiness, profile)
+  const canPractice = (profile?.stages?.length > 0 || profile?.role_specific?.role_questions?.length > 0)
+  const focus = todayFocus(readiness)
+  // Surface top gap only — one clear message
+  const topGap = gapItems(readiness, profile)[0] || null
+
   return (
     <div className="it-coaching-landing">
-      <div className="it-cl-score-row">
-        <div>
-          <span className="it-cl-score" style={{ color: readiness.color }}>{readiness.total}</span>
-          <span className="it-cl-score-label">{readiness.label}</span>
+      {/* Readiness bar — compact */}
+      <div className="it-cl-readiness">
+        <div className="it-cl-readiness-top">
+          <span className="it-cl-readiness-label">{readiness.label}</span>
+          <span className="it-cl-readiness-num" style={{ color: readiness.color }}>{readiness.total}</span>
         </div>
-        <div className="it-cl-bar-wrap">
-          <div className="it-readiness-bar-track" style={{ height: 6 }}>
-            <div className="it-readiness-bar-fill" style={{ width: `${readiness.total}%`, background: readiness.color, height: '100%' }} />
-          </div>
-          <span className="it-cl-bar-caption">Interview readiness out of 100</span>
+        <div className="it-readiness-bar-track">
+          <div className="it-readiness-bar-fill" style={{ width: `${readiness.total}%`, background: readiness.color }} />
         </div>
       </div>
 
-      {gaps.length > 0 && (
-        <div className="it-cl-gaps">
-          <span className="it-cl-gaps-label">Biggest gaps</span>
-          {gaps.map((g, i) => (
-            <div key={i} className="it-cl-gap-row">
-              <span className="it-cl-gap-dot" />
-              <span className="it-cl-gap-text">{g.text}</span>
-              <span className="it-cl-gap-pts">+{g.pts} pts</span>
-            </div>
-          ))}
+      {/* Today's focus — single clear directive */}
+      <div className="it-cl-focus">
+        <span className="it-cl-focus-eyebrow">Today's focus</span>
+        <p className="it-cl-focus-text">{focus.label}</p>
+        <span className="it-cl-focus-est">{focus.est}</span>
+      </div>
+
+      {/* Top gap — one line only */}
+      {topGap && (
+        <div className="it-cl-top-gap">
+          <span className="it-cl-gap-dot" />
+          <span className="it-cl-gap-text">{topGap.text}</span>
+          <span className="it-cl-gap-pts">+{topGap.pts} pts</span>
         </div>
       )}
 
       <div className="it-cl-actions">
-        {(profile?.stages?.length > 0 || profile?.role_specific?.role_questions?.length > 0) && (
+        {canPractice && (
           <button className="btn btn-primary" onClick={onStartPractice}>
-            Start Practice Session →
+            Start today's session →
           </button>
         )}
         <button className="btn btn-ghost btn-sm" onClick={() => onScrollTo('profile')}>
-          View full profile
+          Study guide
         </button>
       </div>
     </div>
@@ -343,24 +356,30 @@ function PracticeSession({ questions, job, jobId, setJob, onExit }) {
     ? result.score >= 8 ? 'var(--success)' : result.score >= 6 ? 'var(--warning)' : 'var(--danger)'
     : 'var(--text)'
 
+  const progressPct = Math.round((qIdx / questions.length) * 100)
+
   return (
     <div className="it-practice">
-      {/* Header */}
+      {/* ── Progress bar header ── */}
       <div className="it-practice-header">
-        <button className="btn btn-ghost btn-sm" onClick={onExit}>← Back</button>
-        <div className="it-practice-dots">
-          {questions.map((_, i) => (
-            <span key={i} className={`it-practice-dot ${i < qIdx ? 'it-practice-dot--done' : i === qIdx ? 'it-practice-dot--active' : ''}`} />
-          ))}
+        <div className="it-practice-toprow">
+          <span className="it-practice-step-label">Question {qIdx + 1} of {questions.length}</span>
+          <button className="btn btn-ghost btn-sm it-practice-exit" onClick={onExit}>End</button>
         </div>
-        <span className="it-practice-counter">{qIdx + 1} of {questions.length}</span>
+        <div className="it-practice-bar-track">
+          <div className="it-practice-bar-fill" style={{ width: `${progressPct}%` }} />
+        </div>
       </div>
 
-      {/* Stage + Question */}
-      <div className="it-practice-stage">{q.stage?.replace(/_/g, ' ')}</div>
-      <blockquote className="it-practice-question">"{q.question}"</blockquote>
+      {/* ── Question ── */}
+      <div className="it-practice-question-wrap">
+        {q.stage && (
+          <span className="it-practice-type-badge">{q.stage.replace(/_/g, ' ')}</span>
+        )}
+        <p className="it-practice-question">"{q.question}"</p>
+      </div>
 
-      {/* Answer or Feedback */}
+      {/* ── Answer or Feedback ── */}
       {!result ? (
         <>
           <textarea
@@ -368,14 +387,14 @@ function PracticeSession({ questions, job, jobId, setJob, onExit }) {
             rows={6}
             value={answer}
             onChange={e => setAnswer(e.target.value)}
-            placeholder="Write your answer here. Use a specific example — what happened, what you did, and the result."
+            placeholder="Write your answer. Use a specific example — situation, what you did, and the result."
             disabled={scoring}
             autoFocus
           />
           {error && <div className="rc-error">{error}</div>}
           <div className="it-practice-btns">
             <button className="btn btn-primary" onClick={handleScore} disabled={scoring || !answer.trim()}>
-              {scoring ? 'Scoring…' : 'Submit Answer'}
+              {scoring ? 'Scoring…' : 'Get feedback →'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={moveNext}>
               {isLast ? 'Finish' : 'Skip →'}
@@ -384,30 +403,36 @@ function PracticeSession({ questions, job, jobId, setJob, onExit }) {
         </>
       ) : (
         <div className="it-practice-feedback">
+          {/* Score */}
           <div className="it-practice-score-row">
             <span className="it-practice-score" style={{ color: scoreColor }}>{result.score}/10</span>
-            <span className="it-practice-score-label" style={{ color: scoreColor }}>
+            <span className="it-practice-score-label">
               {result.score >= 8 ? 'Strong' : result.score >= 6 ? 'Average' : 'Needs work'}
             </span>
           </div>
 
+          {/* Strength */}
           {result.what_worked && (
-            <div className="it-feedback-block it-feedback-block--good">
-              <span className="it-feedback-label">What worked</span>
+            <div className="it-feedback-block">
+              <span className="it-feedback-label">✓ What worked</span>
               <p>{result.what_worked}</p>
             </div>
           )}
+
+          {/* One fix */}
           {result.to_improve && (
-            <div className="it-feedback-block it-feedback-block--warn">
-              <span className="it-feedback-label">Biggest improvement</span>
+            <div className="it-feedback-block">
+              <span className="it-feedback-label">△ One improvement</span>
               <p>{result.to_improve}</p>
             </div>
           )}
+
+          {/* Stronger version — collapsed by default */}
           {result.stronger_version && (
-            <div className="it-feedback-block it-feedback-block--new">
-              <span className="it-feedback-label">Stronger version</span>
-              <p>{result.stronger_version}</p>
-            </div>
+            <details className="it-stronger-details">
+              <summary className="it-stronger-summary">See stronger version</summary>
+              <p className="it-stronger-text">{result.stronger_version}</p>
+            </details>
           )}
 
           <button className="btn btn-primary" onClick={moveNext}>
