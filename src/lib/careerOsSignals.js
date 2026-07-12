@@ -76,7 +76,8 @@ export function deriveTodaysFocus({ reminders = [], hiringEvents = [], recommend
     candidates.push({
       kind: 'reminder',
       score,
-      icon: interview ? '🗓️' : '⏰',
+      urgent: state === 'overdue',
+      icon: interview ? 'calendar' : 'clock',
       eyebrow: interview ? 'Interview' : 'Reminder',
       title: r.title,
       subtitle: [r.company, r.role].filter(Boolean).join(' · '),
@@ -97,7 +98,7 @@ export function deriveTodaysFocus({ reminders = [], hiringEvents = [], recommend
     candidates.push({
       kind: 'event',
       score,
-      icon: '📬',
+      icon: 'mail',
       eyebrow: 'Recruiter update',
       title: e.title || 'New hiring update',
       subtitle: [e.detected_company, e.detected_role].filter(Boolean).join(' · '),
@@ -132,11 +133,11 @@ export function deriveTodaysFocus({ reminders = [], hiringEvents = [], recommend
 }
 
 function recIcon(type = '') {
-  if (/cover|apply|application/i.test(type)) return '✍️'
-  if (/follow/i.test(type)) return '📞'
-  if (/interview|prepare|prep/i.test(type)) return '📚'
-  if (/move|stage/i.test(type)) return '➡️'
-  return '✅'
+  if (/cover|apply|application/i.test(type)) return 'pen'
+  if (/follow/i.test(type)) return 'phone'
+  if (/interview|prepare|prep/i.test(type)) return 'book'
+  if (/move|stage/i.test(type)) return 'arrow'
+  return 'check'
 }
 
 // ── Continue Where You Left Off ──────────────────────────────────────────────
@@ -149,7 +150,7 @@ export function deriveContinueItems({ jobs = [], generatingJobIds = new Set() })
     if (generatingJobIds.has && generatingJobIds.has(j.id)) {
       items.push({
         jobId: j.id, live: true, order: 0,
-        icon: '🧠',
+        icon: 'brain',
         title: `${j.company}${j.role ? ' — ' + j.role : ''}`,
         status: 'Analyzing against your resume…',
       })
@@ -161,14 +162,14 @@ export function deriveContinueItems({ jobs = [], generatingJobIds = new Set() })
     if (hasDesc && (j.match_score === null || j.match_score === undefined)) {
       items.push({
         jobId: j.id, live: false, order: 1,
-        icon: '⏳',
+        icon: 'hourglass',
         title: `${j.company}${j.role ? ' — ' + j.role : ''}`,
         status: 'Analysis pending — tap to run',
       })
     } else if (!hasDesc) {
       items.push({
         jobId: j.id, live: false, order: 2,
-        icon: '📝',
+        icon: 'file',
         title: `${j.company}${j.role ? ' — ' + j.role : ''}`,
         status: 'Add job description to unlock match & prep',
       })
@@ -189,7 +190,7 @@ export function deriveRecentActivity({ jobs = [], hiringEvents = [], reminders =
     const ts = new Date(e.created_at).getTime()
     if (ts < cutoff) continue
     out.push({
-      id: `ev-${e.id}`, ts, icon: '📬',
+      id: `ev-${e.id}`, ts, icon: 'mail',
       text: e.title || `Update${e.detected_company ? ` from ${e.detected_company}` : ''}`,
     })
   }
@@ -198,7 +199,7 @@ export function deriveRecentActivity({ jobs = [], hiringEvents = [], reminders =
     if (!r.completed) continue
     const ts = new Date(r.completed_at || r.updated_at || r.due_at).getTime()
     if (!ts || ts < cutoff) continue
-    out.push({ id: `rm-${r.id}`, ts, icon: '✓', text: `Done: ${r.title}` })
+    out.push({ id: `rm-${r.id}`, ts, icon: 'check', text: `Done: ${r.title}` })
   }
 
   for (const j of jobs) {
@@ -207,12 +208,12 @@ export function deriveRecentActivity({ jobs = [], hiringEvents = [], reminders =
     const updated = j.updated_at ? new Date(j.updated_at).getTime() : created
     if (scored && updated >= cutoff) {
       out.push({
-        id: `an-${j.id}`, ts: updated, icon: '🎯',
+        id: `an-${j.id}`, ts: updated, icon: 'target',
         text: `Analyzed ${j.company} — ${j.match_score}% match`,
       })
     } else if (created >= cutoff) {
       out.push({
-        id: `add-${j.id}`, ts: created, icon: '➕',
+        id: `add-${j.id}`, ts: created, icon: 'plus',
         text: `Added ${j.company}${j.role ? ` — ${j.role}` : ''}`,
       })
     }
