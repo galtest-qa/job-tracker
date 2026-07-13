@@ -1,9 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import {
+  Calendar, ChevronLeft, ChevronRight, Cpu, FileText, LogOut,
+  Mail, Plug, Puzzle, Send, User,
+} from 'lucide-react'
+
+// lucide dropped brand icons — keep the LinkedIn glyph inline
+const LinkedinGlyph = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+    <rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
+  </svg>
+)
 import { supabase } from '../lib/supabase.js'
 import { clearKeyCache, getAIMode } from '../lib/openai.js'
 import { api } from '../api.js'
 
-export default function Settings({ onClose, initialSection, hasExtension, onExtensionConfirm, gmailCallbackResult, gmailNeedsReconnect }) {
+// Settings — a hub of clickable app tiles. Tapping a tile opens that
+// app's own settings screen; back returns to the hub. One screen,
+// one purpose.
+export default function Settings({
+  onClose,
+  initialSection,
+  hasExtension,
+  onExtensionConfirm,
+  gmailCallbackResult,
+  gmailNeedsReconnect,
+  resumeInfo,
+  onOpenResume,
+  onLogout,
+}) {
   const [openaiKey, setOpenaiKey] = useState('')
   const [aiMode, setAiMode] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -32,6 +58,14 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
   const [tgSaving, setTgSaving] = useState(false)
   const [tgStatus, setTgStatus] = useState('')
   const [tgLastCheck, setTgLastCheck] = useState(null) // ISO string or null
+
+  // Hub ↔ detail navigation
+  const [section, setSection] = useState(initialSection || (gmailCallbackResult ? 'gmail' : null))
+  const reduceMotion = useReducedMotion()
+
+  useEffect(() => {
+    if (initialSection) setSection(initialSection)
+  }, [initialSection])
 
   useEffect(() => {
     (async () => {
@@ -73,8 +107,6 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
   }
 
   const [connectionCode, setConnectionCode] = useState('')
-  const extensionSectionRef = useRef(null)
-  const gmailSectionRef = useRef(null)
 
   // Gmail state
   const [gmailStatus, setGmailStatus] = useState(null)   // null = loading
@@ -88,16 +120,6 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
   const [mcpNewKey, setMcpNewKey] = useState(null)       // full key shown once after generation
   const [mcpWorking, setMcpWorking] = useState(false)
   const [mcpError, setMcpError] = useState(null)
-
-  useEffect(() => {
-    if (initialSection === 'extension' && extensionSectionRef.current) {
-      setTimeout(() => extensionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
-      extensionSectionRef.current.querySelector('details')?.setAttribute('open', '')
-    }
-    if (initialSection === 'gmail' && gmailSectionRef.current) {
-      setTimeout(() => gmailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
-    }
-  }, [initialSection])
 
   // Load Gmail + MCP status on mount
   useEffect(() => {
@@ -229,7 +251,7 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
     setTimeout(() => setTgStatus(''), 4000)
   }
 
-  // Classify state
+  // Classify state (debug tool inside the Gmail screen)
   const [classifying, setClassifying] = useState(false)
   const [classifyResult, setClassifyResult] = useState(null)
   const [classifyError, setClassifyError] = useState(null)
@@ -247,24 +269,6 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
     setClassifying(false)
   }
 
-  const [reanalyzing, setReanalyzing] = useState(false)
-  const [reanalyzeDone, setReanalyzeDone] = useState(null) // {success, failed}
-
-  const handleReanalyzeAll = async () => {
-    if (!confirm('This will re-analyze all jobs that have a description. It may take a few minutes and uses AI credits. Continue?')) return
-    setReanalyzing(true)
-    setReanalyzeDone(null)
-    const jobs = await api.getJobs()
-    const eligible = jobs.filter(j => j.description)
-    let success = 0, failed = 0
-    for (const job of eligible) {
-      try { await api.analyzeJob(job.id); success++ }
-      catch { failed++ }
-    }
-    setReanalyzing(false)
-    setReanalyzeDone({ success, failed })
-  }
-
   const handleRemoveKey = async () => {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -275,698 +279,701 @@ export default function Settings({ onClose, initialSection, hasExtension, onExte
     setSaving(false)
   }
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Integrations &amp; Settings</h3>
-          <button className="btn btn-ghost" onClick={onClose}>&times;</button>
+  // ── Tile status derivation ──
+
+  const gmailUnhealthy = gmailNeedsReconnect || gmailStatus?.needsReconnect || gmailStatus?.syncHealth === 'reconnect_required'
+  const gmailTile = gmailStatus === null
+    ? { label: 'Checking…', tone: 'off' }
+    : !gmailStatus.connected
+      ? { label: 'Not connected', tone: 'off' }
+      : gmailUnhealthy
+        ? { label: 'Reconnect required', tone: 'error' }
+        : gmailStatus.syncHealth === 'degraded'
+          ? { label: 'Sync issues', tone: 'warn' }
+          : { label: 'Active', tone: 'ok' }
+
+  const tgConnected = tgEnabled && !!tgChatId
+  const tgStale = tgConnected && tgLastCheck && Math.round((Date.now() - new Date(tgLastCheck).getTime()) / 60000) > 240
+  const telegramTile = !tgConnected
+    ? { label: 'Not connected', tone: 'off' }
+    : !tgLastCheck || tgStale
+      ? { label: 'Needs attention', tone: 'warn' }
+      : { label: 'Active', tone: 'ok' }
+
+  const mcpTile = mcpKeyStatus === null
+    ? { label: 'Checking…', tone: 'off' }
+    : mcpKeyStatus.hasKey
+      ? { label: 'Active', tone: 'ok' }
+      : { label: 'Not set up', tone: 'off' }
+
+  const extensionTile = hasExtension
+    ? { label: 'Installed', tone: 'ok' }
+    : { label: 'Recommended', tone: 'warn' }
+
+  const answeredCount = PROFILE_QUESTIONS.filter(q => (profileContext[q.key] || '').trim()).length
+  const aboutTile = answeredCount === 0
+    ? { label: 'Tell us about you', tone: 'off' }
+    : { label: `${answeredCount} of ${PROFILE_QUESTIONS.length} answered`, tone: answeredCount === PROFILE_QUESTIONS.length ? 'ok' : 'warn' }
+
+  const resumeTile = resumeInfo?.raw_text
+    ? { label: resumeInfo.filename || 'Uploaded', tone: 'ok' }
+    : { label: 'Not uploaded', tone: 'warn' }
+
+  const aiTile = aiMode === null
+    ? { label: 'Checking…', tone: 'off' }
+    : aiMode === 'shared'
+      ? { label: 'Active', tone: 'ok' }
+      : { label: 'Personal key', tone: 'ok' }
+
+  const TILES = {
+    gmail: { name: 'Gmail', icon: Mail, iconClass: 'integration-icon--gmail', status: gmailTile },
+    telegram: { name: 'Telegram', icon: Send, iconClass: 'integration-icon--telegram', status: telegramTile },
+    mcp: { name: 'Claude & AI clients', icon: Plug, iconClass: 'set-icon--mcp', status: mcpTile },
+    extension: { name: 'Chrome Extension', icon: Puzzle, iconClass: 'set-icon--extension', status: extensionTile },
+    about: { name: 'About You', icon: User, iconClass: 'set-icon--about', status: aboutTile },
+    resume: { name: 'Resume', icon: FileText, iconClass: 'set-icon--resume', status: resumeTile },
+    ai: { name: 'AI Features', icon: Cpu, iconClass: 'set-icon--ai', status: aiTile },
+  }
+
+  const sectionTitle = {
+    gmail: 'Gmail', telegram: 'Telegram', mcp: 'Claude & AI clients',
+    extension: 'Chrome Extension', about: 'About You', resume: 'Resume', ai: 'AI Features',
+  }
+
+  const slide = reduceMotion
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } }
+    : { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 24 }, transition: { duration: 0.18, ease: 'easeOut' } }
+  const slideBack = reduceMotion
+    ? slide
+    : { initial: { opacity: 0, x: -24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -24 }, transition: { duration: 0.18, ease: 'easeOut' } }
+
+  const Tile = ({ id }) => {
+    const t = TILES[id]
+    const Icon = t.icon
+    return (
+      <button className="set-tile" onClick={() => setSection(id)}>
+        <span className={`integration-icon ${t.iconClass}`}><Icon size={18} strokeWidth={1.8} aria-hidden="true" /></span>
+        <span className="set-tile-body">
+          <span className="set-tile-name">{t.name}</span>
+          <span className={`set-tile-status status-${t.status.tone}`}>{t.status.label}</span>
+        </span>
+        <ChevronRight size={16} className="set-tile-chevron" aria-hidden="true" />
+      </button>
+    )
+  }
+
+  // ── Detail screens ──
+
+  const renderGmail = () => (
+    <>
+      <p className="settings-guide-text">
+        Connect your Gmail inbox so Job Maker can detect application replies, interview invites, and status updates automatically.
+      </p>
+
+      {gmailCallbackResult === 'connected' && (
+        <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
+          Gmail connected successfully.
         </div>
+      )}
+      {gmailCallbackResult?.startsWith('error') && (
+        <div className="settings-status settings-status-error" style={{ marginBottom: '0.75rem' }}>
+          Gmail connection failed. Please try again.
+        </div>
+      )}
 
-        {loading ? <p className="muted">Loading...</p> : (
-          <>
-            {/* ── Integrations Overview ── */}
-            <div className="settings-section" style={{ paddingBottom: '0.5rem' }}>
-              <h4 className="settings-section-title" style={{ marginBottom: '0.75rem' }}>Integrations</h4>
-              <div className="integrations-grid">
-
-                {/* Gmail */}
-                <div className={`integration-card ${gmailStatus?.connected ? (gmailNeedsReconnect || gmailStatus?.needsReconnect || gmailStatus?.syncHealth === 'reconnect_required' ? 'integration-card--error' : gmailStatus?.syncHealth === 'degraded' ? 'integration-card--warn' : 'integration-card--ok') : ''}`}>
-                  <div className="integration-card-top">
-                    <div className="integration-icon integration-icon--gmail">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    </div>
-                    <div className="integration-card-info">
-                      <span className="integration-card-name">Gmail</span>
-                      {gmailStatus === null ? <span className="integration-card-status">Loading…</span>
-                        : !gmailStatus.connected ? <span className="integration-card-status status-off">Not connected</span>
-                        : (gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required')
-                          ? <span className="integration-card-status status-error">Reconnect required</span>
-                          : gmailStatus.syncHealth === 'degraded'
-                            ? <span className="integration-card-status status-warn">Sync issues</span>
-                            : <span className="integration-card-status status-ok">Active</span>
-                      }
-                    </div>
-                  </div>
-                  {gmailStatus?.connected && (
-                    <div className="integration-card-detail">
-                      <span>{gmailStatus.email}</span>
-                      {(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt) && (
-                        <span>Last sync: {new Date(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                      )}
-                    </div>
-                  )}
-                  <div className="integration-card-action">
-                    {!gmailStatus?.connected
-                      ? <button className="btn btn-primary btn-sm" onClick={() => api.gmailAuthUrl().then(u => { window.location.href = u })}>Connect</button>
-                      : (gmailNeedsReconnect || gmailStatus?.needsReconnect)
-                        ? <button className="btn btn-primary btn-sm" onClick={() => api.gmailAuthUrl().then(u => { window.location.href = u })}>Reconnect</button>
-                        : <span className="integration-card-ok-note">✓ Connected</span>
-                    }
-                  </div>
-                </div>
-
-                {/* Telegram */}
-                <div className={`integration-card ${tgEnabled && tgChatId ? 'integration-card--ok' : ''}`}>
-                  <div className="integration-card-top">
-                    <div className="integration-icon integration-icon--telegram">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    </div>
-                    <div className="integration-card-info">
-                      <span className="integration-card-name">Telegram</span>
-                      {!tgEnabled || !tgChatId
-                        ? <span className="integration-card-status status-off">Not connected</span>
-                        : tgLastCheck ? (() => {
-                            const minAgo = Math.round((Date.now() - new Date(tgLastCheck).getTime()) / 60000)
-                            return minAgo > 240
-                              ? <span className="integration-card-status status-warn">Cron stale</span>
-                              : <span className="integration-card-status status-ok">Active</span>
-                          })()
-                        : <span className="integration-card-status status-warn">Cron not set up</span>
-                      }
-                    </div>
-                  </div>
-                  {tgEnabled && tgChatId && tgLastCheck && (
-                    <div className="integration-card-detail">
-                      <span>Last check: {new Date(tgLastCheck).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  )}
-                  <div className="integration-card-action">
-                    {tgEnabled && tgChatId
-                      ? <span className="integration-card-ok-note">✓ Connected</span>
-                      : <span className="muted" style={{ fontSize: '0.75rem' }}>Configure below ↓</span>
-                    }
-                  </div>
-                </div>
-
-                {/* LinkedIn */}
-                <div className="integration-card integration-card--soon">
-                  <div className="integration-card-top">
-                    <div className="integration-icon integration-icon--linkedin">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-                    </div>
-                    <div className="integration-card-info">
-                      <span className="integration-card-name">LinkedIn</span>
-                      <span className="integration-card-status status-off">Coming soon</span>
-                    </div>
-                  </div>
-                  <div className="integration-card-detail">
-                    <span>Save recruiters and contacts from visited profiles</span>
-                  </div>
-                  <div className="integration-card-action">
-                    <span className="integration-card-soon-badge">Planned</span>
-                  </div>
-                </div>
-
-                {/* Google Calendar */}
-                <div className="integration-card integration-card--soon">
-                  <div className="integration-card-top">
-                    <div className="integration-icon integration-icon--gcal">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    </div>
-                    <div className="integration-card-info">
-                      <span className="integration-card-name">Google Calendar</span>
-                      <span className="integration-card-status status-off">Coming soon</span>
-                    </div>
-                  </div>
-                  <div className="integration-card-detail">
-                    <span>Auto-add interview reminders to your calendar</span>
-                  </div>
-                  <div className="integration-card-action">
-                    <span className="integration-card-soon-badge">Planned</span>
-                  </div>
-                </div>
-
-              </div>
+      {gmailStatus === null ? (
+        <p className="muted">Checking connection…</p>
+      ) : gmailStatus.connected ? (
+        <>
+          <div className="gmail-status-row">
+            <Mail size={14} aria-hidden="true" />
+            <span>{gmailStatus.email}</span>
+            {(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt) && (
+              <span className="gmail-last-sync">
+                Last sync: {new Date(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+          {gmailUnhealthy && (
+            <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
+              Session expired — reconnect Gmail to continue receiving updates.
             </div>
-
-            {/* Chrome Extension — top priority for new users */}
-            <div className="settings-section" ref={extensionSectionRef}>
-              <div className="settings-section-title-row">
-                <h4 className="settings-section-title">Chrome Extension</h4>
-                {hasExtension
-                  ? <span className="settings-badge-ok">Installed</span>
-                  : <span className="settings-badge-todo">Recommended</span>
-                }
-              </div>
-              <p className="settings-guide-text">
-                Browse LinkedIn and save jobs to your board with one click — title, company, and description included. No copy-pasting.
-              </p>
-
-              <details className="settings-details">
-                <summary>How to install</summary>
-                <div className="settings-guide">
-                  <p><strong>Step 1: Download</strong></p>
-                  <p>
-                    <a href="https://github.com/galtest-qa/job-tracker/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer">
-                      Click here to download the ZIP
-                    </a>
-                    , then unzip it. You only need the <code>chrome-extension</code> folder inside.
-                  </p>
-
-                  <p><strong>Step 2: Install in Chrome</strong></p>
-                  <ol>
-                    <li>Open Chrome and go to <code>chrome://extensions</code></li>
-                    <li>Turn on <strong>Developer mode</strong> (toggle in the top-right corner)</li>
-                    <li>Click <strong>Load unpacked</strong></li>
-                    <li>Select the <code>chrome-extension</code> folder you just unzipped</li>
-                  </ol>
-
-                  <p><strong>Step 3: Connect to your account</strong></p>
-                  <ol>
-                    <li>Click <strong>"Get Connection Code"</strong> below — it copies a code to your clipboard</li>
-                    <li>Click the Job Tracker extension icon in Chrome's toolbar</li>
-                    <li>Paste the code and click <strong>Connect</strong></li>
-                  </ol>
-
-                  <p><strong>Step 4: Start saving jobs</strong></p>
-                  <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button. Click it and the job lands in your Backlog.</p>
-                </div>
-              </details>
-
-              <div className="settings-btn-row" style={{ marginTop: '0.75rem' }}>
-                <button className="btn btn-secondary btn-sm" onClick={handleGetCode}>
-                  Get Connection Code
-                </button>
-                {connectionCode && <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: 'var(--success)' }}>Copied!</span>}
-              </div>
-              {connectionCode && (
-                <textarea className="connection-code" readOnly value={connectionCode} onClick={e => { e.target.select(); navigator.clipboard.writeText(connectionCode) }} />
-              )}
-              <p className="settings-hint">Click the button, then paste the code in the extension popup to connect.</p>
-
-              <label className="settings-extension-confirm">
-                <input
-                  type="checkbox"
-                  checked={!!hasExtension}
-                  onChange={e => onExtensionConfirm && onExtensionConfirm(e.target.checked)}
-                />
-                I have the extension installed and connected
-              </label>
+          )}
+          {!gmailNeedsReconnect && !gmailStatus.needsReconnect && gmailStatus.syncHealth === 'degraded' && (
+            <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
+              Last sync failed — will retry automatically. If this persists, reconnect Gmail.
             </div>
-
-            {/* AI Mode Status */}
-            <div className="settings-section">
-              <h4 className="settings-section-title">AI Features</h4>
-
-              {aiMode === 'shared' ? (
-                <>
-                  <div className="settings-status settings-status-ok">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    AI features are active using a shared key. No setup needed.
-                  </div>
-
-                  <details className="settings-details">
-                    <summary>Want to use your own OpenAI key?</summary>
-                    <div className="settings-guide">
-                      <p>Using your own key gives you:</p>
-                      <ul>
-                        <li>Higher rate limits</li>
-                        <li>Your own billing and usage tracking</li>
-                        <li>Privacy — requests go directly to OpenAI</li>
-                      </ul>
-                      <p><strong>How to get a key:</strong></p>
-                      <ol>
-                        <li>Go to <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer">platform.openai.com</a> and create an account</li>
-                        <li>Add a payment method in <a href="https://platform.openai.com/account/billing" target="_blank" rel="noopener noreferrer">Billing</a> (pay-as-you-go, typically ~$1-5/month for light use)</li>
-                        <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">API Keys</a> and click "Create new secret key"</li>
-                        <li>Copy the key and paste it below</li>
-                      </ol>
-                      <div className="form-group">
-                        <label>Your OpenAI API Key</label>
-                        <input
-                          type="password"
-                          value={openaiKey}
-                          onChange={e => setOpenaiKey(e.target.value)}
-                          placeholder="sk-..."
-                        />
-                      </div>
-                      <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !openaiKey.trim()}>
-                        {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Key'}
-                      </button>
-                    </div>
-                  </details>
-                </>
-              ) : (
-                <>
-                  <div className="settings-status settings-status-personal">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Using your personal OpenAI key
-                  </div>
-                  <div className="form-group">
-                    <label>OpenAI API Key</label>
-                    <input
-                      type="password"
-                      value={openaiKey}
-                      onChange={e => setOpenaiKey(e.target.value)}
-                      placeholder="sk-..."
-                    />
-                  </div>
-                  <div className="settings-btn-row">
-                    <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-                      {saving ? 'Saving...' : saved ? 'Saved!' : 'Update Key'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={handleRemoveKey} disabled={saving}>
-                      Remove my key (use shared)
-                    </button>
-                  </div>
-                </>
-              )}
+          )}
+          {gmailStatus.lastSyncError && gmailStatus.syncHealth !== 'healthy' && (
+            <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
+              {gmailStatus.lastSyncError}
             </div>
+          )}
+          <div className="settings-btn-row">
+            {/* Reconnect is primary CTA whenever health is not healthy */}
+            <button
+              className={`btn btn-sm ${gmailUnhealthy || gmailStatus.syncHealth !== 'healthy' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={handleGmailConnect}
+              disabled={gmailConnecting}
+            >
+              {gmailConnecting ? 'Redirecting…' : 'Reconnect'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={handleGmailFetch} disabled={gmailFetching}>
+              {gmailFetching ? 'Fetching…' : 'Test: fetch recent emails'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <button className="btn btn-primary btn-sm" onClick={handleGmailConnect} disabled={gmailConnecting}>
+          {gmailConnecting ? 'Redirecting…' : 'Connect Gmail'}
+        </button>
+      )}
 
-            {/* Profile Questions */}
-            <div className="settings-section">
-              <details className="settings-details">
-                <summary>About You</summary>
-                <div className="settings-guide">
-                  <p className="settings-guide-text">
-                    Help the AI understand you better. These answers improve job analysis accuracy, resume tailoring, and interview prep.
-                  </p>
-                  <div className="profile-questions">
-                    {PROFILE_QUESTIONS.map(q => (
-                      <div key={q.key} className="form-group">
-                        <label>{q.label}</label>
-                        <input
-                          type="text"
-                          value={profileContext[q.key] || ''}
-                          onChange={e => setProfileContext({ ...profileContext, [q.key]: e.target.value })}
-                          placeholder={q.placeholder}
-                        />
+      {gmailError && (
+        <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>
+          {gmailError}
+        </p>
+      )}
+
+      {gmailEmails !== null && (
+        <div className="gmail-email-list">
+          {gmailEmails.length === 0 ? (
+            <p className="muted" style={{ padding: '0.75rem 0' }}>No emails found.</p>
+          ) : (() => {
+            const inbound = gmailEmails.filter(e => e.direction === 'inbound')
+            const outbound = gmailEmails.filter(e => e.direction === 'outbound')
+            return (
+              <>
+                <p className="settings-hint" style={{ marginBottom: '0.75rem' }}>
+                  {gmailEmails.length} emails fetched — {inbound.length} incoming, {outbound.length} sent.
+                </p>
+                {[
+                  { label: 'Incoming', emails: inbound },
+                  { label: 'Sent', emails: outbound },
+                ].map(({ label, emails }) => emails.length > 0 && (
+                  <div key={label} className="gmail-email-group">
+                    <div className="gmail-email-group-label">{label}</div>
+                    {emails.map(email => (
+                      <div key={email.id} className="gmail-email-row">
+                        <div className="gmail-email-meta">
+                          <span className="gmail-email-from">{email.from}</span>
+                          <div className="gmail-email-meta-right">
+                            <span className={`gmail-direction-badge gmail-direction-${email.direction}`}>
+                              {email.direction === 'inbound' ? '↓ In' : '↑ Out'}
+                            </span>
+                            <span className="gmail-email-date">
+                              {new Date(email.receivedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="gmail-email-subject">{email.subject || '(no subject)'}</div>
+                        <div className="gmail-email-snippet">{email.snippet}</div>
                       </div>
                     ))}
                   </div>
-                  <button className="btn btn-primary btn-sm" onClick={handleProfileSave} disabled={profileSaving}>
-                    {profileSaving ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Profile'}
-                  </button>
-                </div>
-              </details>
+                ))}
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {gmailStatus?.connected && (
+        <details className="settings-details" style={{ marginTop: '1rem' }}>
+          <summary>Debug: hiring event detection</summary>
+          <div className="settings-guide">
+            <p className="settings-guide-text">
+              Classify your 50 most recent emails to detect hiring events — interview invites, rejections, offers, and more.
+            </p>
+            <div className="settings-btn-row">
+              <button className="btn btn-secondary btn-sm" onClick={handleClassify} disabled={classifying}>
+                {classifying ? 'Classifying…' : 'Run Classification'}
+              </button>
             </div>
-
-            {/* Telegram Notifications */}
-            <div className="settings-section">
-              <details className="settings-details">
-                <summary>Telegram Notifications <span className="settings-optional">(Optional)</span></summary>
-                <div className="settings-guide">
-                  <p>Get reminder notifications on Telegram — never miss a follow-up, interview, or deadline.</p>
-
-                  <div className="settings-toggle-row">
-                    <label className="toggle-label">
-                      <input type="checkbox" checked={tgEnabled} onChange={e => setTgEnabled(e.target.checked)} />
-                      <span>Enable Telegram notifications</span>
-                    </label>
+            {classifyError && (
+              <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{classifyError}</p>
+            )}
+            {classifyResult && (() => {
+              const all = classifyResult.classifications || []
+              const jobRelated = all.filter(c => c.is_job_related)
+              const notRelated = all.filter(c => !c.is_job_related)
+              const renderRow = (c) => (
+                <div key={c.email_id} className={`classify-row classify-priority-${c.priority_score >= 70 ? 'high' : c.priority_score >= 40 ? 'med' : 'low'}`}>
+                  <div className="classify-row-header">
+                    <span className="classify-category">{c.category?.replace(/_/g, ' ')}</span>
+                    {c.confidence_level && <span className={`classify-confidence classify-confidence-${c.confidence_level}`}>{c.confidence_level}</span>}
+                    {c.pre_filtered && <span className="classify-confidence" style={{ background: '#f1f5f9', color: '#64748b' }}>pre-filtered</span>}
+                    {c.overrideReason === 'cached' && <span className="classify-confidence" style={{ background: '#eff6ff', color: '#3b82f6' }}>cached</span>}
+                    {c.direction && <span className="classify-confidence" style={{ background: '#faf5ff', color: '#7c3aed' }}>{c.direction}</span>}
+                    {c.action_required && <span className="classify-action-badge">Action needed</span>}
                   </div>
-
-                  {tgEnabled && (
-                    <>
-                      <p style={{ marginTop: '0.75rem' }}><strong>Step 1:</strong> Create a bot</p>
-                      <ol>
-                        <li>Open Telegram and search for <strong>@BotFather</strong></li>
-                        <li>Send <code>/newbot</code> and follow the prompts</li>
-                        <li>Copy the bot token and paste it below</li>
-                      </ol>
-                      <div className="form-group">
-                        <label>Bot Token</label>
-                        <input type="password" value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
-                      </div>
-                      <p><strong>Step 2:</strong> Get your Chat ID</p>
-                      <p>Open Telegram, find your new bot, and send it <code>/start</code>. Then click the button below.</p>
-                      <div className="settings-btn-row">
-                        <button className="btn btn-secondary btn-sm" onClick={handleTgDetectChat} disabled={tgDetecting}>
-                          {tgDetecting ? 'Detecting...' : 'Detect Chat ID'}
-                        </button>
-                        {tgChatId && <span className="settings-hint" style={{ marginTop: 0 }}>Chat ID: {tgChatId}</span>}
-                      </div>
-                      <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                        <label>Chat ID</label>
-                        <input type="text" value={tgChatId} onChange={e => setTgChatId(e.target.value)} placeholder="Auto-detected or enter manually" />
-                      </div>
-                      <div className="settings-btn-row">
-                        <button className="btn btn-primary btn-sm" onClick={handleTgSave} disabled={tgSaving}>
-                          {tgSaving ? 'Saving...' : 'Save'}
-                        </button>
-                        <button className="btn btn-secondary btn-sm" onClick={handleTgTest} disabled={tgTesting || !tgToken || !tgChatId}>
-                          {tgTesting ? 'Sending...' : 'Send Test'}
-                        </button>
-                      </div>
-                      {tgStatus && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{tgStatus}</p>}
-                    </>
+                  <div className="classify-row-subject">{c.subject || '(no subject)'}</div>
+                  <div className="classify-row-meta" style={{ color: 'var(--text-tertiary)' }}>{c.from_address}</div>
+                  {c.detected_company && (
+                    <div className="classify-row-meta">{c.detected_company}{c.detected_role ? ` — ${c.detected_role}` : ''}</div>
                   )}
-
-                  {/* Cron health indicator */}
-                  {tgEnabled && tgChatId && (() => {
-                    if (!tgLastCheck) return (
-                      <div className="settings-status settings-status-error" style={{ marginTop: '0.75rem' }}>
-                        ⚠ Telegram cron has not run yet. Set up a schedule for <code>telegram-check</code> in{' '}
-                        <a href="https://supabase.com/dashboard/project/uytuyjodqvlrnsenitnh/functions/telegram-check" target="_blank" rel="noreferrer">Supabase Dashboard → Functions → telegram-check → Schedules</a>.
-                        Recommended: <code>*/30 * * * *</code>
-                      </div>
-                    )
-                    const minAgo = Math.round((Date.now() - new Date(tgLastCheck).getTime()) / 60000)
-                    const isStale = minAgo > 240 // 4h threshold
-                    return (
-                      <div className={`settings-status ${isStale ? 'settings-status-error' : 'settings-status-ok'}`} style={{ marginTop: '0.75rem' }}>
-                        {isStale
-                          ? `⚠ Cron may be down — last check was ${minAgo >= 60 ? `${Math.round(minAgo / 60)}h` : `${minAgo}m`} ago`
-                          : `✓ Cron healthy — last check ${minAgo < 2 ? 'just now' : `${minAgo}m ago`}`}
-                      </div>
-                    )
-                  })()}
-                </div>
-              </details>
-            </div>
-
-            {/* Gmail Integration */}
-            <div className="settings-section" ref={gmailSectionRef}>
-              <div className="settings-section-title-row">
-                <h4 className="settings-section-title">Email Integration</h4>
-                {gmailStatus === null
-                  ? null
-                  : !gmailStatus.connected
-                    ? <span className="settings-badge-todo">Not connected</span>
-                    : (gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required')
-                      ? <span className="settings-badge-error">Reconnect required</span>
-                      : gmailStatus.syncHealth === 'degraded'
-                        ? <span className="settings-badge-error">Sync issues</span>
-                        : <span className="settings-badge-ok">Connected</span>
-                }
-              </div>
-              <p className="settings-guide-text">
-                Connect your Gmail inbox so the platform can detect job application replies, interview invites, and status updates automatically.
-              </p>
-
-              {/* OAuth callback result banner */}
-              {gmailCallbackResult === 'connected' && (
-                <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
-                  Gmail connected successfully.
-                </div>
-              )}
-              {gmailCallbackResult?.startsWith('error') && (
-                <div className="settings-status settings-status-error" style={{ marginBottom: '0.75rem' }}>
-                  Gmail connection failed. Please try again.
-                </div>
-              )}
-
-              {gmailStatus === null ? (
-                <p className="muted">Checking connection…</p>
-              ) : gmailStatus.connected ? (
-                <>
-                  <div className="gmail-status-row">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    <span>{gmailStatus.email}</span>
-                    {(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt) && (
-                      <span className="gmail-last-sync">
-                        Last sync: {new Date(gmailStatus.lastSuccessfulSyncAt || gmailStatus.lastSyncAt).toLocaleString()}
+                  {c.summary && <div className="classify-row-summary">{c.summary}</div>}
+                  <div className="classify-row-debug">
+                    {c.preFilterReason && <span>pre-filter: <code>{c.preFilterReason}</code></span>}
+                    {c.reachedAI === false && !c.preFilterReason && <span>did not reach AI</span>}
+                    {c.reachedAI && (
+                      <span>
+                        AI raw: <code>{String(c.rawIsJobRelated)} / {c.rawCategory} / conf={c.rawConfidence}</code>
+                        {c.overrideReason && c.overrideReason !== 'cached' && (
+                          <> → override: <code style={{ color: 'var(--danger)' }}>{c.overrideReason}</code></>
+                        )}
                       </span>
                     )}
                   </div>
-                  {(gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth === 'reconnect_required') && (
-                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
-                      Session expired — reconnect Gmail to continue receiving updates.
-                    </div>
-                  )}
-                  {!gmailNeedsReconnect && !gmailStatus.needsReconnect && gmailStatus.syncHealth === 'degraded' && (
-                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem' }}>
-                      Last sync failed — will retry automatically. If this persists, reconnect Gmail.
-                    </div>
-                  )}
-                  {gmailStatus.lastSyncError && gmailStatus.syncHealth !== 'healthy' && (
-                    <div className="settings-status settings-status-error" style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
-                      {gmailStatus.lastSyncError}
-                    </div>
-                  )}
-                  <div className="settings-btn-row">
-                    <button className="btn btn-primary btn-sm" onClick={handleGmailFetch} disabled={gmailFetching}>
-                      {gmailFetching ? 'Fetching…' : 'Test: Fetch Recent Emails'}
-                    </button>
-                    {/* Reconnect is primary CTA whenever health is not healthy */}
-                    <button
-                      className={`btn btn-sm ${(gmailNeedsReconnect || gmailStatus.needsReconnect || gmailStatus.syncHealth !== 'healthy') ? 'btn-primary' : 'btn-ghost'}`}
-                      onClick={handleGmailConnect}
-                      disabled={gmailConnecting}
-                    >
-                      {gmailConnecting ? 'Redirecting…' : 'Reconnect'}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <button className="btn btn-primary btn-sm" onClick={handleGmailConnect} disabled={gmailConnecting}>
-                  {gmailConnecting ? 'Redirecting…' : 'Connect Gmail'}
-                </button>
-              )}
-
-              {gmailError && (
-                <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>
-                  {gmailError}
-                </p>
-              )}
-
-              {gmailEmails !== null && (
-                <div className="gmail-email-list">
-                  {gmailEmails.length === 0 ? (
-                    <p className="muted" style={{ padding: '0.75rem 0' }}>No emails found.</p>
-                  ) : (() => {
-                    const inbound = gmailEmails.filter(e => e.direction === 'inbound')
-                    const outbound = gmailEmails.filter(e => e.direction === 'outbound')
-                    return (
-                      <>
-                        <p className="settings-hint" style={{ marginBottom: '0.75rem' }}>
-                          {gmailEmails.length} emails fetched — {inbound.length} incoming, {outbound.length} sent.
-                        </p>
-                        {[
-                          { label: 'Incoming', emails: inbound },
-                          { label: 'Sent', emails: outbound },
-                        ].map(({ label, emails }) => emails.length > 0 && (
-                          <div key={label} className="gmail-email-group">
-                            <div className="gmail-email-group-label">{label}</div>
-                            {emails.map(email => (
-                              <div key={email.id} className="gmail-email-row">
-                                <div className="gmail-email-meta">
-                                  <span className="gmail-email-from">{email.from}</span>
-                                  <div className="gmail-email-meta-right">
-                                    <span className={`gmail-direction-badge gmail-direction-${email.direction}`}>
-                                      {email.direction === 'inbound' ? '↓ In' : '↑ Out'}
-                                    </span>
-                                    <span className="gmail-email-date">
-                                      {new Date(email.receivedAt).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="gmail-email-subject">{email.subject || '(no subject)'}</div>
-                                <div className="gmail-email-snippet">{email.snippet}</div>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </>
-                    )
-                  })()}
                 </div>
-              )}
+              )
+              return (
+                <div className="classify-results">
+                  <p className="classify-summary">
+                    {all.length} emails processed — {jobRelated.length} job-related,{' '}
+                    {notRelated.filter(c => c.pre_filtered).length} pre-filtered,{' '}
+                    {notRelated.filter(c => !c.pre_filtered).length} classified as other
+                    {classifyResult.cached > 0 ? `, ${classifyResult.cached} from cache` : ''}
+                  </p>
+                  {jobRelated.length > 0 && (
+                    <>
+                      <div className="classify-group-label">Job-Related ({jobRelated.length})</div>
+                      <div className="classify-list">{jobRelated.map(renderRow)}</div>
+                    </>
+                  )}
+                  {notRelated.length > 0 && (
+                    <details style={{ marginTop: '0.75rem' }}>
+                      <summary className="classify-group-label" style={{ cursor: 'pointer' }}>
+                        Not Job-Related ({notRelated.length}) — click to expand
+                      </summary>
+                      <div className="classify-list" style={{ marginTop: '0.5rem', opacity: 0.7 }}>
+                        {notRelated.map(renderRow)}
+                      </div>
+                    </details>
+                  )}
+                  {all.length === 0 && (
+                    <p className="muted" style={{ padding: '0.5rem 0' }}>No emails in this window.</p>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+        </details>
+      )}
+    </>
+  )
+
+  const renderTelegram = () => (
+    <>
+      <p className="settings-guide-text">Get reminder notifications on Telegram — never miss a follow-up, interview, or deadline.</p>
+
+      <div className="settings-toggle-row">
+        <label className="toggle-label">
+          <input type="checkbox" checked={tgEnabled} onChange={e => setTgEnabled(e.target.checked)} />
+          <span>Enable Telegram notifications</span>
+        </label>
+      </div>
+
+      {tgEnabled && (
+        <div className="settings-guide" style={{ marginTop: '0.5rem' }}>
+          <p><strong>Step 1:</strong> Create a bot</p>
+          <ol>
+            <li>Open Telegram and search for <strong>@BotFather</strong></li>
+            <li>Send <code>/newbot</code> and follow the prompts</li>
+            <li>Copy the bot token and paste it below</li>
+          </ol>
+          <div className="form-group">
+            <label>Bot Token</label>
+            <input type="password" value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
+          </div>
+          <p><strong>Step 2:</strong> Get your Chat ID</p>
+          <p>Open Telegram, find your new bot, and send it <code>/start</code>. Then click the button below.</p>
+          <div className="settings-btn-row">
+            <button className="btn btn-secondary btn-sm" onClick={handleTgDetectChat} disabled={tgDetecting}>
+              {tgDetecting ? 'Detecting...' : 'Detect Chat ID'}
+            </button>
+            {tgChatId && <span className="settings-hint" style={{ marginTop: 0 }}>Chat ID: {tgChatId}</span>}
+          </div>
+          <div className="form-group" style={{ marginTop: '0.5rem' }}>
+            <label>Chat ID</label>
+            <input type="text" value={tgChatId} onChange={e => setTgChatId(e.target.value)} placeholder="Auto-detected or enter manually" />
+          </div>
+          <div className="settings-btn-row">
+            <button className="btn btn-primary btn-sm" onClick={handleTgSave} disabled={tgSaving}>
+              {tgSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={handleTgTest} disabled={tgTesting || !tgToken || !tgChatId}>
+              {tgTesting ? 'Sending...' : 'Send Test'}
+            </button>
+          </div>
+          {tgStatus && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{tgStatus}</p>}
+        </div>
+      )}
+
+      {/* Cron health indicator */}
+      {tgEnabled && tgChatId && (() => {
+        if (!tgLastCheck) return (
+          <div className="settings-status settings-status-error" style={{ marginTop: '0.75rem' }}>
+            ⚠ Telegram cron has not run yet. Set up a schedule for <code>telegram-check</code> in{' '}
+            <a href="https://supabase.com/dashboard/project/uytuyjodqvlrnsenitnh/functions/telegram-check" target="_blank" rel="noreferrer">Supabase Dashboard → Functions → telegram-check → Schedules</a>.
+            Recommended: <code>*/30 * * * *</code>
+          </div>
+        )
+        const minAgo = Math.round((Date.now() - new Date(tgLastCheck).getTime()) / 60000)
+        const isStale = minAgo > 240 // 4h threshold
+        return (
+          <div className={`settings-status ${isStale ? 'settings-status-error' : 'settings-status-ok'}`} style={{ marginTop: '0.75rem' }}>
+            {isStale
+              ? `⚠ Cron may be down — last check was ${minAgo >= 60 ? `${Math.round(minAgo / 60)}h` : `${minAgo}m`} ago`
+              : `✓ Cron healthy — last check ${minAgo < 2 ? 'just now' : `${minAgo}m ago`}`}
+          </div>
+        )
+      })()}
+    </>
+  )
+
+  const renderMcp = () => (
+    <>
+      <p className="settings-guide-text">
+        Connect Job Maker to Claude Desktop or any MCP-compatible AI client. Your API key is hashed before storage — the full key is shown only once.
+      </p>
+
+      {mcpKeyStatus?.hasKey && !mcpNewKey && (
+        <div className="gmail-status-row" style={{ marginBottom: '0.5rem' }}>
+          <Plug size={14} aria-hidden="true" />
+          <span className="muted">{mcpKeyStatus.prefix}…</span>
+        </div>
+      )}
+
+      {mcpNewKey && (
+        <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
+          <p style={{ marginBottom: '0.4rem', fontWeight: 600 }}>⚠ Copy your API key now — it won't be shown again.</p>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <code style={{ fontSize: '0.75rem', wordBreak: 'break-all', flex: 1 }}>{mcpNewKey}</code>
+            <button className="btn btn-ghost btn-sm" onClick={() => { navigator.clipboard.writeText(mcpNewKey).catch(() => {}) }}>Copy</button>
+          </div>
+          <details style={{ marginTop: '0.75rem' }}>
+            <summary style={{ fontSize: '0.78rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>Claude Desktop config</summary>
+            <pre style={{ fontSize: '0.7rem', marginTop: '0.5rem', background: 'rgba(0,0,0,0.04)', padding: '0.6rem', borderRadius: '4px', overflow: 'auto' }}>{JSON.stringify({ mcpServers: { "job-maker": { command: "npx", args: ["-y", "mcp-remote", `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp`], env: { MCP_API_KEY: mcpNewKey } } } }, null, 2)}</pre>
+          </details>
+        </div>
+      )}
+
+      {mcpError && (
+        <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{mcpError}</p>
+      )}
+
+      <div className="settings-btn-row">
+        {!mcpKeyStatus?.hasKey || mcpNewKey ? (
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={mcpWorking}
+            onClick={async () => {
+              setMcpWorking(true); setMcpError(null); setMcpNewKey(null)
+              try {
+                const { key, prefix } = await api.generateMcpKey()
+                setMcpNewKey(key)
+                setMcpKeyStatus({ hasKey: true, prefix })
+              } catch (err) { setMcpError(err.message) }
+              setMcpWorking(false)
+            }}
+          >
+            {mcpWorking ? 'Generating…' : mcpKeyStatus?.hasKey ? 'Regenerate Key' : 'Generate API Key'}
+          </button>
+        ) : (
+          <button
+            className="btn btn-ghost btn-sm"
+            disabled={mcpWorking}
+            onClick={async () => {
+              setMcpWorking(true); setMcpError(null)
+              try {
+                await api.revokeMcpKey()
+                setMcpKeyStatus({ hasKey: false, prefix: null })
+                setMcpNewKey(null)
+              } catch (err) { setMcpError(err.message) }
+              setMcpWorking(false)
+            }}
+          >
+            {mcpWorking ? 'Revoking…' : 'Revoke Key'}
+          </button>
+        )}
+        {mcpKeyStatus?.hasKey && !mcpNewKey && (
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={mcpWorking}
+            onClick={async () => {
+              setMcpWorking(true); setMcpError(null); setMcpNewKey(null)
+              try {
+                const { key, prefix } = await api.generateMcpKey()
+                setMcpNewKey(key)
+                setMcpKeyStatus({ hasKey: true, prefix })
+              } catch (err) { setMcpError(err.message) }
+              setMcpWorking(false)
+            }}
+          >
+            {mcpWorking ? 'Regenerating…' : 'Regenerate Key'}
+          </button>
+        )}
+      </div>
+    </>
+  )
+
+  const renderExtension = () => (
+    <>
+      <p className="settings-guide-text">
+        Browse LinkedIn and save jobs to your board with one click — title, company, and description included. No copy-pasting.
+      </p>
+
+      <details className="settings-details" {...(!hasExtension ? { open: true } : {})}>
+        <summary>How to install</summary>
+        <div className="settings-guide">
+          <p><strong>Step 1: Download</strong></p>
+          <p>
+            <a href="https://github.com/galtest-qa/job-tracker/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer">
+              Click here to download the ZIP
+            </a>
+            , then unzip it. You only need the <code>chrome-extension</code> folder inside.
+          </p>
+
+          <p><strong>Step 2: Install in Chrome</strong></p>
+          <ol>
+            <li>Open Chrome and go to <code>chrome://extensions</code></li>
+            <li>Turn on <strong>Developer mode</strong> (toggle in the top-right corner)</li>
+            <li>Click <strong>Load unpacked</strong></li>
+            <li>Select the <code>chrome-extension</code> folder you just unzipped</li>
+          </ol>
+
+          <p><strong>Step 3: Connect to your account</strong></p>
+          <ol>
+            <li>Click <strong>"Get Connection Code"</strong> below — it copies a code to your clipboard</li>
+            <li>Click the Job Tracker extension icon in Chrome's toolbar</li>
+            <li>Paste the code and click <strong>Connect</strong></li>
+          </ol>
+
+          <p><strong>Step 4: Start saving jobs</strong></p>
+          <p>Go to any LinkedIn job page — you'll see a blue <strong>"+ Save to Tracker"</strong> button. Click it and the job lands in your Backlog.</p>
+        </div>
+      </details>
+
+      <div className="settings-btn-row" style={{ marginTop: '0.75rem' }}>
+        <button className="btn btn-secondary btn-sm" onClick={handleGetCode}>
+          Get Connection Code
+        </button>
+        {connectionCode && <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: 'var(--success)' }}>Copied!</span>}
+      </div>
+      {connectionCode && (
+        <textarea className="connection-code" readOnly value={connectionCode} onClick={e => { e.target.select(); navigator.clipboard.writeText(connectionCode) }} />
+      )}
+      <p className="settings-hint">Click the button, then paste the code in the extension popup to connect.</p>
+
+      <label className="settings-extension-confirm">
+        <input
+          type="checkbox"
+          checked={!!hasExtension}
+          onChange={e => onExtensionConfirm && onExtensionConfirm(e.target.checked)}
+        />
+        I have the extension installed and connected
+      </label>
+    </>
+  )
+
+  const renderAbout = () => (
+    <>
+      <p className="settings-guide-text">
+        Help Job Maker understand you better. These answers improve job analysis accuracy, resume tailoring, and interview prep.
+      </p>
+      <div className="profile-questions">
+        {PROFILE_QUESTIONS.map(q => (
+          <div key={q.key} className="form-group">
+            <label>{q.label}</label>
+            <input
+              type="text"
+              value={profileContext[q.key] || ''}
+              onChange={e => setProfileContext({ ...profileContext, [q.key]: e.target.value })}
+              placeholder={q.placeholder}
+            />
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={handleProfileSave} disabled={profileSaving}>
+        {profileSaving ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Profile'}
+      </button>
+    </>
+  )
+
+  const renderResume = () => (
+    <>
+      <p className="settings-guide-text">
+        Your resume powers match scores, tailored suggestions, and interview prep for every job you add.
+      </p>
+      {resumeInfo?.raw_text ? (
+        <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
+          <FileText size={16} aria-hidden="true" />
+          {resumeInfo.filename || 'Resume uploaded'}
+        </div>
+      ) : (
+        <div className="settings-status settings-status-error" style={{ marginBottom: '0.75rem' }}>
+          No resume yet — upload one so Job Maker can start matching you to jobs.
+        </div>
+      )}
+      <button className="btn btn-primary btn-sm" onClick={() => onOpenResume && onOpenResume()}>
+        {resumeInfo?.raw_text ? 'Replace resume' : 'Upload resume'}
+      </button>
+    </>
+  )
+
+  const renderAi = () => (
+    aiMode === 'shared' ? (
+      <>
+        <div className="settings-status settings-status-ok">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Smart features are active. No setup needed.
+        </div>
+
+        <details className="settings-details">
+          <summary>Want to use your own OpenAI key?</summary>
+          <div className="settings-guide">
+            <p>Using your own key gives you:</p>
+            <ul>
+              <li>Higher rate limits</li>
+              <li>Your own billing and usage tracking</li>
+              <li>Privacy — requests go directly to OpenAI</li>
+            </ul>
+            <p><strong>How to get a key:</strong></p>
+            <ol>
+              <li>Go to <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer">platform.openai.com</a> and create an account</li>
+              <li>Add a payment method in <a href="https://platform.openai.com/account/billing" target="_blank" rel="noopener noreferrer">Billing</a> (pay-as-you-go, typically ~$1-5/month for light use)</li>
+              <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">API Keys</a> and click "Create new secret key"</li>
+              <li>Copy the key and paste it below</li>
+            </ol>
+            <div className="form-group">
+              <label>Your OpenAI API Key</label>
+              <input
+                type="password"
+                value={openaiKey}
+                onChange={e => setOpenaiKey(e.target.value)}
+                placeholder="sk-..."
+              />
             </div>
+            <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !openaiKey.trim()}>
+              {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Key'}
+            </button>
+          </div>
+        </details>
+      </>
+    ) : (
+      <>
+        <div className="settings-status settings-status-personal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Using your personal OpenAI key
+        </div>
+        <div className="form-group">
+          <label>OpenAI API Key</label>
+          <input
+            type="password"
+            value={openaiKey}
+            onChange={e => setOpenaiKey(e.target.value)}
+            placeholder="sk-..."
+          />
+        </div>
+        <div className="settings-btn-row">
+          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Update Key'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={handleRemoveKey} disabled={saving}>
+            Remove my key (use shared)
+          </button>
+        </div>
+      </>
+    )
+  )
 
-            {/* MCP Integration */}
-            <div className="settings-section">
-              <div className="settings-section-title-row">
-                <h4 className="settings-section-title">MCP Integration</h4>
-                {mcpKeyStatus === null
-                  ? null
-                  : mcpKeyStatus.hasKey
-                    ? <span className="settings-badge-ok">Active</span>
-                    : <span className="settings-badge-todo">Not configured</span>
-                }
-              </div>
-              <p className="settings-guide-text">
-                Connect Job Maker to Claude Desktop or any MCP-compatible AI client. Your API key is hashed before storage — the full key is shown only once.
-              </p>
+  const DETAILS = {
+    gmail: renderGmail,
+    telegram: renderTelegram,
+    mcp: renderMcp,
+    extension: renderExtension,
+    about: renderAbout,
+    resume: renderResume,
+    ai: renderAi,
+  }
 
-              {mcpKeyStatus?.hasKey && !mcpNewKey && (
-                <div className="gmail-status-row" style={{ marginBottom: '0.5rem' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  <span className="muted">{mcpKeyStatus.prefix}…</span>
-                </div>
-              )}
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal settings-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Settings</h3>
+          <button className="btn btn-ghost" onClick={onClose} aria-label="Close settings">&times;</button>
+        </div>
 
-              {mcpNewKey && (
-                <div className="settings-status settings-status-ok" style={{ marginBottom: '0.75rem' }}>
-                  <p style={{ marginBottom: '0.4rem', fontWeight: 600 }}>⚠ Copy your API key now — it won't be shown again.</p>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <code style={{ fontSize: '0.75rem', wordBreak: 'break-all', flex: 1 }}>{mcpNewKey}</code>
-                    <button className="btn btn-ghost btn-sm" onClick={() => { navigator.clipboard.writeText(mcpNewKey).catch(() => {}) }}>Copy</button>
-                  </div>
-                  <details style={{ marginTop: '0.75rem' }}>
-                    <summary style={{ fontSize: '0.78rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>Claude Desktop config</summary>
-                    <pre style={{ fontSize: '0.7rem', marginTop: '0.5rem', background: 'rgba(0,0,0,0.04)', padding: '0.6rem', borderRadius: '4px', overflow: 'auto' }}>{JSON.stringify({ mcpServers: { "job-maker": { command: "npx", args: ["-y", "mcp-remote", `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp`], env: { MCP_API_KEY: mcpNewKey } } } }, null, 2)}</pre>
-                  </details>
-                </div>
-              )}
-
-              {mcpError && (
-                <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{mcpError}</p>
-              )}
-
-              <div className="settings-btn-row">
-                {!mcpKeyStatus?.hasKey || mcpNewKey ? (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={mcpWorking}
-                    onClick={async () => {
-                      setMcpWorking(true); setMcpError(null); setMcpNewKey(null)
-                      try {
-                        const { key, prefix } = await api.generateMcpKey()
-                        setMcpNewKey(key)
-                        setMcpKeyStatus({ hasKey: true, prefix })
-                      } catch (err) { setMcpError(err.message) }
-                      setMcpWorking(false)
-                    }}
-                  >
-                    {mcpWorking ? 'Generating…' : mcpKeyStatus?.hasKey ? 'Regenerate Key' : 'Generate API Key'}
+        {loading ? (
+          <div className="set-hub" aria-hidden="true">
+            <div className="cos-skel cos-skel-label" />
+            <div className="set-grid">
+              {[...Array(4)].map((_, i) => <div key={i} className="cos-skel set-tile-skel" />)}
+            </div>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait" initial={false}>
+            {section && DETAILS[section] ? (
+              <motion.div key={section} {...slide}>
+                <div className="set-detail-head">
+                  <button className="set-back" onClick={() => setSection(null)} aria-label="Back to settings">
+                    <ChevronLeft size={18} aria-hidden="true" />
                   </button>
-                ) : (
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    disabled={mcpWorking}
-                    onClick={async () => {
-                      setMcpWorking(true); setMcpError(null)
-                      try {
-                        await api.revokeMcpKey()
-                        setMcpKeyStatus({ hasKey: false, prefix: null })
-                        setMcpNewKey(null)
-                      } catch (err) { setMcpError(err.message) }
-                      setMcpWorking(false)
-                    }}
-                  >
-                    {mcpWorking ? 'Revoking…' : 'Revoke Key'}
+                  <h4 className="set-detail-title">{sectionTitle[section]}</h4>
+                  {TILES[section] && (
+                    <span className={`set-tile-status status-${TILES[section].status.tone}`}>{TILES[section].status.label}</span>
+                  )}
+                </div>
+                <div className="set-detail-body">
+                  {DETAILS[section]()}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="hub" {...slideBack} className="set-hub">
+                <h4 className="set-group-title">Connected apps</h4>
+                <div className="set-grid">
+                  <Tile id="gmail" />
+                  <Tile id="telegram" />
+                  <Tile id="mcp" />
+                  <Tile id="extension" />
+                </div>
+
+                <h4 className="set-group-title">Your profile</h4>
+                <div className="set-grid">
+                  <Tile id="about" />
+                  <Tile id="resume" />
+                  <Tile id="ai" />
+                </div>
+
+                <h4 className="set-group-title">Coming soon</h4>
+                <div className="set-grid">
+                  <div className="set-tile set-tile--soon">
+                    <span className="integration-icon integration-icon--linkedin"><LinkedinGlyph size={18} /></span>
+                    <span className="set-tile-body">
+                      <span className="set-tile-name">LinkedIn</span>
+                      <span className="set-tile-status status-off">Save recruiters &amp; contacts</span>
+                    </span>
+                  </div>
+                  <div className="set-tile set-tile--soon">
+                    <span className="integration-icon integration-icon--gcal"><Calendar size={18} strokeWidth={1.8} aria-hidden="true" /></span>
+                    <span className="set-tile-body">
+                      <span className="set-tile-name">Google Calendar</span>
+                      <span className="set-tile-status status-off">Auto-add interviews</span>
+                    </span>
+                  </div>
+                </div>
+
+                {onLogout && (
+                  <button className="set-signout" onClick={onLogout}>
+                    <LogOut size={15} aria-hidden="true" />
+                    Sign out
                   </button>
                 )}
-                {mcpKeyStatus?.hasKey && !mcpNewKey && (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={mcpWorking}
-                    onClick={async () => {
-                      setMcpWorking(true); setMcpError(null); setMcpNewKey(null)
-                      try {
-                        const { key, prefix } = await api.generateMcpKey()
-                        setMcpNewKey(key)
-                        setMcpKeyStatus({ hasKey: true, prefix })
-                      } catch (err) { setMcpError(err.message) }
-                      setMcpWorking(false)
-                    }}
-                  >
-                    {mcpWorking ? 'Regenerating…' : 'Regenerate Key'}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Debug: Hiring Event Detection */}
-            {gmailStatus?.connected && (
-              <div className="settings-section">
-                <details className="settings-details">
-                  <summary>Debug: Hiring Event Detection</summary>
-                  <div className="settings-guide">
-                    <p className="settings-guide-text">
-                      Classify your 50 most recent emails to detect hiring events — interview invites, rejections, offers, and more.
-                    </p>
-                    <div className="settings-btn-row">
-                      <button className="btn btn-secondary btn-sm" onClick={handleClassify} disabled={classifying}>
-                        {classifying ? 'Classifying…' : 'Run Classification'}
-                      </button>
-                    </div>
-                    {classifyError && (
-                      <p className="settings-hint" style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>{classifyError}</p>
-                    )}
-                    {classifyResult && (() => {
-                      const all = classifyResult.classifications || []
-                      const jobRelated = all.filter(c => c.is_job_related)
-                      const notRelated = all.filter(c => !c.is_job_related)
-                      const renderRow = (c) => (
-                        <div key={c.email_id} className={`classify-row classify-priority-${c.priority_score >= 70 ? 'high' : c.priority_score >= 40 ? 'med' : 'low'}`}>
-                          <div className="classify-row-header">
-                            <span className="classify-category">{c.category?.replace(/_/g, ' ')}</span>
-                            {c.confidence_level && <span className={`classify-confidence classify-confidence-${c.confidence_level}`}>{c.confidence_level}</span>}
-                            {c.pre_filtered && <span className="classify-confidence" style={{ background: '#f1f5f9', color: '#64748b' }}>pre-filtered</span>}
-                            {c.overrideReason === 'cached' && <span className="classify-confidence" style={{ background: '#eff6ff', color: '#3b82f6' }}>cached</span>}
-                            {c.direction && <span className="classify-confidence" style={{ background: '#faf5ff', color: '#7c3aed' }}>{c.direction}</span>}
-                            {c.action_required && <span className="classify-action-badge">Action needed</span>}
-                          </div>
-                          <div className="classify-row-subject">{c.subject || '(no subject)'}</div>
-                          <div className="classify-row-meta" style={{ color: 'var(--text-tertiary)' }}>{c.from_address}</div>
-                          {c.detected_company && (
-                            <div className="classify-row-meta">{c.detected_company}{c.detected_role ? ` — ${c.detected_role}` : ''}</div>
-                          )}
-                          {c.summary && <div className="classify-row-summary">{c.summary}</div>}
-                          {/* Debug trace */}
-                          <div className="classify-row-debug">
-                            {c.preFilterReason && <span>pre-filter: <code>{c.preFilterReason}</code></span>}
-                            {c.reachedAI === false && !c.preFilterReason && <span>did not reach AI</span>}
-                            {c.reachedAI && (
-                              <span>
-                                AI raw: <code>{String(c.rawIsJobRelated)} / {c.rawCategory} / conf={c.rawConfidence}</code>
-                                {c.overrideReason && c.overrideReason !== 'cached' && (
-                                  <> → override: <code style={{ color: 'var(--danger)' }}>{c.overrideReason}</code></>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                      return (
-                        <div className="classify-results">
-                          <p className="classify-summary">
-                            {all.length} emails processed — {jobRelated.length} job-related,{' '}
-                            {notRelated.filter(c => c.pre_filtered).length} pre-filtered,{' '}
-                            {notRelated.filter(c => !c.pre_filtered).length} classified as other
-                            {classifyResult.cached > 0 ? `, ${classifyResult.cached} from cache` : ''}
-                          </p>
-                          {jobRelated.length > 0 && (
-                            <>
-                              <div className="classify-group-label">Job-Related ({jobRelated.length})</div>
-                              <div className="classify-list">{jobRelated.map(renderRow)}</div>
-                            </>
-                          )}
-                          {notRelated.length > 0 && (
-                            <details style={{ marginTop: '0.75rem' }}>
-                              <summary className="classify-group-label" style={{ cursor: 'pointer' }}>
-                                Not Job-Related ({notRelated.length}) — click to expand
-                              </summary>
-                              <div className="classify-list" style={{ marginTop: '0.5rem', opacity: 0.7 }}>
-                                {notRelated.map(renderRow)}
-                              </div>
-                            </details>
-                          )}
-                          {all.length === 0 && (
-                            <p className="muted" style={{ padding: '0.5rem 0' }}>No emails in this window.</p>
-                          )}
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </details>
-              </div>
+              </motion.div>
             )}
-
-            {/* Re-analyze all jobs */}
-            <div className="settings-section">
-              <h4 className="settings-section-title">Bulk Actions</h4>
-              <p className="settings-guide-text">
-                Re-analyze all jobs to fix match scores and refresh AI insights. Only jobs with a description will be processed.
-              </p>
-              <div className="settings-btn-row">
-                <button className="btn btn-secondary btn-sm" onClick={handleReanalyzeAll} disabled={reanalyzing}>
-                  {reanalyzing ? 'Analyzing…' : 'Re-analyze all jobs'}
-                </button>
-                {reanalyzeDone && (
-                  <span className="settings-hint" style={{ marginTop: 0, fontWeight: 600, color: reanalyzeDone.failed > 0 ? 'var(--warning)' : 'var(--success)' }}>
-                    ✓ {reanalyzeDone.success} updated{reanalyzeDone.failed > 0 ? `, ${reanalyzeDone.failed} failed` : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={onClose}>Close</button>
-            </div>
-          </>
+          </AnimatePresence>
         )}
       </div>
     </div>

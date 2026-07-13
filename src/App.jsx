@@ -449,6 +449,9 @@ export default function App() {
           onExtensionConfirm={handleExtensionConfirm}
           gmailCallbackResult={gmailCallbackResult}
           gmailNeedsReconnect={gmailNeedsReconnect}
+          resumeInfo={resumeInfo}
+          onOpenResume={() => setShowResume(true)}
+          onLogout={handleLogout}
         />
       )}
 
