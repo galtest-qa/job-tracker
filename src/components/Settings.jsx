@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
-  Calendar, ChevronLeft, ChevronRight, Cpu, FileText, LogOut,
+  Bell, Calendar, ChevronLeft, ChevronRight, Cpu, FileText, LogOut,
   Mail, Plug, Puzzle, Send, User,
 } from 'lucide-react'
+import { getPushStatus, subscribeToPush, unsubscribeFromPush, sendTestPush } from '../lib/push.js'
 
 // lucide dropped brand icons — keep the LinkedIn glyph inline
 const LinkedinGlyph = ({ size = 18 }) => (
@@ -120,6 +121,53 @@ export default function Settings({
   const [mcpNewKey, setMcpNewKey] = useState(null)       // full key shown once after generation
   const [mcpWorking, setMcpWorking] = useState(false)
   const [mcpError, setMcpError] = useState(null)
+
+  // Push notifications state
+  const [pushStatus, setPushStatus] = useState(null) // null = loading
+  const [pushWorking, setPushWorking] = useState(false)
+  const [pushMsg, setPushMsg] = useState('')
+
+  useEffect(() => {
+    getPushStatus().then(setPushStatus).catch(() => setPushStatus('unsupported'))
+  }, [])
+
+  const handlePushToggle = async () => {
+    setPushWorking(true)
+    setPushMsg('')
+    try {
+      if (pushStatus === 'subscribed') {
+        await unsubscribeFromPush()
+        setPushStatus('off')
+        setPushMsg('Notifications turned off on this device.')
+      } else {
+        await subscribeToPush()
+        setPushStatus('subscribed')
+        setPushMsg('Notifications enabled 🎉')
+      }
+    } catch (err) {
+      if (err.message === 'permission-denied') {
+        setPushStatus('denied')
+        setPushMsg('Notifications are blocked — allow them in your browser settings, then try again.')
+      } else if (err.message === 'permission-dismissed') {
+        setPushMsg('Permission prompt dismissed — tap Enable again when ready.')
+      } else {
+        setPushMsg(`Could not enable notifications: ${err.message}`)
+      }
+    }
+    setPushWorking(false)
+  }
+
+  const handlePushTest = async () => {
+    setPushWorking(true)
+    setPushMsg('')
+    try {
+      const { sent } = await sendTestPush()
+      setPushMsg(sent > 0 ? 'Test sent — check your notifications.' : 'No devices registered — enable notifications first.')
+    } catch (err) {
+      setPushMsg(`Test failed: ${err.message}`)
+    }
+    setPushWorking(false)
+  }
 
   // Load Gmail + MCP status on mount
   useEffect(() => {
@@ -325,9 +373,22 @@ export default function Settings({
       ? { label: 'Active', tone: 'ok' }
       : { label: 'Personal key', tone: 'ok' }
 
+  const notifyTile = pushStatus === null
+    ? { label: 'Checking…', tone: 'off' }
+    : pushStatus === 'subscribed'
+      ? { label: 'On', tone: 'ok' }
+      : pushStatus === 'denied'
+        ? { label: 'Blocked', tone: 'error' }
+        : pushStatus === 'needs-install'
+          ? { label: 'Install app first', tone: 'warn' }
+          : pushStatus === 'unsupported'
+            ? { label: 'Not supported here', tone: 'off' }
+            : { label: 'Off', tone: 'off' }
+
   const TILES = {
     gmail: { name: 'Gmail', icon: Mail, iconClass: 'integration-icon--gmail', status: gmailTile },
     telegram: { name: 'Telegram', icon: Send, iconClass: 'integration-icon--telegram', status: telegramTile },
+    notifications: { name: 'Notifications', icon: Bell, iconClass: 'set-icon--notify', status: notifyTile },
     mcp: { name: 'Claude & AI clients', icon: Plug, iconClass: 'set-icon--mcp', status: mcpTile },
     extension: { name: 'Chrome Extension', icon: Puzzle, iconClass: 'set-icon--extension', status: extensionTile },
     about: { name: 'About You', icon: User, iconClass: 'set-icon--about', status: aboutTile },
@@ -336,7 +397,7 @@ export default function Settings({
   }
 
   const sectionTitle = {
-    gmail: 'Gmail', telegram: 'Telegram', mcp: 'Claude & AI clients',
+    gmail: 'Gmail', telegram: 'Telegram', notifications: 'Notifications', mcp: 'Claude & AI clients',
     extension: 'Chrome Extension', about: 'About You', resume: 'Resume', ai: 'AI Features',
   }
 
@@ -888,9 +949,53 @@ export default function Settings({
     )
   )
 
+  const renderNotifications = () => (
+    <>
+      <p className="settings-guide-text">
+        Get notified on this device the moment something happens — a recruiter replies, an interview invite lands, or a follow-up is due.
+      </p>
+
+      {pushStatus === 'needs-install' && (
+        <div className="settings-status settings-status-error">
+          On iPhone, notifications require the installed app: open this site in Safari, tap Share → <strong>Add to Home Screen</strong>, then enable notifications from inside the installed app.
+        </div>
+      )}
+      {pushStatus === 'unsupported' && (
+        <div className="settings-status settings-status-error">
+          This browser doesn't support push notifications. Try Chrome, or install the app on your phone.
+        </div>
+      )}
+      {pushStatus === 'denied' && (
+        <div className="settings-status settings-status-error">
+          Notifications are blocked for Job Maker. Allow them in your browser/system settings, then come back here.
+        </div>
+      )}
+
+      {(pushStatus === 'off' || pushStatus === 'subscribed') && (
+        <div className="settings-btn-row">
+          <button className={`btn btn-sm ${pushStatus === 'subscribed' ? 'btn-ghost' : 'btn-primary'}`} onClick={handlePushToggle} disabled={pushWorking}>
+            {pushWorking ? 'Working…' : pushStatus === 'subscribed' ? 'Turn off on this device' : 'Enable notifications'}
+          </button>
+          {pushStatus === 'subscribed' && (
+            <button className="btn btn-secondary btn-sm" onClick={handlePushTest} disabled={pushWorking}>
+              Send test notification
+            </button>
+          )}
+        </div>
+      )}
+
+      {pushMsg && <p className="settings-hint" style={{ marginTop: '0.5rem', fontWeight: 600 }}>{pushMsg}</p>}
+
+      <p className="settings-hint" style={{ marginTop: '0.75rem' }}>
+        Each device is enabled separately — turn this on from your phone to get notifications there.
+      </p>
+    </>
+  )
+
   const DETAILS = {
     gmail: renderGmail,
     telegram: renderTelegram,
+    notifications: renderNotifications,
     mcp: renderMcp,
     extension: renderExtension,
     about: renderAbout,
@@ -936,6 +1041,7 @@ export default function Settings({
                 <div className="set-grid">
                   <Tile id="gmail" />
                   <Tile id="telegram" />
+                  <Tile id="notifications" />
                   <Tile id="mcp" />
                   <Tile id="extension" />
                 </div>

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { sendPushToUser } from "../_shared/push.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +25,19 @@ serve(async (req) => {
       .neq("telegram_bot_token", "")
       .neq("telegram_chat_id", "")
 
-    if (usersError || !users?.length) {
+    // Users with Web Push devices get reminder notifications too — with or
+    // without Telegram. This cron is the notification heartbeat for both.
+    const { data: pushSubRows } = await supabase
+      .from("push_subscriptions")
+      .select("user_id")
+    const pushUserIds = new Set((pushSubRows ?? []).map((r: { user_id: string }) => r.user_id))
+
+    const telegramUsers = users ?? []
+    if (usersError) console.warn("telegram-check: profiles query failed:", usersError.message)
+    const telegramById = new Map(telegramUsers.map((u) => [u.id, u]))
+    const allUserIds = [...new Set([...telegramUsers.map((u) => u.id), ...pushUserIds])]
+
+    if (!allUserIds.length) {
       return new Response(JSON.stringify({ checked: 0, notified: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
@@ -37,19 +50,22 @@ serve(async (req) => {
 
     // Stamp all Telegram users so the app can show cron health.
     // One bulk update is cheaper than N individual updates in the loop.
-    if (users.length > 0) {
+    if (telegramUsers.length > 0) {
       await supabase
         .from("profiles")
         .update({ last_telegram_check_at: now })
-        .in("id", users.map((u) => u.id))
+        .in("id", telegramUsers.map((u) => u.id))
     }
 
-    for (const user of users) {
+    for (const userId of allUserIds) {
+      const tgUser = telegramById.get(userId)
+      const hasPush = pushUserIds.has(userId)
+
       // Get due reminders — exclude completed AND soft-cancelled
       const { data: reminders } = await supabase
         .from("reminders")
         .select("id, title, due_at, note, job_id, jobs(company, role)")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("completed", false)
         .is("cancelled_at", null)
         .lte("due_at", thirtyMinLater)
@@ -100,25 +116,44 @@ serve(async (req) => {
 
         // Row 2: navigation buttons (url) — only when job_id is available
         const navRow = r.job_id && appUrl ? [
-          { text: "✏️ Open Reminder", url: `${appUrl}/?job=${r.job_id}&tab=reminders` },
-          { text: "📂 Open Job", url: `${appUrl}/?job=${r.job_id}&tab=updates` },
+          { text: "✏️ Edit Reminder", url: `${appUrl}/?job=${r.job_id}&tab=reminders` },
+          { text: "📂 Open Job", url: `${appUrl}/?job=${r.job_id}` },
         ] : []
 
         const inlineKeyboard = navRow.length > 0 ? [actionRow, navRow] : [actionRow]
 
-        try {
-          await fetch(`https://api.telegram.org/bot${user.telegram_bot_token}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: user.telegram_chat_id,
-              text: msg,
-              parse_mode: "HTML",
-              link_preview_options: { is_disabled: true },
-              reply_markup: { inline_keyboard: inlineKeyboard },
-            }),
-          })
+        let delivered = false
 
+        if (tgUser) {
+          try {
+            await fetch(`https://api.telegram.org/bot${tgUser.telegram_bot_token}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: tgUser.telegram_chat_id,
+                text: msg,
+                parse_mode: "HTML",
+                link_preview_options: { is_disabled: true },
+                reply_markup: { inline_keyboard: inlineKeyboard },
+              }),
+            })
+            delivered = true
+          } catch (err) {
+            console.error(`Failed to notify user ${userId} via Telegram:`, err)
+          }
+        }
+
+        if (hasPush) {
+          const { sent } = await sendPushToUser(supabase, userId, {
+            title: `${emoji} ${r.title}`,
+            body: [timeStr, jobInfo].filter(Boolean).join(" · "),
+            url: r.job_id ? `/?job=${r.job_id}&tab=reminders` : "/",
+            tag: `reminder-${r.id}`,
+          })
+          if (sent > 0) delivered = true
+        }
+
+        if (delivered) {
           // Mark as notified
           await supabase
             .from("reminders")
@@ -126,8 +161,6 @@ serve(async (req) => {
             .eq("id", r.id)
 
           totalNotified++
-        } catch (err) {
-          console.error(`Failed to notify user ${user.id}:`, err)
         }
       }
     }
@@ -142,7 +175,7 @@ serve(async (req) => {
       Authorization: `Bearer ${serviceKey}`,
     }
 
-    for (const user of users) {
+    for (const user of telegramUsers) {
       // Regenerate recommendations in background — never wait on this
       fetch(`${functionsBase}/generate-recommendations`, {
         method: "POST",
@@ -198,7 +231,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ checked: users.length, notified: totalNotified }), {
+    return new Response(JSON.stringify({ checked: allUserIds.length, notified: totalNotified }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     })
   } catch (err) {

@@ -4,6 +4,7 @@ import { decrypt, encrypt } from "../_shared/crypto-utils.ts"
 import { refreshAccessToken, fetchRecentEmails, fetchEmailBody, GmailAuthError, type GmailEmail } from "../_shared/gmail-api.ts"
 import { shouldPreFilter } from "../_shared/email-prefilter.ts"
 import { applySignalOverride, getRecommendation } from "../_shared/hiring-signal-detector.ts"
+import { sendPushToUser } from "../_shared/push.ts"
 import { shouldSurfaceEvent, shouldMarkJobUnread } from "./event-lifecycle.ts"
 
 // ── Versioning ──────────────────────────────────────────────────────────────
@@ -945,6 +946,8 @@ serve(async (req) => {
     // 10. Create hiring events from new job-related classifications
     const jobRelatedRows = aiRows.filter(r => r.is_job_related === true)
     const newEvents: Record<string, unknown>[] = []
+    // Only genuinely new inserts (not resurfaced updates) trigger a push
+    const freshEvents: Record<string, unknown>[] = []
 
     // Pre-load existing event states in one query so we can preserve user-facing
     // status/popup_shown when a re-classification hits an already-handled event.
@@ -1039,8 +1042,21 @@ serve(async (req) => {
 
         if (!eventErr && inserted) {
           newEvents.push(inserted)
+          freshEvents.push(inserted)
         }
       }
+    }
+
+    // Notify the user's devices about genuinely new high-priority events
+    // (recruiter replies, interview invites) — same bar as the in-app popup.
+    for (const ev of freshEvents) {
+      if ((ev.priority_score as number ?? 0) < 70) continue
+      await sendPushToUser(adminClient, userId, {
+        title: (ev.title as string) || "New hiring update",
+        body: (ev.recommendation_reason as string) || (ev.description as string) || "",
+        url: ev.matched_job_id ? `/?job=${ev.matched_job_id}&tab=updates` : "/",
+        tag: `event-${ev.id}`,
+      })
     }
 
     // 11. Update has_unread_event — only for jobs with genuinely new pending events

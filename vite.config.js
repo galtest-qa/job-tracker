@@ -10,6 +10,14 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        // The main bundle is ~1.7 MB; raise the precache limit so the app
+        // shell (including pdf.worker) is fully available offline.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+      },
       includeAssets: ['logo.png', 'icons/apple-touch-icon-180.png'],
       manifest: {
         name: 'Job Maker',
@@ -26,31 +34,7 @@ export default defineConfig({
           { src: '/icons/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        // The main bundle is ~1.7 MB; raise the precache limit so the app
-        // shell (including pdf.worker) is fully available offline.
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/(logo\.clearbit\.com|www\.google\.com\/s2\/favicons).*/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'company-logos',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          // Supabase (auth + data) is deliberately NOT cached — always network.
-        ],
-      },
+      // Caching strategies live in src/sw.js (injectManifest mode).
     }),
   ],
   resolve: {
