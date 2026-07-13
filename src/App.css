@@ -6037,3 +6037,157 @@ details[open] .it-stronger-summary::before { content: '▾  '; }
   .set-tile, .set-back { transition: none; }
   .set-tile:active { transform: none; }
 }
+
+/* ═══════════ Voice input (dictation) ═══════════ */
+.vi-idle { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem; }
+.vi-inline { display: flex; align-items: center; gap: 0.4rem; }
+.vi-mic {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  min-height: 40px; padding: 0 0.9rem;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary);
+  font-family: inherit; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.vi-mic:hover { border-color: var(--primary); color: var(--primary); }
+.vi-mic:disabled { opacity: 0.5; cursor: default; }
+.vi-mic:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.vi-mic-compact {
+  flex-shrink: 0; width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-light); border-radius: 10px;
+  background: var(--surface); color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.vi-mic-compact:hover { border-color: var(--primary); color: var(--primary); }
+.vi-mic-compact:disabled { opacity: 0.5; cursor: default; }
+.vi-mic-compact:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.vi-bar {
+  display: flex; align-items: center; gap: 0.6rem;
+  min-height: 44px; padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border-light); border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary); font-size: 0.82rem;
+  margin-top: 0.4rem;
+}
+.vi-bar--recording { border-color: rgba(239, 68, 68, 0.35); }
+.vi-rec-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--danger); flex-shrink: 0;
+  animation: cos-pulse 1.1s ease-in-out infinite;
+}
+.vi-timer { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+.vi-waves { display: flex; align-items: center; gap: 3px; flex: 1; min-width: 0; height: 22px; overflow: hidden; }
+.vi-wave {
+  width: 3px; border-radius: 2px; background: var(--primary);
+  height: 30%;
+  animation: vi-wave 0.9s ease-in-out infinite;
+}
+@keyframes vi-wave { 0%, 100% { height: 22%; } 50% { height: 90%; } }
+.vi-btn {
+  flex-shrink: 0; width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.vi-btn:active { transform: scale(0.92); }
+.vi-btn--cancel { background: var(--border-light); color: var(--text-secondary); }
+.vi-btn--cancel:hover { background: var(--border); }
+.vi-btn--done { background: var(--primary); color: #fff; }
+.vi-btn--done:hover { background: var(--primary-hover); }
+.vi-status-text { font-weight: 600; }
+.vi-error { font-size: 0.78rem; color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .vi-wave, .vi-rec-dot { animation: none; }
+  .vi-wave { height: 60%; }
+}
+
+/* ═══════════ Interview tab — practice launcher ═══════════ */
+.it-practice-launch {
+  display: flex; align-items: center; gap: 0.85rem;
+  width: 100%; text-align: left;
+  padding: 1rem;
+  border: 1px solid rgba(79, 110, 247, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--surface) 30%, var(--primary-light));
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.it-practice-launch:hover { box-shadow: 0 4px 14px rgba(79, 110, 247, 0.14); transform: translateY(-1px); }
+.it-practice-launch:active { transform: scale(0.99); }
+.it-practice-launch:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.it-practice-launch-icon {
+  flex-shrink: 0; width: 42px; height: 42px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--primary); color: #fff;
+}
+.it-practice-launch-body { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.it-practice-launch-title { font-size: 0.95rem; font-weight: 650; }
+.it-practice-launch-sub { font-size: 0.8rem; color: var(--text-secondary); }
+
+.it-custom-practice { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.it-custom-practice .it-mock-custom { flex: 1; min-width: 0; }
+
+.it-stage-chevron { transition: transform 0.15s ease; color: var(--text-tertiary); flex-shrink: 0; }
+.it-stage-chevron--open { transform: rotate(180deg); }
+
+/* Resume coaching — question input with voice */
+.rc-session-q-inputwrap { display: flex; align-items: flex-start; gap: 0.5rem; }
+.rc-session-q-inputwrap .rc-session-q-input { flex: 1; min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .it-practice-launch, .it-stage-chevron { transition: none; }
+}
+
+/* ═══════════ Mobile standards pass — Interview & Resume tabs ═══════════
+   iOS zooms the page when a focused input's font-size is under 16px, and
+   44px is the minimum comfortable touch target. */
+
+/* Exit button in resume coaching was 21x19 — make it a real target everywhere */
+.rc-session-exit {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+.rc-session-exit:hover { background: var(--border-light); }
+
+@media (max-width: 640px) {
+  /* No page zoom on focus — every text input in these tabs at 16px */
+  .it-mock-answer,
+  .it-mock-custom,
+  .it-mock-select,
+  .it-srf-input,
+  .it-srf-select,
+  .it-srf-textarea,
+  .rc-session-q-input,
+  .notes-textarea,
+  .resume-edit-textarea,
+  .connection-code {
+    font-size: 16px;
+  }
+
+  /* Touch targets ≥44px */
+  .vi-mic { min-height: 44px; }
+  .vi-mic-compact { width: 44px; height: 44px; }
+  .vi-btn { width: 40px; height: 40px; }
+  .it-stage-header { min-height: 48px; }
+  .rc-ats-toggle,
+  .rc-tailored-toggle { min-height: 48px; }
+  .it-checklist-item { min-height: 44px; align-items: center; }
+  .it-checklist-item input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
+
+  /* One-hand comfort: primary session actions stretch full width */
+  .it-practice-btns .btn-primary,
+  .rc-session-actions .btn-primary { width: 100%; justify-content: center; }
+}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { ChevronDown, Play } from 'lucide-react'
 import { api, normalizeCompanyName } from '../api.js'
+import VoiceInput from './VoiceInput.jsx'
 
 // ── Readiness score v2 ─────────────────────────────────────────────────────
 // Anti-inflation model: practice is weighted heavily, profile generation is not.
@@ -161,7 +163,7 @@ function StageCard({ stage, expanded, onToggle, libraryQuestions = [] }) {
           {stage.duration && <span className="it-stage-tag">{stage.duration}</span>}
           {stage.confidence && <ConfidenceBadge level={stage.confidence} />}
         </span>
-        <span className="it-stage-chevron">{expanded ? '▲' : '▼'}</span>
+        <ChevronDown size={15} className={`it-stage-chevron${expanded ? ' it-stage-chevron--open' : ''}`} aria-hidden="true" />
       </button>
       {expanded && (
         <div className="it-stage-body">
@@ -205,34 +207,6 @@ function ChecklistSection({ items, done, onToggle }) {
             <input type="checkbox" checked={checked} onChange={() => onToggle(i)} />
             <span>{item}</span>
           </label>
-        )
-      })}
-    </div>
-  )
-}
-
-function ScoreBreakdown({ breakdown }) {
-  const items = [
-    { key: 'structure',    label: 'Structure' },
-    { key: 'specificity',  label: 'Specificity' },
-    { key: 'relevance',    label: 'Relevance' },
-    { key: 'impact',       label: 'Impact' },
-  ]
-  return (
-    <div className="it-mock-breakdown">
-      {items.map(({ key, label }) => {
-        const val = breakdown?.[key] ?? 0
-        const color =
-          val >= 8 ? 'var(--success)' :
-          val >= 6 ? 'var(--warning)' : 'var(--danger)'
-        return (
-          <div key={key} className="it-mock-breakdown-row">
-            <span className="it-mock-breakdown-label">{label}</span>
-            <div className="it-mock-breakdown-track">
-              <div className="it-mock-breakdown-fill" style={{ width: `${(val / 10) * 100}%`, background: color }} />
-            </div>
-            <span className="it-mock-breakdown-val">{val}/10</span>
-          </div>
         )
       })}
     </div>
@@ -392,9 +366,14 @@ function PracticeSession({ questions, job, jobId, setJob, onExit }) {
                 e.preventDefault(); handleScore()
               }
             }}
-            placeholder="Write your answer. Use a specific example — situation, what you did, and the result."
+            placeholder="Speak or write your answer. Use a specific example — situation, what you did, and the result."
             disabled={scoring}
             autoFocus
+          />
+          <VoiceInput
+            disabled={scoring}
+            label="Answer by voice"
+            onTranscript={t => setAnswer(a => (a.trim() ? a.trimEnd() + ' ' + t : t))}
           />
           {error && <div className="rc-error">{error}</div>}
           <div className="it-practice-btns">
@@ -539,16 +518,11 @@ export default function InterviewTab({ job, setJob, jobId }) {
   const [buildError, setBuildError]     = useState(null)
   const [expandedStage, setExpandedStage] = useState(null)
 
-  const [selectedQuestion, setSelectedQuestion] = useState('')
-  const [customQuestion, setCustomQuestion]     = useState('')
-  const [mockAnswer, setMockAnswer]             = useState('')
-  const [submitting, setSubmitting]             = useState(false)
-  const [feedback, setFeedback]                 = useState(null)
-  const [feedbackError, setFeedbackError]       = useState(null)
-  const [showCustom, setShowCustom]             = useState(false)
-
   // View mode: 'overview' shows coaching landing; 'practice' shows session
   const [viewMode, setViewMode] = useState('overview')
+  // When set, the guided session runs these questions instead of the full set
+  // (used for practicing a single custom question).
+  const [sessionQuestions, setSessionQuestions] = useState(null)
   const profileSectionRef = useRef(null)
 
   // Stage reporting
@@ -613,52 +587,32 @@ export default function InterviewTab({ job, setJob, jobId }) {
     await api.updateJob(jobId, { interview_profile: updated })
   }
 
-  const handleMockSubmit = async () => {
-    const q = showCustom ? customQuestion.trim() : selectedQuestion
-    if (!q || !mockAnswer.trim()) return
-    setSubmitting(true)
-    setFeedback(null)
-    setFeedbackError(null)
-    try {
-      const result = await api.mockInterviewScore(jobId, { question: q, answer: mockAnswer.trim() })
-      setJob(prev => {
-        const prev_profile = prev.interview_profile || {}
-        const newScores = [...(prev_profile.mock_scores || []), result.score]
-        const avg = Math.round((newScores.reduce((a, b) => a + b, 0) / newScores.length) * 10) / 10
-        return {
-          ...prev,
-          interview_profile: {
-            ...prev_profile,
-            mock_attempts: newScores.length,
-            mock_scores: newScores,
-            avg_mock_score: avg,
-          },
-        }
-      })
-      setFeedback(result)
-    } catch (err) {
-      setFeedbackError(err.message)
-    }
-    setSubmitting(false)
-  }
-
   const handleUpdateNotes = async (value) => {
     await api.updateJob(jobId, { interview_notes: value })
   }
 
-  const activeQuestion = showCustom ? customQuestion : selectedQuestion
+  // Custom question practice — runs a one-question guided session
+  const [customQuestion, setCustomQuestion] = useState('')
+  const startCustomPractice = () => {
+    const q = customQuestion.trim()
+    if (!q) return
+    setSessionQuestions([{ stage: 'Custom', question: q }])
+    setViewMode('practice')
+  }
+
+  const practiceQuestions = sessionQuestions || allQuestions
 
   return (
     <div className="it-container">
 
       {/* Practice Session — full-screen guided mode */}
-      {viewMode === 'practice' && allQuestions.length > 0 && (
+      {viewMode === 'practice' && practiceQuestions.length > 0 && (
         <PracticeSession
-          questions={allQuestions}
+          questions={practiceQuestions}
           job={job}
           jobId={jobId}
           setJob={setJob}
-          onExit={() => setViewMode('overview')}
+          onExit={() => { setViewMode('overview'); setSessionQuestions(null); setCustomQuestion('') }}
         />
       )}
 
@@ -846,10 +800,10 @@ export default function InterviewTab({ job, setJob, jobId }) {
         )}
       </div>
 
-      {/* Mock Interview */}
+      {/* Practice — guided sessions, by voice or text */}
       <div className="it-section">
         <div className="it-section-header">
-          <h4 className="it-section-title">Mock Interview</h4>
+          <h4 className="it-section-title">Practice</h4>
           <div className="it-legend">
             <span className="it-badge it-badge--user-report" title="Reported by Job Maker users">User reported</span>
             <span className="it-badge it-badge--observed" title="AI-generated, confirmed by multiple users">Confirmed</span>
@@ -857,119 +811,38 @@ export default function InterviewTab({ job, setJob, jobId }) {
           </div>
         </div>
         <p className="it-section-sub">
-          Most candidates score 4–6. Scoring 7+ requires a specific example with a clear, quantified result.
+          One question at a time, instant feedback — answer by voice or text.
+          Most candidates score 4–6; 7+ needs a specific, quantified example.
         </p>
 
-        <div className="it-mock-question-row">
-          {allQuestions.length > 0 && !showCustom && (
-            <select
-              className="it-mock-select"
-              value={selectedQuestion}
-              onChange={e => { setSelectedQuestion(e.target.value); setFeedback(null) }}
-            >
-              <option value="">Pick a question…</option>
-              {confirmedLibraryQ.length > 0 && (
-                <optgroup label={`Shared Library (${confirmedLibraryQ.length})`}>
-                  {confirmedLibraryQ.map((q, i) => (
-                    <option key={`lib-${i}`} value={q.question}>
-                      {q.frequency > 1 ? `[×${q.frequency}] ` : ''}{q.question}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {filteredProfileQ.length > 0 && (
-                <optgroup label="From Profile">
-                  {filteredProfileQ.map((q, i) => (
-                    <option key={`prof-${i}`} value={q.question}>[{q.stage}] {q.question}</option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-          )}
-          {showCustom && (
-            <input
-              className="it-mock-custom"
-              type="text"
-              placeholder="Type any interview question…"
-              value={customQuestion}
-              onChange={e => { setCustomQuestion(e.target.value); setFeedback(null) }}
-            />
-          )}
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => { setShowCustom(v => !v); setSelectedQuestion(''); setCustomQuestion(''); setFeedback(null) }}
-          >
-            {showCustom ? '← Profile questions' : 'Custom question'}
+        {allQuestions.length > 0 ? (
+          <button className="it-practice-launch" onClick={() => { setSessionQuestions(null); setViewMode('practice') }}>
+            <span className="it-practice-launch-icon"><Play size={18} aria-hidden="true" /></span>
+            <span className="it-practice-launch-body">
+              <span className="it-practice-launch-title">Start practice session</span>
+              <span className="it-practice-launch-sub">
+                {allQuestions.length} question{allQuestions.length !== 1 ? 's' : ''} for {job.company}
+                {readiness.attempts > 0 ? ` · your avg ${readiness.avg}/10` : ''}
+              </span>
+            </span>
+          </button>
+        ) : (
+          <p className="it-section-sub">Build the interview profile above to unlock practice questions for {job.company}.</p>
+        )}
+
+        <div className="it-custom-practice">
+          <input
+            className="it-mock-custom"
+            type="text"
+            placeholder="Or paste any question — e.g. one a recruiter just sent you"
+            value={customQuestion}
+            onChange={e => setCustomQuestion(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') startCustomPractice() }}
+          />
+          <button className="btn btn-secondary btn-sm" onClick={startCustomPractice} disabled={!customQuestion.trim()}>
+            Practice it
           </button>
         </div>
-
-        {activeQuestion && (
-          <div className="it-mock-active-q">Q: {activeQuestion}</div>
-        )}
-
-        <textarea
-          className="it-mock-answer"
-          placeholder="Write your answer. Use a specific example: what the situation was, what you did, and what the result was."
-          value={mockAnswer}
-          onChange={e => setMockAnswer(e.target.value)}
-          rows={6}
-        />
-
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={handleMockSubmit}
-          disabled={submitting || !activeQuestion || !mockAnswer.trim()}
-        >
-          {submitting ? 'Scoring…' : 'Submit Answer'}
-        </button>
-
-        {feedbackError && <div className="rc-error" style={{ marginTop: '0.75rem' }}>{feedbackError}</div>}
-
-        {feedback && (
-          <div className="it-feedback-card">
-            <div className="it-feedback-score-row">
-              <div>
-                <span className="it-feedback-score" style={{
-                  color: feedback.score >= 8 ? 'var(--success)' :
-                         feedback.score >= 6 ? 'var(--warning)' : 'var(--danger)'
-                }}>
-                  {feedback.score}/10
-                </span>
-                <div className="it-feedback-score-label">
-                  {feedback.score >= 8 ? 'Strong' : feedback.score >= 6 ? 'Average' : 'Needs work'}
-                </div>
-              </div>
-              <ScoreBreakdown breakdown={feedback.breakdown} />
-            </div>
-
-            {feedback.what_worked && (
-              <div className="it-feedback-block it-feedback-block--good">
-                <span className="it-feedback-label">What worked</span>
-                <p>{feedback.what_worked}</p>
-              </div>
-            )}
-            {feedback.to_improve && (
-              <div className="it-feedback-block it-feedback-block--warn">
-                <span className="it-feedback-label">Biggest improvement</span>
-                <p>{feedback.to_improve}</p>
-              </div>
-            )}
-            {feedback.stronger_version && (
-              <div className="it-feedback-block it-feedback-block--new">
-                <span className="it-feedback-label">Stronger version (8/10)</span>
-                <p>{feedback.stronger_version}</p>
-              </div>
-            )}
-
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ marginTop: '0.5rem' }}
-              onClick={() => { setFeedback(null); setMockAnswer('') }}
-            >
-              Try another question
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Stage Report */}

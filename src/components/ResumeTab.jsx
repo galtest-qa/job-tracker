@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { Sparkles } from 'lucide-react'
 import { api } from '../api.js'
 import ResumeDiff from './ResumeDiff.jsx'
 import ResumePreview from './ResumePreview.jsx'
+import VoiceInput from './VoiceInput.jsx'
 
 // ── Utility: export to .doc ────────────────────────────────────────────────
 
@@ -156,30 +158,6 @@ function ScoreBar({ current, potential }) {
   )
 }
 
-function OpportunityCard({ opp, active, onImprove }) {
-  const impactColor = opp.impact_score >= 8 ? 'high' : opp.impact_score >= 5 ? 'mid' : 'low'
-  return (
-    <div className={`rc-opportunity-card ${active ? 'rc-opportunity-card--active' : ''}`}>
-      <div className="rc-opportunity-header">
-        <span className="rc-opportunity-title">{opp.title}</span>
-        <span className={`rc-impact-badge rc-impact-badge--${impactColor}`}>
-          {opp.impact_score}/10
-        </span>
-      </div>
-      <p className="rc-opportunity-explanation">{opp.explanation}</p>
-      {opp.target_statement && (
-        <div className="rc-target-statement">❝ {opp.target_statement} ❞</div>
-      )}
-      <button
-        className={`btn btn-sm ${active ? 'btn-ghost' : 'btn-primary'}`}
-        onClick={() => onImprove(opp)}
-      >
-        {active ? 'Coaching open ↓' : 'Improve →'}
-      </button>
-    </div>
-  )
-}
-
 // ── Coaching Session (guided, linear, one improvement at a time) ───────────
 // Replaces the old side-panel. Manages its own walk through all opportunities.
 
@@ -280,19 +258,31 @@ function CoachingSession({ opportunities, baseScore, resumeText, job, jobId, set
           {(opp.questions || []).map((q, i) => (
             <div key={i} className="rc-session-q">
               <label className="rc-session-q-label">{q}</label>
-              <textarea
-                className="rc-session-q-input"
-                rows={2}
-                value={answers[i] || ''}
-                onChange={e => { const a = [...answers]; a[i] = e.target.value; setAnswers(a) }}
-                onKeyDown={e => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !generating) {
-                    e.preventDefault(); handleGenerate()
-                  }
-                }}
-                placeholder="Optional — helps generate a more specific improvement"
-                disabled={generating}
-              />
+              <div className="rc-session-q-inputwrap">
+                <textarea
+                  className="rc-session-q-input"
+                  rows={2}
+                  value={answers[i] || ''}
+                  onChange={e => { const a = [...answers]; a[i] = e.target.value; setAnswers(a) }}
+                  onKeyDown={e => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !generating) {
+                      e.preventDefault(); handleGenerate()
+                    }
+                  }}
+                  placeholder="Optional — speak or type; details make the improvement more specific"
+                  disabled={generating}
+                />
+                <VoiceInput
+                  compact
+                  disabled={generating}
+                  label="Answer by voice"
+                  onTranscript={t => {
+                    const a = [...answers]
+                    a[i] = a[i]?.trim() ? a[i].trimEnd() + ' ' + t : t
+                    setAnswers(a)
+                  }}
+                />
+              </div>
             </div>
           ))}
           <div className="rc-session-actions">
@@ -416,9 +406,6 @@ export default function ResumeTab({ job, setJob, jobId }) {
   const [appliedSuggestions, setAppliedSuggestions] = useState(new Set())
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState(null)
-  const [tailoring, setTailoring] = useState(false)
-  const [tailorError, setTailorError] = useState(null)
-  const [coaching, setCoaching] = useState(null)   // kept for ATS + suggestion flow
   const [sessionMode, setSessionMode] = useState(false)
   const [sessionGain, setSessionGain] = useState(0) // pts earned in last session
   const [tailoredOpen, setTailoredOpen] = useState(false)
@@ -441,7 +428,6 @@ export default function ResumeTab({ job, setJob, jobId }) {
   const handleAnalyze = async () => {
     setAnalyzing(true)
     setAnalyzeError(null)
-    setCoaching(null)
     setSessionMode(false)
     try {
       const updated = await api.analyzeResume(jobId)
@@ -454,89 +440,6 @@ export default function ResumeTab({ job, setJob, jobId }) {
       setAnalyzeError(err.message)
     }
     setAnalyzing(false)
-  }
-
-  // ── Tailor (secondary action) ─────────────────────────────────────────────
-
-  const handleTailor = async () => {
-    setTailoring(true)
-    setTailorError(null)
-    try {
-      const updated = await api.tailorResume(jobId)
-      setJob(updated)
-      if (updated.tailored_resume) {
-        setEditText(updated.tailored_resume)
-        setTailoredOpen(true)
-      }
-    } catch (err) {
-      setTailorError(err.message)
-    }
-    setTailoring(false)
-  }
-
-  // ── Coaching ──────────────────────────────────────────────────────────────
-
-  const openCoaching = (opp) => {
-    setCoaching({
-      opportunity: opp,
-      answers: new Array((opp.questions || []).length).fill(''),
-      generating: false,
-      result: null,
-      applying: false,
-      applied: false,
-      applyFailed: false,
-    })
-    // Scroll coaching panel into view after render
-    setTimeout(() => {
-      document.querySelector('.rc-coaching-panel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }, 50)
-  }
-
-  const handleAnswer = (idx, val) => {
-    setCoaching(prev => {
-      const answers = [...prev.answers]
-      answers[idx] = val
-      return { ...prev, answers }
-    })
-  }
-
-  const handleGenerate = async () => {
-    if (!coaching) return
-    setCoaching(prev => ({ ...prev, generating: true, result: null }))
-    try {
-      const result = await api.coachGenerate(
-        jobId,
-        coaching.opportunity,
-        coaching.opportunity.target_statement,
-        coaching.answers,
-      )
-      setCoaching(prev => ({ ...prev, generating: false, result }))
-    } catch {
-      setCoaching(prev => ({ ...prev, generating: false }))
-    }
-  }
-
-  const handleApplyCoach = async () => {
-    if (!coaching?.result) return
-    const { original, improved } = coaching.result
-    const base = editText || job.tailored_resume || originalResume || ''
-    const { text, matchType } = applyImprovement(base, original, improved)
-
-    if (matchType === 'failed' || !text) {
-      setCoaching(prev => ({ ...prev, applyFailed: true }))
-      return
-    }
-
-    setCoaching(prev => ({ ...prev, applying: true, applyFailed: false }))
-    setEditText(text)
-    try {
-      await api.updateJob(jobId, { tailored_resume: text })
-      setJob(prev => ({ ...prev, tailored_resume: text }))
-      setCoaching(prev => ({ ...prev, applying: false, applied: true }))
-      setTailoredOpen(true)
-    } catch {
-      setCoaching(prev => ({ ...prev, applying: false }))
-    }
   }
 
   // ── Existing edit/apply utilities ─────────────────────────────────────────
@@ -612,7 +515,7 @@ export default function ResumeTab({ job, setJob, jobId }) {
               >
                 {analyzing
                   ? <><span className="rc-spinner" />Analyzing your resume…</>
-                  : '✦ Analyze & Improve'}
+                  : <><Sparkles size={15} aria-hidden="true" /> Analyze &amp; Improve</>}
               </button>
               {!analyzing && (
                 <p className="rc-entry-hint">
@@ -627,14 +530,12 @@ export default function ResumeTab({ job, setJob, jobId }) {
               </button>
               {(editText || job.tailored_resume) && <>
                 <button className="btn btn-ghost btn-sm" onClick={() => setShowPreview(true)}>Preview</button>
-                <button className="btn btn-ghost btn-sm" onClick={handleExport} disabled={exporting}>
-                  {exporting ? 'Exporting…' : 'Export .docx'}
-                </button>
+                <button className="btn btn-ghost btn-sm" onClick={handleExport}>Export .doc</button>
               </>}
             </div>
           )}
-          {(analyzeError || tailorError) && (
-            <p className="rc-entry-error">{analyzeError || tailorError}</p>
+          {analyzeError && (
+            <p className="rc-entry-error">{analyzeError}</p>
           )}
         </div>
       )}
