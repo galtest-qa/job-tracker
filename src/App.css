@@ -6191,3 +6191,50 @@ details[open] .it-stronger-summary::before { content: '▾  '; }
   .it-practice-btns .btn-primary,
   .rc-session-actions .btn-primary { width: 100%; justify-content: center; }
 }
+
+/* ═══════════ Mobile standard pass (audited 2026-07) ═══════════
+   Two rules: no input under 16px (iOS auto-zoom), no target under 44px. */
+@media (max-width: 640px) {
+  /* iOS zoom prevention — any focusable text field must be ≥16px */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Board: filter tabs + reminder chip */
+  .tab, .score-tab, .reminder-chip { min-height: 44px; }
+
+  /* Board: mobile column switcher */
+  .kanban-mobile-arrow { width: 44px; height: 44px; }
+  .kanban-mobile-dot { min-width: 44px; min-height: 44px; }
+
+  /* Today's Focus small controls */
+  .focus-header-btn, .focus-suggestion-dismiss { width: 44px; height: 44px; }
+  .focus-chart-toggle { min-height: 44px; }
+
+  /* Job detail: reminder template chips */
+  .reminder-template-btn { min-height: 44px; }
+
+  /* Find Jobs: platform rail + chat send */
+  .platform-rail-item, .platform-rail-clear { min-height: 44px; }
+  .jsc-send-btn { width: 44px; height: 44px; }
+
+  /* Dismiss buttons */
+  .notif-rec-dismiss { width: 44px; height: 44px; }
+  .modal-header .btn-ghost { min-width: 44px; min-height: 44px; }
+
+  /* Tiny visual controls: keep the visual size, extend the tap area.
+     z-index lifts the extended zone above adjacent inline content. */
+  .nudge-dismiss, .focus-goals-pencil, .pipeline-step { position: relative; z-index: 1; }
+  .nudge-dismiss::after, .focus-goals-pencil::after {
+    content: '';
+    position: absolute;
+    inset: -14px;
+  }
+  .pipeline-step::after {
+    content: '';
+    position: absolute;
+    inset: -15px -2px; /* full-height tap zone; narrow sides so neighbors don't overlap */
+  }
+}
