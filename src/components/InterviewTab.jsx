@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { ChevronDown, Play } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Check, ChevronDown, Lock, Play } from 'lucide-react'
 import { api, normalizeCompanyName } from '../api.js'
 import VoiceInput from './VoiceInput.jsx'
 
@@ -213,73 +213,50 @@ function ChecklistSection({ items, done, onToggle }) {
   )
 }
 
-// ── Coaching-first landing ─────────────────────────────────────────────────
+// ── Readiness chip + checkpoint path ───────────────────────────────────────
 
-function gapItems(readiness, profile) {
-  const gaps = []
-  if (readiness.resumeFit < 20)
-    gaps.push({ text: 'Analyze your resume for this role', pts: 35 - readiness.resumeFit, action: 'resume' })
-  if (readiness.practice < 18)
-    gaps.push({ text: readiness.attempts === 0 ? 'No practice yet — mock answers are worth 40 pts' : 'More practice needed', pts: 40 - readiness.practice, action: 'practice' })
-  if (readiness.prepDone < 10 && (profile?.prep_checklist?.length || 0) > 0) {
-    const undone = (profile.prep_checklist?.length || 0) - (profile.checklist_done?.length || 0)
-    if (undone > 0) gaps.push({ text: `${undone} prep item${undone !== 1 ? 's' : ''} not done`, pts: 15 - readiness.prepDone, action: 'checklist' })
-  }
-  return gaps.sort((a, b) => b.pts - a.pts).slice(0, 3)
-}
-
-function todayFocus(readiness) {
-  if (readiness.attempts === 0)  return { label: 'Practice your first answer', est: '10 min' }
-  if (readiness.attempts < 3)   return { label: 'Complete 3 practice answers', est: '20 min' }
-  if (readiness.prepDone < 5)   return { label: 'Work through your prep checklist', est: '15 min' }
-  if (readiness.avg < 7)        return { label: 'Strengthen weak answers', est: '20 min' }
-  return { label: 'Review company research', est: '10 min' }
-}
-
-function CoachingLanding({ readiness, profile, job, onStartPractice, onScrollTo }) {
-  const canPractice = (profile?.stages?.length > 0 || profile?.role_specific?.role_questions?.length > 0)
-  const focus = todayFocus(readiness)
-  // Surface top gap only — one clear message
-  const topGap = gapItems(readiness, profile)[0] || null
-
+function ReadinessChip({ readiness }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="it-coaching-landing">
-      {/* Readiness bar — compact */}
-      <div className="it-cl-readiness">
-        <div className="it-cl-readiness-top">
-          <span className="it-cl-readiness-label">{readiness.label}</span>
-          <span className="it-cl-readiness-num" style={{ color: readiness.color }}>{readiness.total}</span>
-        </div>
-        <div className="it-readiness-bar-track">
-          <div className="it-readiness-bar-fill" style={{ width: `${readiness.total}%`, background: readiness.color }} />
-        </div>
-      </div>
+    <div className="it-chip-wrap">
+      <button className="it-chip" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+        <span className="it-chip-dot" style={{ background: readiness.color }} aria-hidden="true" />
+        <span className="it-chip-label">{readiness.label}</span>
+        <span className="it-chip-score">{readiness.total}</span>
+        <ChevronDown size={14} className={`it-stage-chevron${open ? ' it-stage-chevron--open' : ''}`} aria-hidden="true" />
+      </button>
+      {open && <ReadinessCard readiness={readiness} />}
+    </div>
+  )
+}
 
-      {/* Today's focus — single clear directive */}
-      <div className="it-cl-focus">
-        <span className="it-cl-focus-eyebrow">Today's focus</span>
-        <p className="it-cl-focus-text">{focus.label}</p>
-        <span className="it-cl-focus-est">{focus.est}</span>
-      </div>
-
-      {/* Top gap — one line only */}
-      {topGap && (
-        <div className="it-cl-top-gap">
-          <span className="it-cl-gap-dot" />
-          <span className="it-cl-gap-text">{topGap.text}</span>
-          <span className="it-cl-gap-pts">+{topGap.pts} pts</span>
-        </div>
-      )}
-
-      <div className="it-cl-actions">
-        {canPractice && (
-          <button className="btn btn-primary" onClick={onStartPractice}>
-            Start today's session →
-          </button>
-        )}
-        <button className="btn btn-ghost btn-sm" onClick={() => onScrollTo('profile')}>
-          Study guide
+// One station on the prep path.
+// state: 'done' | 'current' | 'locked' | 'idle'  ·  variant: 'report' tints it
+function Station({ num, title, sub, state, variant, open, onToggle, children }) {
+  const clickable = state !== 'locked'
+  return (
+    <div className={`it-station it-station--${state}${variant ? ` it-station--${variant}` : ''}${open ? ' it-station--open' : ''}`}>
+      <span className="it-station-rail" aria-hidden="true">
+        <span className="it-station-marker">
+          {state === 'done' ? <Check size={13} strokeWidth={2.6} /> : state === 'locked' ? <Lock size={11} /> : num}
+        </span>
+      </span>
+      <div className="it-station-main">
+        <button
+          className="it-station-header"
+          onClick={clickable ? onToggle : undefined}
+          disabled={!clickable}
+          aria-expanded={open}
+        >
+          <span className="it-station-titles">
+            <span className="it-station-title">{title}</span>
+            {sub && <span className="it-station-sub">{sub}</span>}
+          </span>
+          {clickable && (
+            <ChevronDown size={15} className={`it-stage-chevron${open ? ' it-stage-chevron--open' : ''}`} aria-hidden="true" />
+          )}
         </button>
+        {open && clickable && <div className="it-station-body">{children}</div>}
       </div>
     </div>
   )
@@ -518,12 +495,11 @@ export default function InterviewTab({ job, setJob, jobId }) {
   const [buildError, setBuildError]     = useState(null)
   const [expandedStage, setExpandedStage] = useState(null)
 
-  // View mode: 'overview' shows coaching landing; 'practice' shows session
+  // View mode: 'overview' shows the prep path; 'practice' shows session
   const [viewMode, setViewMode] = useState('overview')
   // When set, the guided session runs these questions instead of the full set
   // (used for practicing a single custom question).
   const [sessionQuestions, setSessionQuestions] = useState(null)
-  const profileSectionRef = useRef(null)
 
   // Stage reporting
   const [showReportForm, setShowReportForm] = useState(false)
@@ -602,6 +578,25 @@ export default function InterviewTab({ job, setJob, jobId }) {
 
   const practiceQuestions = sessionQuestions || allQuestions
 
+  // ── Path state ────────────────────────────────────────────────────────────
+  const s1Done = !!profile
+  const s2Done = readiness.attempts >= 3
+  const checklistTotal = profile?.prep_checklist?.length || 0
+  const checklistDoneCount = profile?.checklist_done?.length || 0
+  const s3Done = checklistTotal > 0 && checklistDoneCount >= checklistTotal
+  const currentStation = !s1Done ? 1 : !s2Done ? 2 : !s3Done ? 3 : 4
+  const s2Locked = !s1Done && allQuestions.length === 0
+  const s3Locked = !s1Done
+
+  // null = follow the current station; 0 = user closed everything
+  const [openStation, setOpenStation] = useState(null)
+  const shownOpen = openStation ?? currentStation
+  const toggleStation = (n) =>
+    setOpenStation(prev => ((prev ?? currentStation) === n ? 0 : n))
+
+  const stationState = (n, done, locked) =>
+    locked ? 'locked' : done ? 'done' : n === currentStation ? 'current' : 'idle'
+
   return (
     <div className="it-container">
 
@@ -619,47 +614,35 @@ export default function InterviewTab({ job, setJob, jobId }) {
       {viewMode === 'overview' && (
       <>
 
-      {/* Coaching-first landing (readiness + gaps + CTA) */}
-      {profile ? (
-        <CoachingLanding
-          readiness={readiness}
-          profile={profile}
-          job={job}
-          onStartPractice={() => setViewMode('practice')}
-          onScrollTo={() => profileSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        />
-      ) : (
-        /* No profile yet — show the raw readiness card */
-        <ReadinessCard readiness={readiness} />
-      )}
+      {/* Readiness — one quiet chip, detail on tap */}
+      <ReadinessChip readiness={readiness} />
 
-      {/* Interview Profile */}
-      <div className="it-section" ref={profileSectionRef}>
-        <div className="it-section-header">
-          <div>
-            <h4 className="it-section-title">Interview Profile</h4>
-            {profile?.from_shared_cache && (
-              <span className="it-cache-note">Company profile shared · Role layer personalized</span>
-            )}
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={handleBuildProfile} disabled={building}>
-            {building ? 'Building…' : profile ? 'Rebuild' : 'Build Profile'}
-          </button>
-        </div>
+      <div className="it-path">
 
+      {/* ① Know the company */}
+      <Station
+        num={1}
+        title="Know the company"
+        sub={s1Done
+          ? `${profile.stages?.length || 0} interview stage${(profile.stages?.length || 0) !== 1 ? 's' : ''} mapped for ${job.company}`
+          : 'Who interviews you, what they ask, what gets offers'}
+        state={stationState(1, s1Done, false)}
+        open={shownOpen === 1}
+        onToggle={() => toggleStation(1)}
+      >
         {buildError && <div className="rc-error">{buildError}</div>}
 
-        {!profile && !building && (
-          <div className="it-empty">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
-            </svg>
-            <p>
-              Build a profile to see interview stages, prep checklist, and what gets candidates
-              rejected at {job.company}. Company profiles are shared across users — if someone
-              already built one, you get it instantly.
+        {!profile && (
+          <>
+            <p className="it-station-explain">
+              Job Maker maps {job.company}'s interview process — stages, real questions,
+              and what gets candidates rejected. If another user already built this
+              company's briefing, you get it instantly.
             </p>
-          </div>
+            <button className="btn btn-primary it-station-cta" onClick={handleBuildProfile} disabled={building}>
+              {building ? 'Building your briefing…' : 'Build company briefing'}
+            </button>
+          </>
         )}
 
         {profile && (
@@ -710,25 +693,6 @@ export default function InterviewTab({ job, setJob, jobId }) {
                     <li key={i}>{p}</li>
                   ))}
                 </ul>
-              </div>
-            )}
-
-            {/* Prep Checklist */}
-            {profile.prep_checklist?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label">
-                  Prep Checklist
-                  {profile.checklist_done?.length > 0 && (
-                    <span className="it-checklist-count">
-                      {profile.checklist_done.length}/{profile.prep_checklist.length} done
-                    </span>
-                  )}
-                </span>
-                <ChecklistSection
-                  items={profile.prep_checklist}
-                  done={profile.checklist_done || []}
-                  onToggle={handleToggleChecklist}
-                />
               </div>
             )}
 
@@ -796,38 +760,52 @@ export default function InterviewTab({ job, setJob, jobId }) {
                 </div>
               </div>
             )}
+
+            <div className="it-station-footer">
+              {profile.from_shared_cache && (
+                <span className="it-cache-note">Company briefing shared · role layer personalized</span>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={handleBuildProfile} disabled={building}>
+                {building ? 'Rebuilding…' : 'Rebuild briefing'}
+              </button>
+            </div>
           </>
         )}
-      </div>
+      </Station>
 
-      {/* Practice — guided sessions, by voice or text */}
-      <div className="it-section">
-        <div className="it-section-header">
-          <h4 className="it-section-title">Practice</h4>
-          <div className="it-legend">
-            <span className="it-badge it-badge--user-report" title="Reported by Job Maker users">User reported</span>
-            <span className="it-badge it-badge--observed" title="AI-generated, confirmed by multiple users">Confirmed</span>
-            <span className="it-badge it-badge--estimated" title="AI suggested, not yet confirmed">AI suggested</span>
-          </div>
-        </div>
-        <p className="it-section-sub">
+      {/* ② Practice */}
+      <Station
+        num={2}
+        title="Practice out loud"
+        sub={s2Locked
+          ? 'Unlocks after the company briefing'
+          : s2Done
+            ? `${readiness.attempts} answers practiced · avg ${readiness.avg}/10`
+            : readiness.attempts > 0
+              ? `${readiness.attempts} of 3 answers done — keep going`
+              : `${allQuestions.length} real question${allQuestions.length !== 1 ? 's' : ''} ready · ~10 min`}
+        state={stationState(2, s2Done, s2Locked)}
+        open={shownOpen === 2}
+        onToggle={() => toggleStation(2)}
+      >
+        <p className="it-station-explain">
           One question at a time, instant feedback — answer by voice or text.
           Most candidates score 4–6; 7+ needs a specific, quantified example.
         </p>
 
-        {allQuestions.length > 0 ? (
+        {allQuestions.length > 0 && (
           <button className="it-practice-launch" onClick={() => { setSessionQuestions(null); setViewMode('practice') }}>
             <span className="it-practice-launch-icon"><Play size={18} aria-hidden="true" /></span>
             <span className="it-practice-launch-body">
-              <span className="it-practice-launch-title">Start practice session</span>
+              <span className="it-practice-launch-title">
+                {readiness.attempts > 0 ? 'Continue practice' : 'Start practice session'}
+              </span>
               <span className="it-practice-launch-sub">
                 {allQuestions.length} question{allQuestions.length !== 1 ? 's' : ''} for {job.company}
                 {readiness.attempts > 0 ? ` · your avg ${readiness.avg}/10` : ''}
               </span>
             </span>
           </button>
-        ) : (
-          <p className="it-section-sub">Build the interview profile above to unlock practice questions for {job.company}.</p>
         )}
 
         <div className="it-custom-practice">
@@ -843,25 +821,51 @@ export default function InterviewTab({ job, setJob, jobId }) {
             Practice it
           </button>
         </div>
-      </div>
 
-      {/* Stage Report */}
-      <div className="it-section">
-        <div className="it-section-header">
-          <div>
-            <h4 className="it-section-title">Report Interview Stage</h4>
-            <span className="it-section-sub">
-              Questions you share improve the library for everyone applying here.
-            </span>
-          </div>
-          {!showReportForm && !reportDone && (
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowReportForm(true)}>
-              + Report Stage
-            </button>
-          )}
+        <div className="it-legend">
+          <span className="it-badge it-badge--user-report" title="Reported by Job Maker users">User reported</span>
+          <span className="it-badge it-badge--observed" title="AI-generated, confirmed by multiple users">Confirmed</span>
+          <span className="it-badge it-badge--estimated" title="AI suggested, not yet confirmed">AI suggested</span>
         </div>
+      </Station>
 
-        {reportDone && (
+      {/* ③ Final prep */}
+      <Station
+        num={3}
+        title="Final prep"
+        sub={s3Locked
+          ? 'Unlocks after the company briefing'
+          : checklistTotal > 0
+            ? `${checklistDoneCount}/${checklistTotal} done`
+            : 'No checklist yet — rebuild the briefing to get one'}
+        state={stationState(3, s3Done, s3Locked)}
+        open={shownOpen === 3}
+        onToggle={() => toggleStation(3)}
+      >
+        {checklistTotal > 0 ? (
+          <ChecklistSection
+            items={profile.prep_checklist}
+            done={profile.checklist_done || []}
+            onToggle={handleToggleChecklist}
+          />
+        ) : (
+          <p className="it-station-explain">
+            The checklist comes with the company briefing — rebuild it in step ① to get one.
+          </p>
+        )}
+      </Station>
+
+      {/* ④ After the interview — visually distinct: this is for a done interview */}
+      <Station
+        num={4}
+        title="After the interview"
+        sub="Had the interview? Report how it went — it sharpens your next prep"
+        state={currentStation === 4 ? 'current' : 'idle'}
+        variant="report"
+        open={shownOpen === 4}
+        onToggle={() => toggleStation(4)}
+      >
+        {reportDone ? (
           <div className="it-report-done">
             Reported — thank you. Questions added to the shared library.
             <button className="btn btn-ghost btn-sm" style={{ marginLeft: '0.75rem' }}
@@ -869,14 +873,22 @@ export default function InterviewTab({ job, setJob, jobId }) {
               Report another
             </button>
           </div>
-        )}
-
-        {showReportForm && !reportDone && (
+        ) : showReportForm ? (
           <StageReportForm
             job={job}
             jobId={jobId}
             onDone={() => { setReportDone(true); setShowReportForm(false) }}
           />
+        ) : (
+          <>
+            <p className="it-station-explain">
+              Log each stage you complete — outcome, duration, and the questions you
+              were asked. Your questions improve the shared library for everyone applying here.
+            </p>
+            <button className="btn btn-primary it-station-cta" onClick={() => setShowReportForm(true)}>
+              Report an interview stage
+            </button>
+          </>
         )}
 
         {libraryQuestions.length > 0 && (
@@ -888,19 +900,20 @@ export default function InterviewTab({ job, setJob, jobId }) {
             )}
           </div>
         )}
-      </div>
 
-      {/* Personal Notes */}
-      <div className="it-section">
-        <h4 className="it-section-title">Your Notes</h4>
-        <textarea
-          className="notes-textarea"
-          value={job.interview_notes || ''}
-          onChange={e => setJob(prev => ({ ...prev, interview_notes: e.target.value }))}
-          onBlur={e => handleUpdateNotes(e.target.value)}
-          placeholder="Contacts, timeline, things to follow up on, your own prep notes…"
-          rows={6}
-        />
+        <div className="it-block" style={{ marginTop: '0.75rem' }}>
+          <span className="it-block-label">Your Notes</span>
+          <textarea
+            className="notes-textarea"
+            value={job.interview_notes || ''}
+            onChange={e => setJob(prev => ({ ...prev, interview_notes: e.target.value }))}
+            onBlur={e => handleUpdateNotes(e.target.value)}
+            placeholder="Contacts, timeline, things to follow up on, your own prep notes…"
+            rows={4}
+          />
+        </div>
+      </Station>
+
       </div>
 
       </> // end overview mode
