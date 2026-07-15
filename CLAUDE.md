@@ -12,6 +12,16 @@ npm start        # Express server only (no Vite)
 
 No test runner is configured. No linting is configured.
 
+## Mobile UI standards (hard requirements)
+
+Every new or changed UI component must meet these at 375px viewport width. They exist because violations were measured in production (audit 2026-07) and cause real iOS breakage:
+
+1. **Text inputs, textareas, and selects must render at ≥16px font-size on mobile.** Anything smaller makes iOS Safari auto-zoom the page on focus. A global rule in `App.css` (`@media (max-width: 640px)`) forces this — do not override it with a smaller size.
+2. **Every tappable element must have a ≥44×44px effective touch area.** If the visual design needs to stay smaller (icon buttons, progress dots), keep the visual size and extend the hit area with `position: relative` + `::after { content:''; position:absolute; inset:-14px; }` (plus `z-index: 1`). Make sure extended zones of adjacent elements don't overlap.
+3. **No horizontal page overflow at 375px.** Wide content scrolls inside its own container, never the page.
+
+When touching UI, verify at 375px — measure with `getBoundingClientRect()`/computed styles rather than eyeballing. The consolidated mobile fixes live at the end of `App.css` under "Mobile standard pass".
+
 ## Architecture
 
 This is a React 18 + Vite SPA deployed to Vercel, backed by Supabase.
