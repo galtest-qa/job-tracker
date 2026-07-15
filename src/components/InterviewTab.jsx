@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Check, ChevronDown, Lock, Play } from 'lucide-react'
+import { Building2, Check, ChevronDown, Lock, MessageSquare, Play, Route, Target } from 'lucide-react'
 import { api, normalizeCompanyName } from '../api.js'
 import VoiceInput from './VoiceInput.jsx'
 
@@ -226,6 +226,22 @@ function ReadinessChip({ readiness }) {
         <ChevronDown size={14} className={`it-stage-chevron${open ? ' it-stage-chevron--open' : ''}`} aria-hidden="true" />
       </button>
       {open && <ReadinessCard readiness={readiness} />}
+    </div>
+  )
+}
+
+// One collapsible group inside the company briefing — keeps station ①
+// scannable: four clear chapters instead of a wall of blocks.
+function BriefingGroup({ icon: Icon, title, count, open, onToggle, children }) {
+  return (
+    <div className={`it-brief${open ? ' it-brief--open' : ''}`}>
+      <button className="it-brief-header" onClick={onToggle} aria-expanded={open}>
+        <span className="it-brief-icon"><Icon size={15} strokeWidth={1.9} aria-hidden="true" /></span>
+        <span className="it-brief-title">{title}</span>
+        {count != null && <span className="it-brief-count">{count}</span>}
+        <ChevronDown size={15} className={`it-stage-chevron${open ? ' it-stage-chevron--open' : ''}`} aria-hidden="true" />
+      </button>
+      {open && <div className="it-brief-body">{children}</div>}
     </div>
   )
 }
@@ -590,6 +606,9 @@ export default function InterviewTab({ job, setJob, jobId }) {
 
   // null = follow the current station; 0 = user closed everything
   const [openStation, setOpenStation] = useState(null)
+  // Which briefing chapter is open inside station ①
+  const [openBrief, setOpenBrief] = useState('process')
+  const toggleBrief = (id) => setOpenBrief(prev => (prev === id ? null : id))
   const shownOpen = openStation ?? currentStation
   const toggleStation = (n) =>
     setOpenStation(prev => ((prev ?? currentStation) === n ? 0 : n))
@@ -647,17 +666,21 @@ export default function InterviewTab({ job, setJob, jobId }) {
 
         {profile && (
           <>
-            {/* Data quality note */}
-            {profile.data_quality_note && (
-              <div className="it-quality-note">
-                <span className="it-quality-icon">◎</span> {profile.data_quality_note}
-              </div>
-            )}
+            {/* Four clear chapters — one open at a time */}
 
-            {/* Stages */}
             {profile.stages?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label">Interview Stages</span>
+              <BriefingGroup
+                icon={Route}
+                title="The process"
+                count={profile.stages.length}
+                open={openBrief === 'process'}
+                onToggle={() => toggleBrief('process')}
+              >
+                {profile.data_quality_note && (
+                  <div className="it-quality-note">
+                    <span className="it-quality-icon">◎</span> {profile.data_quality_note}
+                  </div>
+                )}
                 <div className="it-stages">
                   {profile.stages.map((stage, i) => (
                     <StageCard
@@ -669,96 +692,110 @@ export default function InterviewTab({ job, setJob, jobId }) {
                     />
                   ))}
                 </div>
-              </div>
+              </BriefingGroup>
             )}
 
-            {/* Role-specific questions */}
             {profile.role_specific?.role_questions?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label">Role-Specific Questions <span className="it-block-label--sub">(this role)</span></span>
+              <BriefingGroup
+                icon={MessageSquare}
+                title="Questions for this role"
+                count={profile.role_specific.role_questions.length}
+                open={openBrief === 'questions'}
+                onToggle={() => toggleBrief('questions')}
+              >
                 <ul className="it-stage-questions it-role-questions">
                   {profile.role_specific.role_questions.map((q, i) => (
                     <li key={i} className="it-stage-question">{q}</li>
                   ))}
                 </ul>
-              </div>
+              </BriefingGroup>
             )}
 
-            {/* Talking points from candidate's background */}
-            {profile.role_specific?.talking_points?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label it-block-label--success">Your Strongest Angles</span>
-                <ul className="it-success-list">
-                  {profile.role_specific.talking_points.map((p, i) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              </div>
+            {(profile.role_specific?.talking_points?.length > 0 || profile.role_specific?.potential_concerns?.length > 0) && (
+              <BriefingGroup
+                icon={Target}
+                title="Your game plan"
+                open={openBrief === 'gameplan'}
+                onToggle={() => toggleBrief('gameplan')}
+              >
+                {profile.role_specific?.talking_points?.length > 0 && (
+                  <div className="it-block">
+                    <span className="it-block-label it-block-label--success">Your Strongest Angles</span>
+                    <ul className="it-success-list">
+                      {profile.role_specific.talking_points.map((p, i) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {profile.role_specific?.potential_concerns?.length > 0 && (
+                  <div className="it-block">
+                    <span className="it-block-label it-block-label--warn">Likely Concerns + How to Address</span>
+                    <ul className="it-warning-list it-warning-list--amber">
+                      {profile.role_specific.potential_concerns.map((c, i) => (
+                        <li key={i}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </BriefingGroup>
             )}
 
-            {/* Company Intel */}
-            {profile.company_intel && (
-              <div className="it-block">
-                <span className="it-block-label">
-                  Company Intel
-                  {profile.intel_confidence && (
-                    <span style={{ marginLeft: '0.4rem' }}>
-                      <ConfidenceBadge level={profile.intel_confidence} />
+            {(profile.company_intel || profile.common_mistakes?.length > 0 || profile.success_signals?.length > 0) && (
+              <BriefingGroup
+                icon={Building2}
+                title="Company intel"
+                open={openBrief === 'intel'}
+                onToggle={() => toggleBrief('intel')}
+              >
+                {profile.company_intel && (
+                  <div className="it-block">
+                    <span className="it-block-label">
+                      About {job.company}
+                      {profile.intel_confidence && (
+                        <span style={{ marginLeft: '0.4rem' }}>
+                          <ConfidenceBadge level={profile.intel_confidence} />
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <p className="it-intel-text">{profile.company_intel}</p>
-              </div>
-            )}
-
-            {/* Potential concerns */}
-            {profile.role_specific?.potential_concerns?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label it-block-label--warn">Likely Concerns + How to Address</span>
-                <ul className="it-warning-list it-warning-list--amber">
-                  {profile.role_specific.potential_concerns.map((c, i) => (
-                    <li key={i}>{c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Common Mistakes */}
-            {profile.common_mistakes?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label it-block-label--danger">Common Mistakes</span>
-                <div className="it-mistake-list">
-                  {profile.common_mistakes.map((m, i) => {
-                    const text   = typeof m === 'string' ? m : m.text
-                    const conf   = typeof m === 'object' ? m.confidence : null
-                    return (
-                      <div key={i} className="it-mistake-item">
-                        <span>{text}</span>
-                        {conf && <ConfidenceBadge level={conf} />}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Success Signals */}
-            {profile.success_signals?.length > 0 && (
-              <div className="it-block">
-                <span className="it-block-label it-block-label--success">What Gets Offers</span>
-                <div className="it-success-evidence-list">
-                  {profile.success_signals.map((s, i) => {
-                    const text = typeof s === 'string' ? s : s.text
-                    const conf = typeof s === 'object' ? s.confidence : null
-                    return (
-                      <div key={i} className="it-success-evidence-item">
-                        <span>{text}</span>
-                        {conf && <ConfidenceBadge level={conf} />}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+                    <p className="it-intel-text">{profile.company_intel}</p>
+                  </div>
+                )}
+                {profile.common_mistakes?.length > 0 && (
+                  <div className="it-block">
+                    <span className="it-block-label it-block-label--danger">Common Mistakes</span>
+                    <div className="it-mistake-list">
+                      {profile.common_mistakes.map((m, i) => {
+                        const text   = typeof m === 'string' ? m : m.text
+                        const conf   = typeof m === 'object' ? m.confidence : null
+                        return (
+                          <div key={i} className="it-mistake-item">
+                            <span>{text}</span>
+                            {conf && <ConfidenceBadge level={conf} />}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {profile.success_signals?.length > 0 && (
+                  <div className="it-block">
+                    <span className="it-block-label it-block-label--success">What Gets Offers</span>
+                    <div className="it-success-evidence-list">
+                      {profile.success_signals.map((s, i) => {
+                        const text = typeof s === 'string' ? s : s.text
+                        const conf = typeof s === 'object' ? s.confidence : null
+                        return (
+                          <div key={i} className="it-success-evidence-item">
+                            <span>{text}</span>
+                            {conf && <ConfidenceBadge level={conf} />}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </BriefingGroup>
             )}
 
             <div className="it-station-footer">

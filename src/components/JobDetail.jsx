@@ -35,7 +35,7 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
   const [liveScore, setLiveScore] = useState(null)
   const [hiringEvents, setHiringEvents] = useState([])
   const [emailModal, setEmailModal] = useState(null) // { emailId, event, classification }
-  const touchStartX = useRef(null)
+  const touchStart = useRef(null)
 
   const load = async () => {
     const data = await api.getJob(jobId)
@@ -270,17 +270,21 @@ export default function JobDetail({ jobId, columns = [], initialTab, onBack, onR
 
       <div
         className="detail-content"
-        onTouchStart={e => { touchStartX.current = e.touches[0].clientX }}
+        onTouchStart={e => {
+          touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        }}
         onTouchEnd={e => {
-          if (touchStartX.current === null) return
-          const delta = e.changedTouches[0].clientX - touchStartX.current
+          if (!touchStart.current) return
+          const dx = e.changedTouches[0].clientX - touchStart.current.x
+          const dy = e.changedTouches[0].clientY - touchStart.current.y
+          touchStart.current = null
+          // Only a deliberate swipe switches tabs: long AND decisively
+          // horizontal. Diagonal thumb-scrolls must never change tabs.
+          if (Math.abs(dx) < 100 || Math.abs(dx) < Math.abs(dy) * 2.5) return
           const TABS = ['analysis', 'reminders', 'resume', 'interview', 'description', 'notes']
-          if (Math.abs(delta) > 60) {
-            const idx = TABS.indexOf(activeTab)
-            if (delta < 0 && idx < TABS.length - 1) setActiveTab(TABS[idx + 1])
-            if (delta > 0 && idx > 0) setActiveTab(TABS[idx - 1])
-          }
-          touchStartX.current = null
+          const idx = TABS.indexOf(activeTab)
+          if (dx < 0 && idx < TABS.length - 1) setActiveTab(TABS[idx + 1])
+          if (dx > 0 && idx > 0) setActiveTab(TABS[idx - 1])
         }}
       >
         {/* Cross-tab pending event notice — visible on all tabs except analysis/reminders */}
